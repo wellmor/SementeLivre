@@ -1,0 +1,18 @@
+# Configuração usada SOMENTE pelos testes automatizados.
+#
+# Este arquivo tem o mesmo nome do application.yml de src/main/resources e,
+# como o classpath de teste vem primeiro, ele SUBSTITUI o de produção durante
+# os testes. Com isso o perfil "dev" (que aponta para o PostgreSQL do Docker)
+# não é ativado e a suíte roda sem depender de nenhum banco externo.
+spring:
+  jpa:
+    hibernate:
+      # create-drop: o Hibernate cria as tabelas a partir das entidades no
+      # início do teste e apaga no fim. É justamente isso que valida se o
+      # mapeamento JPA está correto.
+      ddl-auto: create-drop
+    show-sql: true
+  flyway:
+    # Desligado nos testes: quem cria o schema aqui é o Hibernate (acima).
+    # As migrações Flyway continuam valendo para dev/produção.
+    enabled: false
