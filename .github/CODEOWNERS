@@ -1,0 +1,33 @@
+# CODEOWNERS — Semente Livre
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+#
+# Regra: todo PR que altere arquivos em um caminho abaixo
+# precisa de aprovação do(s) owner(s) indicado(s) antes de ser mergeado.
+#
+# IMPORTANTE: Este arquivo só tem efeito quando a branch protection
+# está ativa na branch alvo (developer). Configure em Settings → Branches.
+
+# ──────────────────────────────────────────────
+# Regra padrão: tudo precisa de aprovação da Karla (gestora)
+# ──────────────────────────────────────────────
+*                                       @kfrural
+
+# ──────────────────────────────────────────────
+# Backend — Thales (integração) + Karla (gestão)
+# ──────────────────────────────────────────────
+/backend/                               @ThalesTHM @kfrural
+
+# ──────────────────────────────────────────────
+# Frontend interno — Karla revisa
+# ──────────────────────────────────────────────
+/front-app/                             @kfrural
+
+# ──────────────────────────────────────────────
+# Site público — Thales revisa sozinho
+# ──────────────────────────────────────────────
+/front-site/                            @ThalesTHM
+
+# ──────────────────────────────────────────────
+# Documentação — Thales + Karla revisam
+# ──────────────────────────────────────────────
+/docs/                                  @ThalesTHM @kfrural

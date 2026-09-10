@@ -1,9 +1,14 @@
 package com.sementelivre.backend.exception;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.NoSuchElementException;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -13,46 +18,62 @@ import jakarta.servlet.http.HttpServletRequest;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    @ExceptionHandler(RecursoNaoEncontradoException.class)
-    public ResponseEntity<ErrorResponse> tratarRecursoNaoEncontrado(
-            RecursoNaoEncontradoException ex,
-            HttpServletRequest request) {
+    //trata erro 404 (recurso não encontrado) 
+    @ExceptionHandler({
+        ResourceNotFoundException.class,
+        RecursoNaoEncontradoException.class,
+        NoSuchElementException.class
+})
+    public ResponseEntity<ErrorResponse> handleResourceNotFound(RuntimeException e, HttpServletRequest request){
+        HttpStatus status = HttpStatus.NOT_FOUND;
 
-        ErrorResponse erro = new ErrorResponse(
-                LocalDateTime.now(),
-                HttpStatus.NOT_FOUND.value(),
-                HttpStatus.NOT_FOUND.getReasonPhrase(),
-                ex.getMessage(),
-                request.getRequestURI()
+        ErrorResponse err = new ErrorResponse(
+            "Resource Not Found",
+            e.getMessage(),
+            Instant.now(),
+            status.value(),
+            request.getRequestURI(),
+            null
         );
-
-        return ResponseEntity
-                .status(HttpStatus.NOT_FOUND)
-                .body(erro);
+        return ResponseEntity.status(status).body(err);
     }
 
+    //trata erro 400 (Bean Validation)
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ErrorResponse> tratarValidacao(
-            MethodArgumentNotValidException ex,
-            HttpServletRequest request) {
+    public ResponseEntity<ErrorResponse> handleValidationExceptions(MethodArgumentNotValidException e, HttpServletRequest request) {
+        HttpStatus status = HttpStatus.BAD_REQUEST;
+        
+        //extrai os erros especificos de cada campo do DTO
+        List<String> validationErrors = new ArrayList<>();
+        for (FieldError fieldError : e.getBindingResult().getFieldErrors()) {
+            validationErrors.add(fieldError.getField() + ": " + fieldError.getDefaultMessage());
+        }
 
-        String mensagem = ex.getBindingResult()
-                .getFieldErrors()
-                .stream()
-                .findFirst()
-                .map(erro -> erro.getDefaultMessage())
-                .orElse("Dados inválidos");
-
-        ErrorResponse erro = new ErrorResponse(
-                LocalDateTime.now(),
-                HttpStatus.BAD_REQUEST.value(),
-                HttpStatus.BAD_REQUEST.getReasonPhrase(),
-                mensagem,
-                request.getRequestURI()
+        ErrorResponse err = new ErrorResponse(
+            "Validation Error",
+            "Um ou mais campos estão inválidos",
+            Instant.now(),
+            status.value(),
+            request.getRequestURI(),
+            validationErrors
         );
-
-        return ResponseEntity
-                .status(HttpStatus.BAD_REQUEST)
-                .body(erro);
+        return ResponseEntity.status(status).body(err);
     }
+
+    //trata erro 409 - conflito no bd (ex: email duplicado)
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ErrorResponse> handleDatabaseExceptions(DataIntegrityViolationException e, HttpServletRequest request) {
+        HttpStatus status = HttpStatus.CONFLICT; 
+        
+        ErrorResponse err = new ErrorResponse(
+            "Database Conflict",
+            "Violação de integridade nos dados.",
+            Instant.now(),
+            status.value(),
+            request.getRequestURI(),
+            null
+        );
+        return ResponseEntity.status(status).body(err);
+    }
+
 }
