@@ -21,6 +21,7 @@ public record ProdutoRequestDTO(
 
         String historico,
 
+        @NotBlank(message = "Foto do produto é obrigatória")
         @Size(max = 500, message = "URL da foto deve ter no máximo 500 caracteres")
         String urlFoto,
 

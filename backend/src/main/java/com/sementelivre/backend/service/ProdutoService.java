@@ -16,14 +16,26 @@ import com.sementelivre.backend.exception.RecursoNaoEncontradoException;
 public class ProdutoService {
 
     private final ProdutoRepository produtoRepository;
+    private final ProdutoValidacaoService produtoValidacaoService;
 
-    public ProdutoService(ProdutoRepository produtoRepository) {
-        this.produtoRepository = produtoRepository;
-    }
+   public ProdutoService(
+        ProdutoRepository produtoRepository,
+        ProdutoValidacaoService produtoValidacaoService) {
+
+    this.produtoRepository = produtoRepository;
+    this.produtoValidacaoService = produtoValidacaoService;
+}
 
     // CREATE
     public ProdutoResponseDTO criar(ProdutoRequestDTO dto) {
 
+
+         produtoValidacaoService.validarTipoEspecie(
+            dto.tipo(),
+            dto.especie()
+        );
+
+        
         Produto produto = Produto.builder()
                 .nomePopular(dto.nomePopular())
                 .nomeCientifico(dto.nomeCientifico())
@@ -62,6 +74,11 @@ public class ProdutoService {
 
         Produto produto = buscarEntidadePorId(id);
 
+         produtoValidacaoService.validarTipoEspecie(
+            dto.tipo(),
+            dto.especie()
+    );
+
         produto.setNomePopular(dto.nomePopular());
         produto.setNomeCientifico(dto.nomeCientifico());
         produto.setHistorico(dto.historico());
@@ -72,6 +89,8 @@ public class ProdutoService {
         produto.setFamiliaBotanica(dto.familiaBotanica());
 
         produto.setDataUltimaAlteracao(LocalDateTime.now());
+
+
 
         Produto atualizado = produtoRepository.save(produto);
 
