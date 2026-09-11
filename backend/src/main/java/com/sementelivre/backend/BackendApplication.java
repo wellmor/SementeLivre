@@ -1,4 +1,4 @@
-package com.sementeLivre.backend;
+package com.sementelivre.backend;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;

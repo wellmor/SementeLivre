@@ -2,11 +2,11 @@ package com.sementelivre.backend;
 
 import java.util.UUID;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import com.sementelivre.backend.entity.Comunidade;
 import com.sementelivre.backend.entity.Logradouro;
@@ -16,7 +16,15 @@ import com.sementelivre.backend.entity.enums.StatusComunidade;
 
 
 //Este teste de persistencia busca trabalhar com Comunidade, Logradouro e Propriedade
-@DataJpaTest
+@DataJpaTest(properties = {
+        "spring.flyway.enabled=false",
+        "spring.datasource.url=jdbc:h2:mem:sementelivre_persistencia;MODE=PostgreSQL;DB_CLOSE_DELAY=-1",
+        "spring.datasource.driver-class-name=org.h2.Driver",
+        "spring.datasource.username=sa",
+        "spring.datasource.password=",
+        "spring.jpa.hibernate.ddl-auto=create-drop",
+        "spring.jpa.database-platform=org.hibernate.dialect.H2Dialect"
+})
 public class PersistenciaTest {
 
     @Autowired
