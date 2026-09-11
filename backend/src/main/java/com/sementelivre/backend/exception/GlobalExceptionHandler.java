@@ -19,7 +19,11 @@ import jakarta.servlet.http.HttpServletRequest;
 public class GlobalExceptionHandler {
 
     //trata erro 404 (recurso não encontrado) 
-    @ExceptionHandler({ResourceNotFoundException.class, NoSuchElementException.class})
+    @ExceptionHandler({
+        ResourceNotFoundException.class,
+        RecursoNaoEncontradoException.class,
+        NoSuchElementException.class
+})
     public ResponseEntity<ErrorResponse> handleResourceNotFound(RuntimeException e, HttpServletRequest request){
         HttpStatus status = HttpStatus.NOT_FOUND;
 
