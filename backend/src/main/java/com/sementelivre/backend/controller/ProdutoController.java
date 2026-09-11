@@ -11,10 +11,13 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.sementelivre.backend.dto.ProdutoRequestDTO;
 import com.sementelivre.backend.dto.ProdutoResponseDTO;
+import com.sementelivre.backend.service.FotoProdutoService;
 import com.sementelivre.backend.service.ProdutoService;
 
 import jakarta.validation.Valid;
@@ -24,10 +27,15 @@ import jakarta.validation.Valid;
 public class ProdutoController {
 
     private final ProdutoService produtoService;
+    private final FotoProdutoService fotoProdutoService;
 
-    public ProdutoController(ProdutoService produtoService) {
-        this.produtoService = produtoService;
-    }
+    public ProdutoController(
+        ProdutoService produtoService,
+        FotoProdutoService fotoProdutoService) {
+
+    this.produtoService = produtoService;
+    this.fotoProdutoService = fotoProdutoService;
+}
 
     // CREATE
     @PostMapping
@@ -76,5 +84,14 @@ public class ProdutoController {
         produtoService.excluir(id);
 
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/upload-foto")
+    public ResponseEntity<String> uploadFoto(
+        @RequestParam("foto") MultipartFile foto) {
+
+        String url = fotoProdutoService.salvar(foto);
+
+        return ResponseEntity.ok(url);
     }
 }

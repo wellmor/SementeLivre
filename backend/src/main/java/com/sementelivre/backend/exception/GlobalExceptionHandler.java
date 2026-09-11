@@ -76,4 +76,42 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(status).body(err);
     }
 
+    @ExceptionHandler(UploadFotoException.class)
+    public ResponseEntity<ErrorResponse> handleUploadFotoException(
+        UploadFotoException ex,
+        HttpServletRequest request) {
+
+        ErrorResponse erro = new ErrorResponse(
+            "Erro no upload da foto",
+            ex.getMessage(),
+            Instant.now(),
+            HttpStatus.BAD_REQUEST.value(),
+            request.getRequestURI(),
+            null
+        );
+
+        return ResponseEntity
+            .status(HttpStatus.BAD_REQUEST)
+            .body(erro);
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ErrorResponse> handleIllegalArgumentException(
+        IllegalArgumentException ex,
+        HttpServletRequest request) {
+
+    ErrorResponse erro = new ErrorResponse(
+            "Requisição inválida",
+            ex.getMessage(),
+            Instant.now(),
+            HttpStatus.BAD_REQUEST.value(),
+            request.getRequestURI(),
+            null
+    );
+
+    return ResponseEntity
+            .status(HttpStatus.BAD_REQUEST)
+            .body(erro);
+    }
+
 }
