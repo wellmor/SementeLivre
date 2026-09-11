@@ -68,6 +68,23 @@ As migrações do banco de dados (criação e alteração de tabelas) são geren
 
 A migração base do projeto é o arquivo `V1__init.sql`. Ao iniciar o Spring Boot, o Flyway detecta automaticamente novos arquivos nesse diretório e os executa no PostgreSQL na ordem correta.
 
+### Fluxo de Migrações
+O desenvolvimento de novas migrações deve seguir a nomenclatura sequencial, utilizando sub-versões para evitar conflitos em branches paralelas (ex: `V1_1__...`, `V1_2__...`). O escopo base do sistema (Fase 1) foi organizado em:
+- **Schema:** Tabelas, constraints, enums e triggers de auditoria.
+- **Otimização:** Indexação de chaves estrangeiras e colunas de busca frequente.
+- **Seeders:** Dados mínimos iniciais (Admin, Comunidade e Produtos) para ambiente de homologação e testes.
+
+### Idempotência e Testes
+A execução das migrações é nativamente idempotente. O Flyway gerencia o controle de estado através da tabela `flyway_schema_history`, garantindo que um script rodado com sucesso não seja executado novamente.
+Para garantir a integridade do schema, o projeto conta com **TestContainers**. Durante as execuções de testes, o framework provisiona uma instância limpa e descartável do PostgreSQL e executa todas as migrações do zero (Clean Run), atestando a validade dos scripts de forma isolada.
+
+### Política de Rollback
+Na versão Community do Flyway utilizada no projeto, rollbacks automatizados (scripts `U__`) não são suportados nativamente. Em caso de falha crítica durante o desenvolvimento local (ex: erro de *Checksum* por alteração de script antigo ou falha sintática estrutural), a política de rollback consiste em:
+1. Conectar ao banco de dados local via CLI (`psql`) ou SGBD (DBeaver).
+2. Limpar o schema atual: `DROP SCHEMA public CASCADE; CREATE SCHEMA public;`
+3. Corrigir o arquivo `V__` que gerou o conflito.
+4. Reiniciar a aplicação (`./mvnw spring-boot:run`) para recriar todo o estado limpo do banco a partir dos scripts originais.
+
 ## 8. Como verificar se está funcionando
 
 - **Docker:** Para garantir que o banco subiu, execute `docker ps` e procure pelo container `semente_livre_db`.
