@@ -2,6 +2,75 @@
 
 Esta pasta demonstra a criação de uma API em Spring Boot containerizada e integrada com PostgreSQL, utilizando Flyway para controle de versão do banco de dados.
 
+---
+
+## Documentação da API (Swagger / OpenAPI)
+
+Com a aplicação rodando, acesse:
+
+- **Swagger UI:** http://localhost:8080/swagger-ui.html
+- **JSON da especificação OpenAPI:** http://localhost:8080/v3/api-docs
+
+## Testes
+
+### Testes unitários e de repositório (H2, rápidos)
+
+```bash
+./mvnw test
+```
+
+### Teste de integração com TestContainers (PostgreSQL real em Docker)
+
+Exige Docker instalado e rodando na máquina.
+
+```bash
+./mvnw test -Dtest=PostgresIntegrationTest
+```
+
+Esse teste sobe um container `postgres:15-alpine`, roda as migrations do Flyway
+normalmente e valida a conexão com uma query simples.
+
+### Rodar tudo (o que o CI executa)
+
+```bash
+./mvnw clean verify
+```
+
+## CI/CD
+
+Todo push ou Pull Request para `main` ou `developer` que altere a pasta
+`estudo-spring-docker/demo/` dispara automaticamente o workflow
+`.github/workflows/ci.yml`, que builda o projeto com Java 17 e roda toda a
+suíte de testes (unitários + integração com TestContainers).
+
+## Como rodar localmente
+
+```bash
+# 1. Subir o Postgres (usuário/senha/porta definidos no docker-compose.yml)
+docker compose up -d db
+
+# 2. Definir as credenciais do datasource (Windows PowerShell)
+$env:SPRING_DATASOURCE_URL="jdbc:postgresql://localhost:5433/estudodb"
+$env:SPRING_DATASOURCE_USERNAME="admin"
+$env:SPRING_DATASOURCE_PASSWORD="adminpassword"
+
+# Linux/macOS (bash)
+export SPRING_DATASOURCE_URL="jdbc:postgresql://localhost:5433/estudodb"
+export SPRING_DATASOURCE_USERNAME="admin"
+export SPRING_DATASOURCE_PASSWORD="adminpassword"
+
+# 3. Rodar a aplicação
+./mvnw spring-boot:run
+
+# 4. Abrir no navegador
+http://localhost:8080/swagger-ui.html
+```
+
+> **Nota:** essas variáveis precisam estar setadas na mesma sessão de terminal antes
+do `spring-boot:run`. Se você já rodou testes com TestContainers na mesma sessão,
+use um terminal novo ou limpe as variáveis antes (`Remove-Item Env:\SPRING_DATASOURCE_URL`
+etc.) para não interferir nos testes que usam H2.
+
 ## Cheatsheet de Estudo
 
 ### Docker: Containers vs VMs

@@ -186,14 +186,14 @@ git push origin --delete dev1
 |------|--------|-------|
 | **Karla** | [@kfrural](https://github.com/kfrural) | Líder de Gestão — revisa tudo |
 | **Thales** | [@ThalesTHM](https://github.com/ThalesTHM) | Líder de Integração — revisa backend e front-site |
-| Dev 1 | — | Desenvolvimento |
-| Dev 2 | — | Desenvolvimento |
-| Dev 3 | — | Desenvolvimento |
-| Dev 4 | — | Desenvolvimento |
-| Dev 5 | — | Desenvolvimento |
-| Dev 6 | — | Desenvolvimento |
-| Dev 7 | — | Desenvolvimento |
-| Dev 8 | — | Desenvolvimento |
+| Dev 1 | [@mylenaantonelli](https://github.com/mylenaantonelli)  | Desenvolvimento |
+| Dev 2 | [@victorlak](https://github.com/victorlak)  | Desenvolvimento |
+| Dev 3 | [@IgorXF](https://github.com/IgorXF)  | Desenvolvimento |
+| Dev 4 | [@PhenriqET](https://github.com/PhenriqET)  | Desenvolvimento |
+| Dev 5 | [@wes23dev](https://github.com/wes23dev)  | Desenvolvimento |
+| Dev 6 | [@joaocarlosms](https://github.com/joaocarlosms)  | Desenvolvimento |
+| Dev 7 | [@WlBrito](https://github.com/WlBrito)  | Desenvolvimento |
+| Dev 8 | [@otFaria](https://github.com/otFaria)  | Desenvolvimento |
 
 > Preencher os usernames do GitHub de cada dev conforme forem sendo mapeados.
 

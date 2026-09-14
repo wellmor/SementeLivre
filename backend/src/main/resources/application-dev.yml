@@ -1,0 +1,11 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5433/devdb
+    username: devuser
+    password: devpassword
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+  flyway: 
+    enabled: true

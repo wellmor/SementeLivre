@@ -1,0 +1,11 @@
+C:\Users\USUARIO\Documents\EstudoSpring\src\main\java\com\estudo\auth\AuthApplication.java
+C:\Users\USUARIO\Documents\EstudoSpring\src\main\java\com\estudo\auth\model\Usuario.java
+C:\Users\USUARIO\Documents\EstudoSpring\src\main\java\com\estudo\auth\service\JwtService.java
+C:\Users\USUARIO\Documents\EstudoSpring\src\main\java\com\estudo\auth\dto\LoginRequest.java
+C:\Users\USUARIO\Documents\EstudoSpring\src\main\java\com\estudo\auth\dto\LoginResponse.java
+C:\Users\USUARIO\Documents\EstudoSpring\src\main\java\com\estudo\auth\config\SecurityConfig.java
+C:\Users\USUARIO\Documents\EstudoSpring\src\main\java\com\estudo\auth\repository\UsuarioRepository.java
+C:\Users\USUARIO\Documents\EstudoSpring\src\main\java\com\estudo\auth\dto\CadastroRequest.java
+C:\Users\USUARIO\Documents\EstudoSpring\src\main\java\com\estudo\auth\filter\JwtAuthenticationFilter.java
+C:\Users\USUARIO\Documents\EstudoSpring\src\main\java\com\estudo\auth\service\UsuarioService.java
+C:\Users\USUARIO\Documents\EstudoSpring\src\main\java\com\estudo\auth\controller\AuthController.java

@@ -1,0 +1,15 @@
+# README local do protótipo (não versionado)
+/README.md
+
+# Build do Maven
+target/
+*.class
+
+# Arquivos gerados pelo Main
+relatorio-produtos.pdf
+relatorio-produtos.csv
+
+# IDEs
+.idea/
+*.iml
+.vscode/

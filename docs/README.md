@@ -52,6 +52,7 @@ docs/
 |---|---|
 | [Cronograma-Backend-Sprint.md](cronograma/Cronograma-Backend-Sprint.md) | Cronograma completo de 9 semanas: estrutura da equipe, fases, riscos, DoD e Gantt simplificado |
 | [Fase0-Preparacao.md](cronograma/Fase0-Preparacao.md) | Detalhamento da Fase 0 (Semana 0) — estudos técnicos, setup de ambiente e infraestrutura de testes |
+| [Fase1-Fundacao.md](cronograma/Fase1-Fundacao.md) | Detalhamento da Fase 1 (Semanas 1–2) — infraestrutura do projeto, mapeamento JPA e CRUDs básicos |
 
 ---
 
