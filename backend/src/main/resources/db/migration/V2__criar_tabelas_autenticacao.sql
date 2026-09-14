@@ -9,20 +9,11 @@ CREATE TABLE role_t (
 -- Inserir os perfis padrão do sistema
 INSERT INTO role_t (nome) VALUES ('ROLE_ADMIN'), ('ROLE_USUARIO'), ('ROLE_PROPRIETARIO');
 
--- 2. Tabela de Usuários
-CREATE TABLE usuario_t (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    nome VARCHAR(100) NOT NULL,
-    email VARCHAR(150) NOT NULL UNIQUE,
-    senha VARCHAR(255) NOT NULL,
-    ativo BOOLEAN NOT NULL DEFAULT TRUE,
-    data_criacao TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
 
 -- 3. Tabela de Junção Usuário <-> Role
 CREATE TABLE usuario_role_t (
-    usuario_id UUID NOT NULL REFERENCES usuario_t(id) ON DELETE CASCADE,
-    role_id UUID NOT NULL REFERENCES role_t(id) ON DELETE CASCADE,
+    usuario_id UUID NOT NULL REFERENCES usuario_t(pessoa_id) ON DELETE RESTRICT,
+    role_id UUID NOT NULL REFERENCES role_t(id) ON DELETE RESTRICT,
     PRIMARY KEY (usuario_id, role_id)
 );
 
@@ -30,7 +21,7 @@ CREATE TABLE usuario_role_t (
 CREATE TABLE refresh_token_t (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     token VARCHAR(255) NOT NULL UNIQUE,
-    usuario_id UUID NOT NULL REFERENCES usuario_t(id) ON DELETE CASCADE,
+    usuario_id UUID NOT NULL REFERENCES usuario_t(pessoa_id) ON DELETE RESTRICT,
     data_expiracao TIMESTAMP WITH TIME ZONE NOT NULL,
     revogado BOOLEAN NOT NULL DEFAULT FALSE
 );
@@ -39,7 +30,7 @@ CREATE TABLE refresh_token_t (
 CREATE TABLE token_recuperacao_senha_t (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     token VARCHAR(255) NOT NULL UNIQUE,
-    usuario_id UUID NOT NULL REFERENCES usuario_t(id) ON DELETE CASCADE,
+    usuario_id UUID NOT NULL REFERENCES usuario_t(pessoa_id) ON DELETE RESTRICT,
     data_expiracao TIMESTAMP WITH TIME ZONE NOT NULL,
     usado BOOLEAN NOT NULL DEFAULT FALSE
 );
