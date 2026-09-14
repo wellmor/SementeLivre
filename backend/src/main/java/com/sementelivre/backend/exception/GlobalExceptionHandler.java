@@ -114,4 +114,23 @@ public class GlobalExceptionHandler {
             .body(erro);
     }
 
+    //trata erro 409 - regras de negocio do pedido (estoque/ciclo de vida) - #67
+    @ExceptionHandler({
+        EstoqueInsuficienteException.class,
+        TransicaoStatusInvalidaException.class
+})
+    public ResponseEntity<ErrorResponse> handleRegraDeNegocioPedido(RuntimeException e, HttpServletRequest request) {
+        HttpStatus status = HttpStatus.CONFLICT;
+
+        ErrorResponse err = new ErrorResponse(
+            "Regra de negócio violada",
+            e.getMessage(),
+            Instant.now(),
+            status.value(),
+            request.getRequestURI(),
+            null
+        );
+        return ResponseEntity.status(status).body(err);
+    }
+
 }
