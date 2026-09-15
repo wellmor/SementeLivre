@@ -24,7 +24,7 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(body, HttpStatus.CONFLICT);
     }
 
-    @ExceptionHandler(PessoaNaoEncontradaException.class)
+    @ExceptionHandler({PessoaNaoEncontradaException.class, PedidoNaoEncontradoException.class})
     public ResponseEntity<Object> handleNotFound(RuntimeException ex) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("timestamp", LocalDateTime.now());
@@ -48,6 +48,17 @@ public class GlobalExceptionHandler {
         
         body.put("message", "Validation failed");
         body.put("errors", errors);
+
+        return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(PedidoInvalidoException.class)
+    public ResponseEntity<Object> handleBadRequest(RuntimeException ex) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("timestamp", LocalDateTime.now());
+        body.put("status", HttpStatus.BAD_REQUEST.value());
+        body.put("error", "Bad Request");
+        body.put("message", ex.getMessage());
 
         return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
     }

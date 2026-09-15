@@ -68,6 +68,23 @@ As migrações do banco de dados (criação e alteração de tabelas) são geren
 
 A migração base do projeto é o arquivo `V1__init.sql`. Ao iniciar o Spring Boot, o Flyway detecta automaticamente novos arquivos nesse diretório e os executa no PostgreSQL na ordem correta.
 
+### Fluxo de Migrações
+O desenvolvimento de novas migrações deve seguir a nomenclatura sequencial, utilizando sub-versões para evitar conflitos em branches paralelas (ex: `V1_1__...`, `V1_2__...`). O escopo base do sistema (Fase 1) foi organizado em:
+- **Schema:** Tabelas, constraints, enums e triggers de auditoria.
+- **Otimização:** Indexação de chaves estrangeiras e colunas de busca frequente.
+- **Seeders:** Dados mínimos iniciais (Admin, Comunidade e Produtos) para ambiente de homologação e testes.
+
+### Idempotência e Testes
+A execução das migrações é nativamente idempotente. O Flyway gerencia o controle de estado através da tabela `flyway_schema_history`, garantindo que um script rodado com sucesso não seja executado novamente.
+Para garantir a integridade do schema, o projeto conta com **TestContainers**. Durante as execuções de testes, o framework provisiona uma instância limpa e descartável do PostgreSQL e executa todas as migrações do zero (Clean Run), atestando a validade dos scripts de forma isolada.
+
+### Política de Rollback
+Na versão Community do Flyway utilizada no projeto, rollbacks automatizados (scripts `U__`) não são suportados nativamente. Em caso de falha crítica durante o desenvolvimento local (ex: erro de *Checksum* por alteração de script antigo ou falha sintática estrutural), a política de rollback consiste em:
+1. Conectar ao banco de dados local via CLI (`psql`) ou SGBD (DBeaver).
+2. Limpar o schema atual: `DROP SCHEMA public CASCADE; CREATE SCHEMA public;`
+3. Corrigir o arquivo `V__` que gerou o conflito.
+4. Reiniciar a aplicação (`./mvnw spring-boot:run`) para recriar todo o estado limpo do banco a partir dos scripts originais.
+
 ## 8. Como verificar se está funcionando
 
 - **Docker:** Para garantir que o banco subiu, execute `docker ps` e procure pelo container `semente_livre_db`.
@@ -99,3 +116,67 @@ backend/
 ├── pom.xml                      # Dependências do projeto
 └── README.md                    # Documentação do projeto
 ```
+
+## 10. Arquitetura de Pacotes (Backend)
+Todo o código-fonte fica sob o pacote base `com.sementelivre.backend` (sempre em
+minúsculo, seguindo a convenção Java). Cada camada tem uma responsabilidade única
+e um `package-info.java` documentando seu propósito.
+
+```text
+com.sementelivre.backend
+├── config/         # Beans do Spring, CORS, OpenAPI/Swagger (@Configuration)
+├── controller/     # Endpoints REST (@RestController). Sem regra de negócio
+├── dto/            # Objetos de transferência (entrada/saída da API)
+├── entity/         # Entidades JPA (@Entity)
+│   └── enums/      # Enums de domínio (ex: StatusComunidade)
+├── exception/      # Exceções de negócio + GlobalExceptionHandler
+├── repository/     # Acesso a dados (Spring Data JPA)
+├── security/       # Autenticação, autorização, filtros e encoder de senha
+├── service/        # Regra de negócio (@Service)
+└── util/           # Utilitários transversais sem estado
+```
+
+### Convenções de nomenclatura
+Aplicadas de forma idêntica em todos os domínios:
+
+| Camada        | Sufixo / padrão                    | Exemplo                        |
+|---------------|------------------------------------|--------------------------------|
+| Entidade      | Nome do domínio (singular)         | `Comunidade`                   |
+| Tabela        | `snake_case` + sufixo `_t`         | `comunidade_t`                 |
+| DTO           | `<Dominio>DTO`                     | `ComunidadeDTO`                |
+| DTO entrada   | `<Dominio>RequestDTO`              | `UsuarioRequestDTO`            |
+| DTO saída     | `<Dominio>ResponseDTO`            | `UsuarioResponseDTO`           |
+| Repository    | `<Dominio>Repository`              | `ComunidadeRepository`         |
+| Service       | `<Dominio>Service`                 | `ComunidadeService`            |
+| Controller    | `<Dominio>Controller`              | `ComunidadeController`         |
+| Enum          | Nome descritivo (em `entity.enums`)| `StatusComunidade`             |
+| Exceção       | `<Motivo>Exception`                | `ResourceNotFoundException`    |
+
+- Pacotes: sempre minúsculo (`com.sementelivre.backend`).
+- Classes: `PascalCase`. Métodos e atributos: `camelCase`.
+- Endpoints REST: substantivo no plural (`/comunidades`, `/propriedades`).
+
+### Interfaces base para CRUD
+Para manter os domínios uniformes, existem dois contratos base:
+
+- **`repository.BaseRepository<T, ID>`** — estende `JpaRepository` e é anotado com
+  `@NoRepositoryBean`. Os repositórios concretos estendem esta interface em vez de
+  `JpaRepository` diretamente, centralizando futuros métodos comuns.
+
+  ```java
+  public interface ComunidadeRepository extends BaseRepository<Comunidade, UUID> { }
+  ```
+
+- **`service.CrudService<REQ, RES, ID>`** — contrato comum das operações de CRUD,
+  separando o DTO de entrada (`REQ`) do DTO de saída (`RES`).
+
+  ```java
+  @Service
+  public class ComunidadeService
+          implements CrudService<ComunidadeDTO, ComunidadeDTO, UUID> {
+      // criar, buscarPorId, listar, atualizar, deletar
+  }
+  ```
+
+> Não há um controller base: os `@RestController` variam demais em rotas, códigos
+> de status e documentação OpenAPI para uma superclasse comum agregar valor.
