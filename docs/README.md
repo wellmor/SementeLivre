@@ -53,6 +53,9 @@ docs/
 | [Cronograma-Backend-Sprint.md](cronograma/Cronograma-Backend-Sprint.md) | Cronograma completo de 9 semanas: estrutura da equipe, fases, riscos, DoD e Gantt simplificado |
 | [Fase0-Preparacao.md](cronograma/Fase0-Preparacao.md) | Detalhamento da Fase 0 (Semana 0) — estudos técnicos, setup de ambiente e infraestrutura de testes |
 | [Fase1-Fundacao.md](cronograma/Fase1-Fundacao.md) | Detalhamento da Fase 1 (Semanas 1–2) — infraestrutura do projeto, mapeamento JPA e CRUDs básicos |
+| [Fase2-Negocio.md](cronograma/Fase2-Negocio.md) | Detalhamento da Fase 2 (Semanas 3–4) — lógica de negócio, validações e autenticação JWT |
+| [Fase3-Integracao.md](cronograma/Fase3-Integracao.md) | Detalhamento da Fase 3 (Semanas 5–6) — integração frontend-backend, relatórios e testes cross-domain |
+| [Fase4-Qualidade-Deploy.md](cronograma/Fase4-Qualidade-Deploy.md) | Detalhamento da Fase 4 (Semanas 7–8) — qualidade, correção de bugs, testes de carga e deploy final |
 
 ---
 
