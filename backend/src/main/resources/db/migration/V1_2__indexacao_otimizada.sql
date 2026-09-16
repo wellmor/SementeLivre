@@ -1,0 +1,27 @@
+--índices para colunas de FK e colunas mais consultadas
+CREATE INDEX idx_pessoa_logradouro ON pessoa_t(logradouro_id);
+CREATE INDEX idx_proprietario_rg ON proprietario_t(rg);
+CREATE INDEX idx_comunidade_status ON comunidade_t(status);
+CREATE INDEX idx_comunidade_nome ON comunidade_t(nome);
+CREATE INDEX idx_propriedade_proprietario ON propriedade_t(proprietario_id);
+CREATE INDEX idx_propriedade_comunidade ON propriedade_t(comunidade_id);
+CREATE INDEX idx_produto_tipo ON produto_t(tipo);
+CREATE INDEX idx_produto_especie ON produto_t(especie);
+CREATE INDEX idx_produto_nome_popular ON produto_t(nome_popular);
+CREATE INDEX idx_produto_comunidade_origem ON produto_t(comunidade_origem_id);
+CREATE INDEX idx_estoque_proprietario ON estoque_t(proprietario_id);
+CREATE INDEX idx_estoque_produto ON estoque_t(produto_id);
+CREATE INDEX idx_estoque_disponibilidade ON estoque_t(disponibilidade);
+CREATE INDEX idx_pedido_solicitante ON pedido_t(usuario_solicitante_id);
+CREATE INDEX idx_pedido_recebedor ON pedido_t(proprietario_recebedor_id);
+CREATE INDEX idx_pedido_status ON pedido_t(status);
+CREATE INDEX idx_pedido_data ON pedido_t(data_pedido);
+CREATE INDEX idx_itens_pedido_pedido ON itens_pedido_t(pedido_id);
+CREATE INDEX idx_itens_pedido_produto ON itens_pedido_t(produto_id);
+CREATE INDEX idx_notificacao_proprietario ON notificacao_t(proprietario_id);
+CREATE INDEX idx_notificacao_lida ON notificacao_t(lida);
+CREATE INDEX idx_notificacao_proprietario_lida ON notificacao_t(proprietario_id, lida);
+CREATE INDEX idx_relatorio_proprietario ON relatorio_t(proprietario_id);
+CREATE INDEX idx_relatorio_tipo ON relatorio_t(tipo);
+CREATE INDEX idx_solicitacao_status ON solicitacao_cadastro_t(status);
+CREATE INDEX idx_conta_produtor_comunidade ON conta_produtor_t(comunidade_id);

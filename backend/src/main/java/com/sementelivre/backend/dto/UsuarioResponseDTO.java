@@ -1,9 +1,21 @@
 package com.sementelivre.backend.dto;
 
-import com.sementelivre.backend.entity.enums.TipoDocumento;
-import java.time.LocalDateTime;
-import java.util.UUID;
+import com.sementelivre.backend.entity.Usuario;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
+import java.util.Set;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class UsuarioResponseDTO {
 
     private UUID id;

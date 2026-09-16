@@ -9,3 +9,10 @@ spring:
     show-sql: true
   flyway: 
     enabled: true
+logging:
+  level:
+    root: INFO
+    com.sementelivre.backend: DEBUG
+    org.springframework.security: DEBUG
+    org.springframework.web: INFO
+    
