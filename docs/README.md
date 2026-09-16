@@ -13,6 +13,8 @@ docs/
 ├── diagramas/         # Diagramas UML (classes, sequência, implantação, DAO)
 ├── cronograma/        # Cronograma de sprints e plano da Fase 0
 ├── gestao/            # Guias de configuração e gestão (GitHub Projects)
+├── wiki/              # Documentação completa e contínua do sistema
+├── Justificativa-Escolha-Tecnologias.md  # Justificativas (PWA/Spring) e quadro comparativo
 └── README.md          # Este índice
 ```
 
@@ -64,6 +66,20 @@ docs/
 | Arquivo | Descrição |
 |---|---|
 | [Guia-GitHub-Projects.md](gestao/Guia-GitHub-Projects.md) | Guia passo a passo de configuração do GitHub Projects: milestones, cards e organização do Kanban |
+
+---
+
+## 6. Justificativa Tecnológica
+
+| Arquivo | Descrição |
+|---|---|
+| [Justificativa-Escolha-Tecnologias.md](Justificativa-Escolha-Tecnologias.md) | Parágrafo de justificativa da adoção de PWA e Java Spring Boot + quadros comparativos de frontend e backend (React, Node, ASP.NET, Python, Next.js, etc.) |
+
+---
+
+## 7. Wiki do Sistema
+
+A documentação completa e contínua do sistema está na pasta [`wiki/`](wiki/README.md), com visão geral, requisitos, arquitetura, modelo de dados, API, frontends, segurança, guia de desenvolvimento, infraestrutura, gestão e equipe.
 
 ---
 
