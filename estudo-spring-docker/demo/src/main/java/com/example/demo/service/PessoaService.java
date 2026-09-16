@@ -1,70 +1,79 @@
 package com.example.demo.service;
 
-import com.example.demo.dto.PessoaCreateDTO;
-import com.example.demo.exception.DocumentoJaCadastradoException;
-import com.example.demo.exception.EmailJaCadastradoException;
+import com.example.demo.dto.LogradouroDTO;
+import com.example.demo.dto.PessoaUpdateRequestDTO;
 import com.example.demo.exception.PessoaNaoEncontradaException;
-import com.example.demo.model.Admin;
-import com.example.demo.model.NivelAcesso;
+import com.example.demo.exception.EmailJaCadastradoException;
+import com.example.demo.model.Logradouro;
 import com.example.demo.model.Pessoa;
-import com.example.demo.model.Proprietario;
-import com.example.demo.model.Usuario;
+import com.example.demo.repository.LogradouroRepository;
 import com.example.demo.repository.PessoaRepository;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
 import java.util.UUID;
 
 @Service
 public class PessoaService {
 
     private final PessoaRepository pessoaRepository;
-    private final PasswordEncoder passwordEncoder;
+    private final LogradouroRepository logradouroRepository;
 
-    public PessoaService(PessoaRepository pessoaRepository, PasswordEncoder passwordEncoder) {
+    public PessoaService(PessoaRepository pessoaRepository, LogradouroRepository logradouroRepository) {
         this.pessoaRepository = pessoaRepository;
-        this.passwordEncoder = passwordEncoder;
+        this.logradouroRepository = logradouroRepository;
     }
 
-    @Transactional
-    public Pessoa criar(PessoaCreateDTO dto) {
-        if (pessoaRepository.existsByEmail(dto.getEmail())) {
-            throw new EmailJaCadastradoException("Email já cadastrado no sistema.");
-        }
-
-        if (pessoaRepository.existsByDocumento(dto.getDocumento())) {
-            throw new DocumentoJaCadastradoException("Documento já cadastrado no sistema.");
-        }
-
-        Pessoa novaPessoa;
-
-        if ("PROPRIETARIO".equalsIgnoreCase(dto.getTipoPessoa())) {
-            Proprietario p = new Proprietario();
-            p.setRg(dto.getRg());
-            novaPessoa = p;
-        } else if ("ADMIN".equalsIgnoreCase(dto.getTipoPessoa())) {
-            Admin a = new Admin();
-            if (dto.getNivelAcesso() != null) {
-                a.setNivelAcesso(NivelAcesso.valueOf(dto.getNivelAcesso()));
-            }
-            novaPessoa = a;
-        } else {
-            novaPessoa = new Usuario();
-        }
-
-        novaPessoa.setTipoDocumento(dto.getTipoDocumento());
-        novaPessoa.setDocumento(dto.getDocumento());
-        novaPessoa.setNome(dto.getNome());
-        novaPessoa.setTelefone(dto.getTelefone());
-        novaPessoa.setEmail(dto.getEmail());
-        novaPessoa.setSenhaHash(passwordEncoder.encode(dto.getSenha()));
-
-        return pessoaRepository.save(novaPessoa);
+    @Transactional(readOnly = true)
+    public List<Pessoa> listarTodas() {
+        return pessoaRepository.findAll();
     }
 
     @Transactional(readOnly = true)
     public Pessoa buscarPorId(UUID id) {
         return pessoaRepository.findById(id)
                 .orElseThrow(() -> new PessoaNaoEncontradaException("Pessoa não encontrada com o ID: " + id));
+    }
+
+    @Transactional
+    public Pessoa atualizar(UUID id, PessoaUpdateRequestDTO dto) {
+        Pessoa pessoa = buscarPorId(id);
+
+        if (!pessoa.getEmail().equalsIgnoreCase(dto.getEmail()) && pessoaRepository.existsByEmail(dto.getEmail())) {
+            throw new EmailJaCadastradoException("Email já cadastrado no sistema.");
+        }
+
+        pessoa.setNome(dto.getNome());
+        pessoa.setTelefone(dto.getTelefone());
+        pessoa.setEmail(dto.getEmail());
+
+        if (dto.getEndereco() != null) {
+            Logradouro logradouro = pessoa.getLogradouro();
+            if (logradouro == null) {
+                logradouro = new Logradouro();
+            }
+            mapLogradouro(dto.getEndereco(), logradouro);
+            logradouroRepository.save(logradouro);
+            pessoa.setLogradouro(logradouro);
+        }
+
+        return pessoaRepository.save(pessoa);
+    }
+
+    @Transactional
+    public void deletar(UUID id) {
+        Pessoa pessoa = buscarPorId(id);
+        pessoaRepository.delete(pessoa);
+    }
+
+    private void mapLogradouro(LogradouroDTO dto, Logradouro logradouro) {
+        logradouro.setLogradouro(dto.getLogradouro());
+        logradouro.setNumero(dto.getNumero());
+        logradouro.setComplemento(dto.getComplemento());
+        logradouro.setBairro(dto.getBairro());
+        logradouro.setMunicipio(dto.getMunicipio());
+        logradouro.setUf(dto.getUf());
+        logradouro.setCep(dto.getCep());
     }
 }

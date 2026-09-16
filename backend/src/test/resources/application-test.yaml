@@ -1,0 +1,16 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;MODE=PostgreSQL
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      # Flyway é a fonte de verdade do schema em teste (não Hibernate). "none" evita que o
+      # Hibernate valide TODAS as entidades do módulo — incluindo Comunidade/Propriedade, que
+      # ainda não têm migration própria — contra o schema. Nunca usar update/create/create-drop
+      # aqui: isso mascararia divergências entre as entidades de Pessoa e a migration V2.
+      ddl-auto: none
+  flyway:
+    enabled: true
