@@ -1,8 +1,8 @@
 # Justificativa da Escolha Tecnológica — Semente Livre
 
-**Contexto:** Projeto de extensão para a comunidade **Quilombola dos Coelhos** (Rio Pomba/MG) — gestão de bancos de sementes crioulas.
-**Data:** setembro de 2026
-**Uso:** subsídio para o relatório final e para o artigo científico.
+**Contexto:** Projeto de extensão para a comunidade **Quilombola dos Coelhos** (Rio Pomba/MG) — gestão de bancos de sementes crioulas.  
+**Data:** setembro de 2026  
+**Uso:** subsídio para o relatório final e para o artigo científico.  
 
 ---
 
