@@ -34,7 +34,7 @@ public abstract class Pessoa {
     @Column(name = "senha_hash", nullable = false)
     private String senhaHash;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.LAZY, optional = true)
     @JoinColumn(name = "logradouro_id")
     private Logradouro logradouro;
 

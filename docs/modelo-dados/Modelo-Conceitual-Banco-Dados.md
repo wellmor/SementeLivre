@@ -42,20 +42,17 @@ erDiagram
     }
 
     USUARIO_T {
-        uuid id PK
-        uuid pessoa_id FK
+        uuid pessoa_id PK, FK
     }
 
     PROPRIETARIO_T {
-        uuid id PK
-        uuid pessoa_id FK
+        uuid pessoa_id PK, FK
         varchar rg
         boolean exibir_no_site_publico
     }
 
     ADMIN_T {
-        uuid id PK
-        uuid pessoa_id FK
+        uuid pessoa_id PK, FK
         varchar nivel_acesso
     }
 
@@ -245,20 +242,24 @@ erDiagram
 | Coluna | Tipo | Constraints | Descrição |
 |--------|------|-------------|-----------|
 | `id` | UUID | PK, DEFAULT gen_random_uuid() | Identificador único da pessoa |
-| `tipo_documento` | VARCHAR(5) | NOT NULL | Tipo do documento: 'CPF' ou 'CNPJ' |
-| `documento` | VARCHAR(14) | NOT NULL, UNIQUE | Número do documento (CPF: 11 dígitos, CNPJ: 14 dígitos) |
+| `tipo_documento` | VARCHAR(10) | NOT NULL, CHECK (tipo_documento IN ('CPF', 'CNPJ')) | Tipo do documento |
+| `documento` | VARCHAR(14) | NOT NULL, UNIQUE, CHECK (tamanho condicional) | Número do documento (CPF: 11 dígitos, CNPJ: 14 dígitos) |
 | `nome` | VARCHAR(150) | NOT NULL | Nome completo da pessoa |
 | `telefone` | VARCHAR(15) | | Telefone para contato (formato: (XX) XXXXX-XXXX) |
 | `email` | VARCHAR(255) | NOT NULL, UNIQUE | Endereço de e-mail (usado para login) |
 | `senha_hash` | VARCHAR(255) | NOT NULL | Senha com hash (BCrypt) |
 | `logradouro_id` | UUID | FK → logradouro_t.id | Endereço da pessoa |
-| `data_cadastro` | TIMESTAMP | NOT NULL, DEFAULT NOW() | Data e hora do cadastro |
-| `data_ultima_alteracao` | TIMESTAMP | NOT NULL, DEFAULT NOW() | Data e hora da última alteração |
+| `data_cadastro` | TIMESTAMP | NOT NULL, DEFAULT CURRENT_TIMESTAMP | Data e hora do cadastro |
+| `data_ultima_alteracao` | TIMESTAMP | NOT NULL, DEFAULT CURRENT_TIMESTAMP | Data e hora da última alteração |
 
 **Índices:**
-- `idx_pessoa_documento` UNIQUE ON (tipo_documento, documento)
-- `idx_pessoa_email` UNIQUE ON (email)
+- `uk_pessoa_documento` UNIQUE ON (tipo_documento, documento)
+- `uk_pessoa_email` UNIQUE ON (email)
 - `idx_pessoa_logradouro` ON (logradouro_id)
+
+**Restrições (CHECKs):**
+- `chk_tipo_documento`: Garante que tipo_documento é 'CPF' ou 'CNPJ'
+- `chk_documento_tamanho`: Valida comprimento do documento (11 para CPF, 14 para CNPJ)
 
 ---
 
@@ -266,8 +267,7 @@ erDiagram
 
 | Coluna | Tipo | Constraints | Descrição |
 |--------|------|-------------|-----------|
-| `id` | UUID | PK, DEFAULT gen_random_uuid() | Identificador único do usuário |
-| `pessoa_id` | UUID | FK → pessoa_t.id, NOT NULL, UNIQUE | Referência à pessoa (1:1) |
+| `pessoa_id` | UUID | PK, FK → pessoa_t.id, NOT NULL | Identificador único e referência à pessoa (1:1) |
 
 **Regra de negócio:** Um usuário é uma pessoa que pode realizar pedidos no sistema.
 
@@ -277,14 +277,12 @@ erDiagram
 
 | Coluna | Tipo | Constraints | Descrição |
 |--------|------|-------------|-----------|
-| `id` | UUID | PK, DEFAULT gen_random_uuid() | Identificador único do proprietário |
-| `pessoa_id` | UUID | FK → pessoa_t.id, NOT NULL, UNIQUE | Referência à pessoa (1:1) |
+| `pessoa_id` | UUID | PK, FK → pessoa_t.id, NOT NULL | Identificador único e referência à pessoa (1:1) |
 | `rg` | VARCHAR(20) | NOT NULL, UNIQUE | Registro Geral do proprietário |
 | `exibir_no_site_publico` | BOOLEAN | NOT NULL, DEFAULT false | Se true, perfil aparece no site público |
 
 **Índices:**
-- `idx_proprietario_rg` UNIQUE ON (rg)
-- `idx_proprietario_pessoa` UNIQUE ON (pessoa_id)
+- `uk_proprietario_rg` UNIQUE ON (rg) (*Nota: A migration também cria um índice idx_proprietario_rg explicitamente, mantido por fidelidade ao código*)
 
 ---
 
@@ -292,9 +290,11 @@ erDiagram
 
 | Coluna | Tipo | Constraints | Descrição |
 |--------|------|-------------|-----------|
-| `id` | UUID | PK, DEFAULT gen_random_uuid() | Identificador único do admin |
-| `pessoa_id` | UUID | FK → pessoa_t.id, NOT NULL, UNIQUE | Referência à pessoa (1:1) |
-| `nivel_acesso` | VARCHAR(20) | NOT NULL, DEFAULT 'ADMIN' | Nível de acesso: 'SUPER_ADMIN', 'ADMIN', 'MODERADOR' |
+| `pessoa_id` | UUID | PK, FK → pessoa_t.id, NOT NULL | Identificador único e referência à pessoa (1:1) |
+| `nivel_acesso` | VARCHAR(20) | NOT NULL, DEFAULT 'ADMIN', CHECK | Nível de acesso |
+
+**Restrições (CHECKs):**
+- `chk_nivel_acesso`: Garante que nivel_acesso está contido em ('SUPER_ADMIN', 'ADMIN', 'MODERADOR')
 
 ---
 
@@ -308,10 +308,13 @@ erDiagram
 | `complemento` | VARCHAR(100) | | Complemento (casa, apto, etc.) |
 | `bairro` | VARCHAR(100) | | Bairro ou comunidade |
 | `municipio` | VARCHAR(100) | NOT NULL | Município |
-| `uf` | VARCHAR(2) | NOT NULL | Unidade Federativa (2 caracteres) |
+| `uf` | VARCHAR(2) | NOT NULL, CHECK (formato) | Unidade Federativa (2 caracteres) |
 | `cep` | VARCHAR(9) | | CEP (formato: XXXXX-XXX) |
 
 **Nota:** Tabela compartilhada por pessoa, comunidade e propriedade.
+
+**Restrições (CHECKs):**
+- `chk_uf`: Garante que UF possui apenas duas letras maiúsculas (ex: '^[A-Z]{2}$')
 
 ---
 
@@ -567,8 +570,9 @@ erDiagram
 ## 4. Enums do PostgreSQL
 
 ```sql
--- Tipo de documento
-CREATE TYPE tipo_documento_enum AS ENUM ('CPF', 'CNPJ');
+-- NOTA: Os domínios tipo_documento_enum e nivel_acesso_enum foram implementados 
+-- usando VARCHAR + CHECK por compatibilidade com banco H2 nos testes. 
+-- A lista abaixo mantém a representação conceitual para os demais domínios.
 
 -- Status da comunidade
 CREATE TYPE status_comunidade_enum AS ENUM ('ATIVA', 'PENDENTE_APROVACAO', 'REJEITADA');
@@ -600,9 +604,12 @@ CREATE TYPE status_pedido_enum AS ENUM ('PENDENTE', 'CONFIRMADO', 'CANCELADO');
 -- Tipo de relatório
 CREATE TYPE tipo_relatorio_enum AS ENUM ('ESTOQUE_SEMENTES', 'PEDIDOS_REALIZADOS');
 
--- Nível de acesso do admin
-CREATE TYPE nivel_acesso_enum AS ENUM ('SUPER_ADMIN', 'ADMIN', 'MODERADOR');
 ```
+
+> **Recomendação de Arquitetura:** As colunas relacionadas aos enums acima 
+> deveriam ser substituídas por tipos VARCHAR acompanhados de uma `CONSTRAINT CHECK`, 
+> conforme já implementado nas tabelas `pessoa_t` e `admin_t`. Essa recomendação 
+> aguarda validação do time para os demais módulos.
 
 ---
 
@@ -622,7 +629,6 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 -- ENUMS
 -- =====================================================
 
-CREATE TYPE tipo_documento_enum AS ENUM ('CPF', 'CNPJ');
 CREATE TYPE status_comunidade_enum AS ENUM ('ATIVA', 'PENDENTE_APROVACAO', 'REJEITADA');
 CREATE TYPE tipo_produto_enum AS ENUM ('HORTALICA', 'FRUTIFERA', 'FORRAGEIRA', 'CEREAL', 'LEGUMINOSA', 'VERDURA', 'MEDICINAL', 'OUTRAS');
 CREATE TYPE especie_geral_enum AS ENUM ('FEIJAO', 'MILHO', 'ABOBORA', 'ALFACE', 'ARROZ', 'CEBOLA', 'ALHO', 'OUTRAS');
@@ -633,7 +639,6 @@ CREATE TYPE tipo_movimentacao_enum AS ENUM ('ENTRADA', 'SAIDA_VENDA', 'SAIDA_TRO
 CREATE TYPE tipo_pedido_enum AS ENUM ('VENDA', 'TROCA', 'DOACAO');
 CREATE TYPE status_pedido_enum AS ENUM ('PENDENTE', 'CONFIRMADO', 'CANCELADO');
 CREATE TYPE tipo_relatorio_enum AS ENUM ('ESTOQUE_SEMENTES', 'PEDIDOS_REALIZADOS');
-CREATE TYPE nivel_acesso_enum AS ENUM ('SUPER_ADMIN', 'ADMIN', 'MODERADOR');
 
 -- =====================================================
 -- TABELAS
@@ -647,7 +652,7 @@ CREATE TABLE logradouro_t (
     complemento VARCHAR(100),
     bairro VARCHAR(100),
     municipio VARCHAR(100) NOT NULL,
-    uf CHAR(2) NOT NULL,
+    uf VARCHAR(2) NOT NULL,
     cep VARCHAR(9),
     CONSTRAINT chk_uf CHECK (uf ~ '^[A-Z]{2}$')
 );
@@ -657,17 +662,18 @@ COMMENT ON TABLE logradouro_t IS 'Endereços compartilhados por pessoas, comunid
 -- Tabela base de pessoas (herança por tabela)
 CREATE TABLE pessoa_t (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tipo_documento tipo_documento_enum NOT NULL,
+    tipo_documento VARCHAR(10) NOT NULL,
     documento VARCHAR(14) NOT NULL,
     nome VARCHAR(150) NOT NULL,
     telefone VARCHAR(15),
     email VARCHAR(255) NOT NULL,
     senha_hash VARCHAR(255) NOT NULL,
     logradouro_id UUID REFERENCES logradouro_t(id) ON DELETE SET NULL,
-    data_cadastro TIMESTAMP NOT NULL DEFAULT NOW(),
-    data_ultima_alteracao TIMESTAMP NOT NULL DEFAULT NOW(),
+    data_cadastro TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    data_ultima_alteracao TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uk_pessoa_documento UNIQUE (tipo_documento, documento),
     CONSTRAINT uk_pessoa_email UNIQUE (email),
+    CONSTRAINT chk_tipo_documento CHECK (tipo_documento IN ('CPF', 'CNPJ')),
     CONSTRAINT chk_documento_tamanho CHECK (
         (tipo_documento = 'CPF' AND LENGTH(documento) = 11) OR
         (tipo_documento = 'CNPJ' AND LENGTH(documento) = 14)
@@ -680,20 +686,16 @@ CREATE INDEX idx_pessoa_logradouro ON pessoa_t(logradouro_id);
 
 -- Tabela de usuários (herda identidade de pessoa)
 CREATE TABLE usuario_t (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    pessoa_id UUID NOT NULL REFERENCES pessoa_t(id) ON DELETE CASCADE,
-    CONSTRAINT uk_usuario_pessoa UNIQUE (pessoa_id)
+    pessoa_id UUID PRIMARY KEY REFERENCES pessoa_t(id) ON DELETE CASCADE
 );
 
 COMMENT ON TABLE usuario_t IS 'Usuários que podem realizar pedidos no sistema';
 
 -- Tabela de proprietários (herda identidade de pessoa)
 CREATE TABLE proprietario_t (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    pessoa_id UUID NOT NULL REFERENCES pessoa_t(id) ON DELETE CASCADE,
+    pessoa_id UUID PRIMARY KEY REFERENCES pessoa_t(id) ON DELETE CASCADE,
     rg VARCHAR(20) NOT NULL,
     exibir_no_site_publico BOOLEAN NOT NULL DEFAULT false,
-    CONSTRAINT uk_proprietario_pessoa UNIQUE (pessoa_id),
     CONSTRAINT uk_proprietario_rg UNIQUE (rg)
 );
 
@@ -703,10 +705,9 @@ CREATE INDEX idx_proprietario_rg ON proprietario_t(rg);
 
 -- Tabela de administradores (herda identidade de pessoa)
 CREATE TABLE admin_t (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    pessoa_id UUID NOT NULL REFERENCES pessoa_t(id) ON DELETE CASCADE,
-    nivel_acesso nivel_acesso_enum NOT NULL DEFAULT 'ADMIN',
-    CONSTRAINT uk_admin_pessoa UNIQUE (pessoa_id)
+    pessoa_id UUID PRIMARY KEY REFERENCES pessoa_t(id) ON DELETE CASCADE,
+    nivel_acesso VARCHAR(20) NOT NULL DEFAULT 'ADMIN',
+    CONSTRAINT chk_nivel_acesso CHECK (nivel_acesso IN ('SUPER_ADMIN', 'ADMIN', 'MODERADOR'))
 );
 
 COMMENT ON TABLE admin_t IS 'Administradores do sistema';
@@ -1082,12 +1083,13 @@ O modelo utiliza **Table Per Type (TPT)** para herança, onde:
 
 - `pessoa_t` armazena os dados comuns (nome, email, documento, etc.)
 - `usuario_t`, `proprietario_t` e `admin_t` armazenam apenas os dados específicos
-- A relação é 1:1 via FK com UNIQUE constraint
+- A relação 1:1 é implementada de forma combinada (PK/FK). O campo `pessoa_id` nas tabelas filhas atua simultaneamente como Chave Primária e Chave Estrangeira (equivalente a `@PrimaryKeyJoinColumn` no JPA).
 - ON DELETE CASCADE garante exclusão em cascata
 
 **Vantagens:**
 - Normalização completa (3NF)
 - Economia de espaço (sem colunas nulas)
+- Elimina completamente colunas `id` redundantes ou autoincrementadas nas tabelas filhas, otimizando a estrutura e garantindo a integridade
 - Facilidade de extensão (adicionar novo tipo de pessoa)
 - Conforme com o diagrama de classes original
 
