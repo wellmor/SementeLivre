@@ -57,20 +57,11 @@
 | `notificacao_t` | Notificações geradas automaticamente ao concluir pedido |
 | `relatorio_t` | Histórico de relatórios gerados |
 
-### Plantio (front-site)
-
-| Tabela | Descrição |
-|---|---|
-| `plantio_t` | Registros de plantio por propriedade |
-| `adubacao_t` | Adubações associadas a um plantio |
-| `tecnica_t` | Técnicas agroecológicas disponíveis |
-
 ### Cadastro e Contas (front-site)
 
 | Tabela | Descrição |
 |---|---|
 | `solicitacao_cadastro_t` | Solicitações de cadastro de novos produtores pendentes de aprovação |
-| `conta_produtor_t` | Contas de produtores do site público vinculadas a comunidade |
 
 ---
 
@@ -112,25 +103,21 @@
 
 ```mermaid
 erDiagram
-    PESSOA_T ||--o| USUARIO_T
-    PESSOA_T ||--o| PROPRIETARIO_T
-    PESSOA_T ||--o| ADMIN_T
-    PESSOA_T }o--|| LOGRADOURO_T
-    COMUNIDADE_T }o--|| LOGRADOURO_T
-    PROPRIEDADE_T }o--|| PROPRIETARIO_T
-    PROPRIEDADE_T }o--|| COMUNIDADE_T
-    PRODUTO_T }o--|| COMUNIDADE_T
-    ESTOQUE_T }o--|| PROPRIETARIO_T
-    ESTOQUE_T }o--|| PRODUTO_T
-    PEDIDO_T }o--|| USUARIO_T
-    PEDIDO_T }o--|| PROPRIETARIO_T
-    ITENS_PEDIDO_T }o--|| PEDIDO_T
-    NOTIFICACAO_T }o--|| PROPRIETARIO_T
-    NOTIFICACAO_T }o--o| PEDIDO_T
-    PLANTIO_T }o--|| PROPRIEDADE_T
-    PLANTIO_T }o--|| PRODUTO_T
-    ADUBACAO_T }o--|| PLANTIO_T
-    CONTA_PRODUTOR_T }o--|| COMUNIDADE_T
+    PESSOA_T ||--o| USUARIO_T : "eh um usuario"
+    PESSOA_T ||--o| PROPRIETARIO_T : "eh um proprietario"
+    PESSOA_T ||--o| ADMIN_T : "eh um admin"
+    PESSOA_T }o--|| LOGRADOURO_T : "possui endereco"
+    COMUNIDADE_T }o--|| LOGRADOURO_T : "possui endereco"
+    PROPRIEDADE_T }o--|| PROPRIETARIO_T : "gerenciada por"
+    PROPRIEDADE_T }o--|| COMUNIDADE_T : "pertence a"
+    PRODUTO_T }o--|| COMUNIDADE_T : "origem"
+    ESTOQUE_T }o--|| PROPRIETARIO_T : "gerenciado por"
+    ESTOQUE_T }o--|| PRODUTO_T : "referencia a"
+    PEDIDO_T }o--|| USUARIO_T : "solicitado por"
+    PEDIDO_T }o--|| PROPRIETARIO_T : "recebido por"
+    ITENS_PEDIDO_T }o--|| PEDIDO_T : "contem"
+    NOTIFICACAO_T }o--|| PROPRIETARIO_T : "pertence a"
+    NOTIFICACAO_T }o--o| PEDIDO_T : "relacionada a"
 ```
 
 Script SQL completo está em [`modelo-dados/Modelo-Conceitual-Banco-Dados.md`](../modelo-dados/Modelo-Conceitual-Banco-Dados.md) e em [`backend/src/main/resources/db/migration/`](../../backend/src/main/resources/db/migration/).

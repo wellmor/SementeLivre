@@ -24,4 +24,3 @@ CREATE INDEX idx_notificacao_proprietario_lida ON notificacao_t(proprietario_id,
 CREATE INDEX idx_relatorio_proprietario ON relatorio_t(proprietario_id);
 CREATE INDEX idx_relatorio_tipo ON relatorio_t(tipo);
 CREATE INDEX idx_solicitacao_status ON solicitacao_cadastro_t(status);
-CREATE INDEX idx_conta_produtor_comunidade ON conta_produtor_t(comunidade_id);

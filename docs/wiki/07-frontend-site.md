@@ -31,7 +31,7 @@ front-site/src/
 | Módulo | Descrição |
 |---|---|
 | **Vitrine pública** | Listagem de sementes do catálogo com detalhes por produto |
-| **Dashboard produtor** | Catálogo, propriedades, **plantios** e **adubações**, **técnicas agroecológicas**, pedidos, perfil |
+| **Dashboard produtor** | Catálogo, propriedades, pedidos, perfil |
 | **Área administrativa** | Aprovação/rejeição de **comunidades** e **solicitações de cadastro** de produtores |
 | **Catálogo (dashboard)** | Gestão das sementes/mudas do produtor |
 | **Pedidos** | Pedidos realizados pelo produtor no site |
@@ -45,8 +45,7 @@ front-site/src/
 | `/api/comunidades` | Listar comunidades |
 | `/api/catalog` | Catálogo de sementes (com filtro por comunidade) |
 | `/api/properties` | CRUD de propriedades |
-| `/api/plantings` | CRUD de plantios |
-| `/api/techniques` | Técnicas agroecológicas |
+| `/api/profile` | Perfil do produtor |
 | `/api/fertilization` | Adubações/fertilização |
 | `/api/pedidos` | Pedidos (com filtro por comunidade) |
 | `/api/auth/login` | Login |

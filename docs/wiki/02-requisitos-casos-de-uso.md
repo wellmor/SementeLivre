@@ -107,7 +107,7 @@ Além do que consta no documento formal, o sistema implementado inclui módulos 
 
 - **Backend:** CRUDs de Pessoa, Proprietário, Produto, Estoque, Pedido, Notificação, Relatório, Usuário e autenticação completa.
 - **front-app (PWA):** dashboard, sementes, estoque, propriedades, pedidos, relatórios, notificações e perfil.
-- **front-site (Site):** cadastro/login, catálogo, dashboard com catálogo, propriedades, plantios, técnicas, pedidos e área administrativa de aprovação de comunidades/produtores.
+- **front-site (Site):** cadastro/login, catálogo, dashboard com catálogo, propriedades, solicitações de cadastro, pedidos e área administrativa de aprovação de comunidades/produtores.
 
 ---
 
