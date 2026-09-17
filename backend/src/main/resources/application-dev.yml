@@ -26,4 +26,12 @@ logging:
     com.sementelivre.backend: DEBUG
     org.springframework.security: DEBUG
     org.springframework.web: INFO
-    
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  endpoint:
+    health: 
+      show-details: always
+
