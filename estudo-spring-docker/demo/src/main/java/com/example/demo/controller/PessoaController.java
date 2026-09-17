@@ -1,8 +1,10 @@
 package com.example.demo.controller;
 
-import com.example.demo.dto.PessoaCreateDTO;
+import com.example.demo.dto.LogradouroDTO;
 import com.example.demo.dto.PessoaResponseDTO;
+import com.example.demo.dto.PessoaUpdateRequestDTO;
 import com.example.demo.model.Admin;
+import com.example.demo.model.Logradouro;
 import com.example.demo.model.Pessoa;
 import com.example.demo.model.Proprietario;
 import com.example.demo.model.Usuario;
@@ -12,12 +14,15 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @RestController
-@RequestMapping("/pessoas")
+@RequestMapping("/api/pessoas")
 @Tag(name = "Pessoas", description = "Cadastro e consulta de pessoas (usuários, proprietários e admins)")
 public class PessoaController {
 
@@ -27,21 +32,19 @@ public class PessoaController {
         this.pessoaService = pessoaService;
     }
 
-    @PostMapping
-    @ResponseStatus(HttpStatus.CREATED)
+    @GetMapping
     @Operation(
-            summary = "Cadastrar uma pessoa",
-            description = "Cria uma nova pessoa. O campo tipoPessoa (USUARIO, PROPRIETARIO ou ADMIN) " +
-                    "define quais campos extras (rg, nivelAcesso) são considerados."
+            summary = "Listar todas as pessoas",
+            description = "Retorna uma lista de todas as pessoas cadastradas no sistema."
     )
     @ApiResponses({
-            @ApiResponse(responseCode = "201", description = "Pessoa criada com sucesso"),
-            @ApiResponse(responseCode = "400", description = "Dados inválidos"),
-            @ApiResponse(responseCode = "409", description = "Email ou documento já cadastrado")
+            @ApiResponse(responseCode = "200", description = "Lista retornada com sucesso")
     })
-    public PessoaResponseDTO criar(@Valid @RequestBody PessoaCreateDTO dto) {
-        Pessoa pessoaCriada = pessoaService.criar(dto);
-        return mapToResponse(pessoaCriada);
+    public ResponseEntity<List<PessoaResponseDTO>> listar() {
+        List<PessoaResponseDTO> pessoas = pessoaService.listarTodas().stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(pessoas);
     }
 
     @GetMapping("/{id}")
@@ -53,12 +56,24 @@ public class PessoaController {
             @ApiResponse(responseCode = "200", description = "Pessoa encontrada"),
             @ApiResponse(responseCode = "404", description = "Pessoa não encontrada")
     })
-    public PessoaResponseDTO buscarPorId(@PathVariable UUID id) {
+    public ResponseEntity<PessoaResponseDTO> buscarPorId(@PathVariable UUID id) {
         Pessoa pessoa = pessoaService.buscarPorId(id);
-        return mapToResponse(pessoa);
+        return ResponseEntity.ok(mapToResponse(pessoa));
     }
 
-    private PessoaResponseDTO mapToResponse(Pessoa p) {
+    @PutMapping("/{id}")
+    public ResponseEntity<PessoaResponseDTO> atualizar(@PathVariable UUID id, @Valid @RequestBody PessoaUpdateRequestDTO dto) {
+        Pessoa pessoa = pessoaService.atualizar(id, dto);
+        return ResponseEntity.ok(mapToResponse(pessoa));
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deletar(@PathVariable UUID id) {
+        pessoaService.deletar(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    protected PessoaResponseDTO mapToResponse(Pessoa p) {
         PessoaResponseDTO dto = new PessoaResponseDTO();
         dto.setId(p.getId());
         dto.setTipoDocumento(p.getTipoDocumento());
@@ -75,6 +90,19 @@ public class PessoaController {
             dto.setTipoPessoa("ADMIN");
         } else if (p instanceof Usuario) {
             dto.setTipoPessoa("USUARIO");
+        }
+
+        if (p.getLogradouro() != null) {
+            LogradouroDTO end = new LogradouroDTO();
+            Logradouro l = p.getLogradouro();
+            end.setLogradouro(l.getLogradouro());
+            end.setNumero(l.getNumero());
+            end.setComplemento(l.getComplemento());
+            end.setBairro(l.getBairro());
+            end.setMunicipio(l.getMunicipio());
+            end.setUf(l.getUf());
+            end.setCep(l.getCep());
+            dto.setEndereco(end);
         }
 
         return dto;

@@ -24,6 +24,7 @@ public class PessoaResponseDTO {
 
     @Schema(description = "Email cadastrado", example = "maria@exemplo.com")
     private String email;
+    private LogradouroDTO endereco;
 
     @Schema(description = "Data em que a pessoa foi cadastrada", accessMode = Schema.AccessMode.READ_ONLY)
     private LocalDateTime dataCadastro;
@@ -82,6 +83,14 @@ public class PessoaResponseDTO {
 
     public void setEmail(String email) {
         this.email = email;
+    }
+
+    public LogradouroDTO getEndereco() {
+        return endereco;
+    }
+
+    public void setEndereco(LogradouroDTO endereco) {
+        this.endereco = endereco;
     }
 
     public LocalDateTime getDataCadastro() {

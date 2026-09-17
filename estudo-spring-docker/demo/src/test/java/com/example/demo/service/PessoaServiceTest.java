@@ -1,19 +1,29 @@
 package com.example.demo.service;
 
-import com.example.demo.dto.PessoaCreateDTO;
-import com.example.demo.exception.DocumentoJaCadastradoException;
+import com.example.demo.dto.LogradouroDTO;
+import com.example.demo.dto.PessoaUpdateRequestDTO;
 import com.example.demo.exception.EmailJaCadastradoException;
-import com.example.demo.model.TipoDocumento;
+import com.example.demo.exception.PessoaNaoEncontradaException;
+import com.example.demo.model.Logradouro;
+import com.example.demo.model.Pessoa;
+import com.example.demo.model.Usuario;
+import com.example.demo.repository.LogradouroRepository;
 import com.example.demo.repository.PessoaRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.util.Optional;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 public class PessoaServiceTest {
@@ -22,39 +32,101 @@ public class PessoaServiceTest {
     private PessoaRepository pessoaRepository;
 
     @Mock
-    private PasswordEncoder passwordEncoder;
+    private LogradouroRepository logradouroRepository;
 
     @InjectMocks
     private PessoaService pessoaService;
 
-    @Test
-    public void deveLancarExcecaoQuandoEmailDuplicado() {
-        PessoaCreateDTO dto = new PessoaCreateDTO();
-        dto.setEmail("teste@email.com");
-
-        when(pessoaRepository.existsByEmail("teste@email.com")).thenReturn(true);
-
-        assertThatThrownBy(() -> pessoaService.criar(dto))
-                .isInstanceOf(EmailJaCadastradoException.class)
-                .hasMessage("Email já cadastrado no sistema.");
-
-        verify(pessoaRepository, never()).save(any());
-        verify(pessoaRepository, never()).existsByDocumento(anyString());
+    private Usuario pessoaExistente(UUID id, String email) {
+        Usuario pessoa = new Usuario();
+        pessoa.setId(id);
+        pessoa.setNome("Nome Antigo");
+        pessoa.setEmail(email);
+        return pessoa;
     }
 
     @Test
-    public void deveLancarExcecaoQuandoDocumentoDuplicado() {
-        PessoaCreateDTO dto = new PessoaCreateDTO();
-        dto.setEmail("novo@email.com");
-        dto.setDocumento("12345678901");
+    public void deveLancarExcecaoQuandoNaoEncontrado() {
+        UUID id = UUID.randomUUID();
+        when(pessoaRepository.findById(id)).thenReturn(Optional.empty());
 
-        when(pessoaRepository.existsByEmail("novo@email.com")).thenReturn(false);
-        when(pessoaRepository.existsByDocumento("12345678901")).thenReturn(true);
+        assertThatThrownBy(() -> pessoaService.buscarPorId(id))
+                .isInstanceOf(PessoaNaoEncontradaException.class)
+                .hasMessage("Pessoa não encontrada com o ID: " + id);
+    }
 
-        assertThatThrownBy(() -> pessoaService.criar(dto))
-                .isInstanceOf(DocumentoJaCadastradoException.class)
-                .hasMessage("Documento já cadastrado no sistema.");
+    @Test
+    public void deveLancarExcecaoAoAtualizarPessoaInexistente() {
+        UUID id = UUID.randomUUID();
+        when(pessoaRepository.findById(id)).thenReturn(Optional.empty());
 
-        verify(pessoaRepository, never()).save(any());
+        PessoaUpdateRequestDTO dto = new PessoaUpdateRequestDTO();
+        dto.setNome("Nome Novo");
+        dto.setEmail("novo@teste.com");
+
+        assertThatThrownBy(() -> pessoaService.atualizar(id, dto))
+                .isInstanceOf(PessoaNaoEncontradaException.class);
+    }
+
+    @Test
+    public void deveAtualizarComSucessoQuandoEmailMudaParaUmDisponivel() {
+        UUID id = UUID.randomUUID();
+        Usuario pessoa = pessoaExistente(id, "antigo@teste.com");
+        when(pessoaRepository.findById(id)).thenReturn(Optional.of(pessoa));
+        when(pessoaRepository.existsByEmail("novo@teste.com")).thenReturn(false);
+        when(pessoaRepository.save(any(Pessoa.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        LogradouroDTO endereco = new LogradouroDTO();
+        endereco.setLogradouro("Rua Nova");
+        endereco.setMunicipio("Cidade Nova");
+        endereco.setUf("MG");
+
+        PessoaUpdateRequestDTO dto = new PessoaUpdateRequestDTO();
+        dto.setNome("Nome Novo");
+        dto.setTelefone("32999998888");
+        dto.setEmail("novo@teste.com");
+        dto.setEndereco(endereco);
+
+        Pessoa atualizado = pessoaService.atualizar(id, dto);
+
+        assertThat(atualizado.getNome()).isEqualTo("Nome Novo");
+        assertThat(atualizado.getTelefone()).isEqualTo("32999998888");
+        assertThat(atualizado.getEmail()).isEqualTo("novo@teste.com");
+        assertThat(atualizado.getLogradouro()).isNotNull();
+        assertThat(atualizado.getLogradouro().getLogradouro()).isEqualTo("Rua Nova");
+        verify(logradouroRepository).save(any(Logradouro.class));
+    }
+
+    @Test
+    public void deveLancarConflitoAoAtualizarParaEmailDeOutraPessoa() {
+        UUID id = UUID.randomUUID();
+        Usuario pessoa = pessoaExistente(id, "antigo@teste.com");
+        when(pessoaRepository.findById(id)).thenReturn(Optional.of(pessoa));
+        when(pessoaRepository.existsByEmail("jaexiste@teste.com")).thenReturn(true);
+
+        PessoaUpdateRequestDTO dto = new PessoaUpdateRequestDTO();
+        dto.setNome("Nome Novo");
+        dto.setEmail("jaexiste@teste.com");
+
+        assertThatThrownBy(() -> pessoaService.atualizar(id, dto))
+                .isInstanceOf(EmailJaCadastradoException.class);
+    }
+
+    @Test
+    public void deveAtualizarSemConflitoQuandoEmailPermaneceOMesmo() {
+        UUID id = UUID.randomUUID();
+        Usuario pessoa = pessoaExistente(id, "mesmo@teste.com");
+        when(pessoaRepository.findById(id)).thenReturn(Optional.of(pessoa));
+        when(pessoaRepository.save(any(Pessoa.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        PessoaUpdateRequestDTO dto = new PessoaUpdateRequestDTO();
+        dto.setNome("Nome Atualizado");
+        dto.setEmail("mesmo@teste.com");
+
+        Pessoa atualizado = pessoaService.atualizar(id, dto);
+
+        assertThat(atualizado.getNome()).isEqualTo("Nome Atualizado");
+        assertThat(atualizado.getEmail()).isEqualTo("mesmo@teste.com");
+        verify(pessoaRepository, never()).existsByEmail(any());
     }
 }

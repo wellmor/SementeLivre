@@ -1,26 +1,36 @@
 package com.sementelivre.backend.entity;
 
-import java.util.UUID;
-
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
+import jakarta.persistence.PrimaryKeyJoinColumn;
 import jakarta.persistence.Table;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
 
-//Essa classe serve unicamente como placeholder para o relacionamento com a entidade Propriedade
 @Entity
 @Table(name = "proprietario_t")
-@Getter @Setter
-@NoArgsConstructor @AllArgsConstructor
-@Builder
-public class Proprietario { //Proprietario/Pessoa
-    @Id
-    private UUID id;
+@PrimaryKeyJoinColumn(name = "pessoa_id")
+public class Proprietario extends Pessoa {
 
-    private UUID pessoaId;
-    
+    @Column(nullable = false, unique = true, length = 20)
+    private String rg;
+
+    @Column(name = "exibir_no_site_publico", nullable = false)
+    private boolean exibirNoSitePublico = false;
+
+    // Getters and Setters
+
+    public String getRg() {
+        return rg;
+    }
+
+    public void setRg(String rg) {
+        this.rg = rg;
+    }
+
+    public boolean isExibirNoSitePublico() {
+        return exibirNoSitePublico;
+    }
+
+    public void setExibirNoSitePublico(boolean exibirNoSitePublico) {
+        this.exibirNoSitePublico = exibirNoSitePublico;
+    }
 }
