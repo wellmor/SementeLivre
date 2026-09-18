@@ -1,12 +1,15 @@
 package com.sementelivre.backend.dto;
 
+//A unica mudança que fiz aqui foi dar import em TipoDocumento e LocalDateTime(Pedro Henrique falando)
 import com.sementelivre.backend.entity.Usuario;
+import com.sementelivre.backend.entity.enums.TipoDocumento;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.time.LocalDateTime;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
