@@ -18,6 +18,7 @@ import com.sementelivre.backend.entity.Notificacao;
 import com.sementelivre.backend.entity.Pedido;
 import com.sementelivre.backend.entity.Proprietario;
 import com.sementelivre.backend.entity.Relatorio;
+import com.sementelivre.backend.entity.enums.TipoDocumento;
 import com.sementelivre.backend.entity.enums.TipoRelatorio;
 import com.sementelivre.backend.repository.NotificacaoRepository;
 import com.sementelivre.backend.repository.RelatorioRepository;
@@ -52,14 +53,23 @@ class NotificacaoRelatorioPersistenciaTest {
     private RelatorioRepository relatorioRepository;
 
     /**
-     * Cria um Proprietario com id manual, porque ele ainda é um placeholder e
-     * não tem @GeneratedValue (mesma observação já feita no PersistenciaTest).
+     * Cria um Proprietario novo a cada chamada. O id vem do @GeneratedValue de
+     * Pessoa (preenchido no persist), e os demais campos sao os obrigatorios da
+     * heranca TPT. Email e rg sao unicos por chamada porque
+     * {@link #repositorioDeveListarSomenteNotificacoesNaoLidasDoProprietario()}
+     * persiste dois proprietarios na mesma transacao.
      */
     private Proprietario novoProprietario() {
-        return Proprietario.builder()
-                .id(UUID.randomUUID())
-                .pessoaId(UUID.randomUUID())
-                .build();
+        String sufixo = UUID.randomUUID().toString().substring(0, 8);
+
+        Proprietario proprietario = new Proprietario();
+        proprietario.setTipoDocumento(TipoDocumento.CPF);
+        proprietario.setDocumento("52998224725");
+        proprietario.setNome("Proprietario " + sufixo);
+        proprietario.setEmail("proprietario." + sufixo + "@teste.com");
+        proprietario.setSenhaHash("hash123");
+        proprietario.setRg("MG-" + sufixo);
+        return proprietario;
     }
 
     @Test

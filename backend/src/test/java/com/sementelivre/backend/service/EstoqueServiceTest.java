@@ -65,9 +65,8 @@ class EstoqueServiceTest {
                 .id(produtoId)
                 .build();
 
-        proprietario = Proprietario.builder()
-                .id(proprietarioId)
-                .build();
+        proprietario = new Proprietario();
+        proprietario.setId(proprietarioId);
 
         estoque = Estoque.builder()
                 .id(estoqueId)

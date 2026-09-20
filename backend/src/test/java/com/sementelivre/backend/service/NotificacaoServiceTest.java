@@ -56,9 +56,8 @@ class NotificacaoServiceTest {
         notificacaoId = UUID.randomUUID();
         proprietarioId = UUID.randomUUID();
 
-        proprietario = Proprietario.builder()
-                .id(proprietarioId)
-                .build();
+        proprietario = new Proprietario();
+        proprietario.setId(proprietarioId);
 
         notificacao = Notificacao.builder()
                 .id(notificacaoId)
