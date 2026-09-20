@@ -76,7 +76,7 @@ class NotificacaoRelatorioPersistenciaTest {
     void deveSalvarNotificacaoLigadaAProprietarioEPedido() {
         // Arrange
         Proprietario proprietario = novoProprietario();
-        Pedido pedido = Pedido.builder().id(UUID.randomUUID()).build();
+        Pedido pedido = Pedido.builder().build();
 
         Notificacao notificacao = Notificacao.builder()
                 .titulo("Novo pedido recebido")
