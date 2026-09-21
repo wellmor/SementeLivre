@@ -54,12 +54,11 @@ public class AuthService {
         Role roleUsuario = roleRepository.findByNome(PerfilEnum.ROLE_USUARIO)
                 .orElseThrow(() -> new IllegalStateException("Role ROLE_USUARIO não encontrada."));
 
-        Usuario usuario = Usuario.builder()
-                .nome(dto.nome())
-                .email(dto.email())
-                .senha(passwordEncoder.encode(dto.senha())) // Criptografia segura com BCrypt
-                .ativo(true)
-                .build();
+        Usuario usuario = new Usuario();
+        usuario.setNome(dto.nome());
+        usuario.setEmail(dto.email());
+        usuario.setSenhaHash(passwordEncoder.encode(dto.senha())); // Criptografia segura com BCrypt
+        usuario.setAtivo(true);
         usuario.getRoles().add(roleUsuario);
 
         Usuario salvo = usuarioRepository.save(usuario);
@@ -132,7 +131,7 @@ public class AuthService {
         }
 
         Usuario usuario = tokenEntity.getUsuario();
-        usuario.setSenha(passwordEncoder.encode(dto.novaSenha())); // Atualiza a senha no banco com BCrypt
+        usuario.setSenhaHash(passwordEncoder.encode(dto.novaSenha())); // Atualiza a senha no banco com BCrypt
         usuarioRepository.save(usuario);
 
         tokenEntity.setUsado(true);

@@ -1,18 +1,37 @@
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5433/devdb
-    username: devuser
-    password: devpassword
+    url: jdbc:postgresql://localhost:5432/devdb
+    username: postgres
+    password: 1234
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: update
     show-sql: true
   flyway: 
     enabled: true
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: seu-email@gmail.com
+    password: sua-senha-de-app
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
 logging:
   level:
     root: INFO
     com.sementelivre.backend: DEBUG
     org.springframework.security: DEBUG
     org.springframework.web: INFO
-    
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  endpoint:
+    health: 
+      show-details: always
+

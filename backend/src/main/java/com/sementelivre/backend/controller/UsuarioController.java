@@ -88,6 +88,9 @@ public class UsuarioController {
         dto.setDataCadastro(u.getDataCadastro());
         dto.setDataUltimaAlteracao(u.getDataUltimaAlteracao());
         dto.setTipoPessoa("USUARIO");
+        dto.setRoles(u.getRoles().stream()
+                .map(role -> role.getNome().name())
+                .collect(Collectors.toSet()));
 
         if (u.getLogradouro() != null) {
             com.sementelivre.backend.dto.LogradouroDTO end = new com.sementelivre.backend.dto.LogradouroDTO();

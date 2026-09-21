@@ -36,9 +36,8 @@ public class EstoqueService {
                         "Produto não encontrado: " + dto.produtoId()
                 ));
 
-        Proprietario proprietario = Proprietario.builder()
-                .id(dto.proprietarioId())
-                .build();
+        Proprietario proprietario = new Proprietario();
+        proprietario.setId(dto.proprietarioId());
 
         Estoque estoque = Estoque.builder()
                 .proprietario(proprietario)
@@ -83,9 +82,8 @@ public class EstoqueService {
                         "Produto não encontrado: " + dto.produtoId()
                 ));
 
-        Proprietario proprietario = Proprietario.builder()
-                .id(dto.proprietarioId())
-                .build();
+        Proprietario proprietario = new Proprietario();
+        proprietario.setId(dto.proprietarioId());
 
         estoque.setProprietario(proprietario);
         estoque.setProduto(produto);

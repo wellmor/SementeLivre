@@ -86,15 +86,13 @@ class PedidoServiceTest {
                 .nomePopular("Milho crioulo")
                 .build();
 
-        proprietario = Proprietario.builder()
-                .id(proprietarioId)
-                .build();
+        proprietario = new Proprietario();
+        proprietario.setId(proprietarioId);
 
-        usuario = Usuario.builder()
-                .id(usuarioId)
-                .nome("João")
-                .email("joao@exemplo.com")
-                .build();
+        usuario = new Usuario();
+        usuario.setId(usuarioId);
+        usuario.setNome("João");
+        usuario.setEmail("joao@exemplo.com");
 
         estoque = Estoque.builder()
                 .id(UUID.randomUUID())
