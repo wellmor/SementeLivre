@@ -56,9 +56,8 @@ class RelatorioServiceTest {
         relatorioId = UUID.randomUUID();
         proprietarioId = UUID.randomUUID();
 
-        proprietario = Proprietario.builder()
-                .id(proprietarioId)
-                .build();
+        proprietario = new Proprietario();
+        proprietario.setId(proprietarioId);
 
         relatorio = Relatorio.builder()
                 .id(relatorioId)

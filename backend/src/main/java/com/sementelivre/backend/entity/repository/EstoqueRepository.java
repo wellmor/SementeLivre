@@ -1,5 +1,6 @@
 package com.sementelivre.backend.entity.repository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -41,4 +42,28 @@ public interface EstoqueRepository extends JpaRepository<Estoque, UUID> {
     Optional<Estoque> findByProprietarioIdAndProdutoId(
             @Param("proprietarioId") UUID proprietarioId,
             @Param("produtoId") UUID produtoId);
+
+    /**
+     * Estoques de um proprietario que podem ser exibidos no site publico
+     * (issue #91).
+     *
+     * DECISAO A REVISAR: "disponivel publicamente" foi interpretado como
+     * disponibilidade diferente de INDISPONIVEL, ou seja PARA_TROCA,
+     * PARA_VENDA, PARA_DOACAO e A_NEGOCIAR entram na listagem. O modelo nao tem
+     * hoje nenhuma flag propria de visibilidade por produto ou por estoque -- o
+     * unico controle declarado e Proprietario.exibirNoSitePublico. Se o produto
+     * quiser separar "esta disponivel para negociar" de "pode aparecer no
+     * site", isso precisa virar campo proprio.
+     *
+     * O join fetch do Produto evita N+1: logo apos a consulta o service le
+     * nome, formato, tipo, familia e foto de cada produto para montar o DTO.
+     */
+    @Query("""
+            select e from Estoque e
+            join fetch e.produto p
+            where e.proprietario.id = :proprietarioId
+              and e.disponibilidade <> com.sementelivre.backend.entity.enums.Disponibilidade.INDISPONIVEL
+            order by p.nomePopular
+            """)
+    List<Estoque> findVisiveisNoSitePublico(@Param("proprietarioId") UUID proprietarioId);
 }

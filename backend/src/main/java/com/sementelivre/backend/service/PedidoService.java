@@ -305,9 +305,9 @@ public class PedidoService {
 
     // Mesma abordagem do EstoqueService: referencia so pelo id, sem ir ao banco
     private Proprietario referenciaProprietario(UUID id) {
-        return Proprietario.builder()
-                .id(id)
-                .build();
+        Proprietario proprietario = new Proprietario();
+        proprietario.setId(id);
+        return proprietario;
     }
 
     private PedidoResponseDTO mapToResponse(Pedido pedido) {
