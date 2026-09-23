@@ -17,6 +17,7 @@ import com.sementelivre.backend.entity.repository.EstoqueRepository;
 import com.sementelivre.backend.exception.ResourceNotFoundException;
 import com.sementelivre.backend.repository.PropriedadeRepository;
 import com.sementelivre.backend.repository.ProprietarioRepository;
+import org.springframework.cache.annotation.Cacheable;
 
 /**
  * Perfil publico do produtor (issue #91) -- servido sem autenticacao.
@@ -55,6 +56,7 @@ public class ProdutorPublicoService {
      * @throws ResourceNotFoundException se o produtor nao existe ou nao optou
      *         por aparecer no site publico
      */
+    @Cacheable(value = "perfil_publico")
     @Transactional(readOnly = true)
     public ProdutorPublicoResponseDTO buscarPerfilPublico(UUID produtorId) {
         Proprietario produtor = buscarProdutorVisivel(produtorId);
@@ -76,6 +78,7 @@ public class ProdutorPublicoService {
      * @throws ResourceNotFoundException se o produtor nao existe ou nao optou
      *         por aparecer no site publico
      */
+    @Cacheable(value = "sementes_publicas")
     @Transactional(readOnly = true)
     public List<SementePublicaResponseDTO> listarSementes(UUID produtorId) {
         // Valida a visibilidade antes de listar: sem isso, o endpoint de

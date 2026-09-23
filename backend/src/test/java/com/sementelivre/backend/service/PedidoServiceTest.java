@@ -403,9 +403,10 @@ class PedidoServiceTest {
 
     @Test
     void deveListarPedidosComItens() {
-        when(pedidoRepository.findAllComItens()).thenReturn(List.of(pedidoPendente()));
+        UUID proprietarioId = java.util.UUID.randomUUID();
+        when(pedidoRepository.findAllByProprietarioRecebedorId(proprietarioId)).thenReturn(List.of(pedidoPendente()));
 
-        List<PedidoResponseDTO> resultado = pedidoService.listarTodos();
+        List<PedidoResponseDTO> resultado = pedidoService.listarTodos(proprietarioId);
 
         assertEquals(1, resultado.size());
         assertEquals(pedidoId, resultado.get(0).id());
