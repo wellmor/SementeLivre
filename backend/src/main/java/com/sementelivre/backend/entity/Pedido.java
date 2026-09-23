@@ -5,6 +5,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import com.sementelivre.backend.entity.enums.StatusPedido;
 import com.sementelivre.backend.entity.enums.TipoPedido;
 
@@ -42,6 +45,7 @@ public class Pedido {
     private UUID id;
 
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(name = "tipo_pedido", nullable = false, length = 10)
     private TipoPedido tipoPedido;
 
@@ -53,6 +57,7 @@ public class Pedido {
 
     @Builder.Default
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(nullable = false, length = 12)
     private StatusPedido status = StatusPedido.PENDENTE;
 

@@ -4,12 +4,12 @@ on:
   push:
     branches: [ main, developer ]
     paths:
-      - 'estudo-spring-docker/demo/**'
+      - 'backend/**'
       - '.github/workflows/ci.yml'
   pull_request:
     branches: [ main, developer ]
     paths:
-      - 'estudo-spring-docker/demo/**'
+      - 'backend/**'
       - '.github/workflows/ci.yml'
 
 jobs:
@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: estudo-spring-docker/demo
+        working-directory: backend
 
     steps:
       - name: Checkout do código
@@ -39,4 +39,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: relatorio-testes
-          path: estudo-spring-docker/demo/target/surefire-reports
+          path: backend/target/surefire-reports

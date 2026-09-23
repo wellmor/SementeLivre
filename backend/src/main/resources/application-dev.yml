@@ -32,6 +32,11 @@ management:
       exposure:
         include: "*"
   endpoint:
-    health: 
+    health:
       show-details: always
 
+app:
+  cors:
+    allowed-origins:
+      - http://localhost:3000
+      - http://localhost:3001

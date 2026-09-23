@@ -2,6 +2,7 @@ package com.sementelivre.backend.integration;
 
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.ActiveProfiles;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
@@ -11,6 +12,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
  * integração deve estender esta base em vez de declarar seu próprio container,
  * para não subir um Postgres por classe.
  */
+@ActiveProfiles("integration")
 public abstract class AbstractPostgresIntegrationTest {
 
     protected static final PostgreSQLContainer POSTGRES =

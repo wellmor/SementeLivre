@@ -3,6 +3,9 @@ package com.sementelivre.backend.entity;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import com.sementelivre.backend.entity.enums.Disponibilidade;
 import com.sementelivre.backend.entity.enums.Pesagem;
 import com.sementelivre.backend.entity.enums.TipoMovimentacao;
@@ -63,14 +66,17 @@ public class Estoque {
     private Double quantidade;
 
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(name = "tipo_pesagem", nullable = false, length = 20)
     private Pesagem tipoPesagem;
 
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(nullable = false, length = 30)
     private Disponibilidade disponibilidade;
 
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(name = "tipo_movimentacao", nullable = false, length = 30)
     private TipoMovimentacao tipoMovimentacao;
 
