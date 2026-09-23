@@ -28,10 +28,13 @@ public final class DatabaseFixture {
                 .cep("36180-000")
                 .build();
 
-        Proprietario proprietario = Proprietario.builder()
-                .id(UUID.randomUUID())
-                .pessoaId(UUID.randomUUID())
-                .build();
+        Proprietario proprietario = new Proprietario();
+        proprietario.setTipoDocumento(com.sementelivre.backend.entity.enums.TipoDocumento.CPF);
+        proprietario.setDocumento("52998224725");
+        proprietario.setNome("Proprietario Teste");
+        proprietario.setEmail("proprietario.teste@teste.com");
+        proprietario.setSenhaHash("hash123");
+        proprietario.setRg("MG-000000");
 
         Comunidade comunidade = Comunidade.builder()
                 .nome("Comunidade Teste")

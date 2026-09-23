@@ -8,15 +8,18 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.sementelivre.backend.entity.Comunidade;
 import com.sementelivre.backend.entity.Propriedade;
 import com.sementelivre.backend.entity.enums.StatusComunidade;
+import com.sementelivre.backend.integration.AbstractPostgresIntegrationTest;
 
 import jakarta.persistence.EntityManager;
 
-class PersistenciaTest extends PostgresIntegrationTest {
+@SpringBootTest(classes = BackendApplication.class)
+class PersistenciaTest extends AbstractPostgresIntegrationTest {
 
     @Autowired
     private EntityManager entityManager;

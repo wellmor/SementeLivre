@@ -2,6 +2,15 @@ spring:
   profiles:
     default: dev
 
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  metrics:
+    tags:
+      application: semente-livre
+
 springdoc:
   api-docs:
     path: /v3/api-docs

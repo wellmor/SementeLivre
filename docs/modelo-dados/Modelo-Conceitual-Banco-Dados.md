@@ -42,20 +42,23 @@ erDiagram
     }
 
     USUARIO_T {
-        uuid id PK
-        uuid pessoa_id FK
+        uuid pessoa_id PK, FK
+    }
+
+    COMPRADOR_T {
+        uuid comprador_id PK, FK
+        varchar nome
+        varchar telefone        
     }
 
     PROPRIETARIO_T {
-        uuid id PK
-        uuid pessoa_id FK
+        uuid pessoa_id PK, FK
         varchar rg
         boolean exibir_no_site_publico
     }
 
     ADMIN_T {
-        uuid id PK
-        uuid pessoa_id FK
+        uuid pessoa_id PK, FK
         varchar nivel_acesso
     }
 
@@ -155,30 +158,6 @@ erDiagram
         uuid proprietario_id FK
     }
 
-    PLANTIO_T {
-        uuid id PK
-        uuid propriedade_id FK
-        uuid produto_id FK
-        date data_inicio
-        date previsao_colheita
-        float area_plantada
-        varchar talhao
-        varchar status
-    }
-
-    ADUBACAO_T {
-        uuid id PK
-        uuid plantio_id FK
-        date data_adubacao
-        varchar tipo_adubo
-        float quantidade
-    }
-
-    TECNICA_T {
-        uuid id PK
-        varchar nome_tecnica
-        varchar descricao
-    }
 
     SOLICITACAO_CADASTRO_T {
         uuid id PK
@@ -194,15 +173,9 @@ erDiagram
         text observacao
     }
 
-    CONTA_PRODUTOR_T {
-        uuid id PK
-        varchar email
-        varchar senha_hash
-        varchar nome
-        uuid comunidade_id FK
-    }
 
-    PESSOA_T ||--o| USUARIO_T : "eh um usuario"
+    ADMIN_T ||--o| USUARIO_T : "eh um admin"
+    PROPRIETARIO_T ||--o| USUARIO_T : "eh um proprietario"
     PESSOA_T ||--o| PROPRIETARIO_T : "eh um proprietario"
     PESSOA_T ||--o| ADMIN_T : "eh um admin"
     PESSOA_T }o--|| LOGRADOURO_T : "possui endereco"
@@ -216,7 +189,7 @@ erDiagram
     ESTOQUE_T }o--|| PROPRIETARIO_T : "gerenciado por"
     ESTOQUE_T }o--|| PRODUTO_T : "referencia a"
 
-    PEDIDO_T }o--|| USUARIO_T : "solicitado por"
+    PEDIDO_T }o--|| COMPRADOR_T : "solicitado por"
     PEDIDO_T }o--|| PROPRIETARIO_T : "recebido por"
     ITENS_PEDIDO_T }o--|| PEDIDO_T : "contem"
     ITENS_PEDIDO_T }o--|| PRODUTO_T : "referencia a"
@@ -226,12 +199,8 @@ erDiagram
 
     RELATORIO_T }o--|| PROPRIETARIO_T : "solicitado por"
 
-    PLANTIO_T }o--|| PROPRIEDADE_T : "cultivado em"
-    PLANTIO_T }o--|| PRODUTO_T : "usa semente"
-    ADUBACAO_T }o--|| PLANTIO_T : "aduba plantio"
 
     SOLICITACAO_CADASTRO_T }o--o| COMUNIDADE_T : "solicita comunidade"
-    CONTA_PRODUTOR_T }o--|| COMUNIDADE_T : "pertence a"
 ```
 
 ---
@@ -245,20 +214,24 @@ erDiagram
 | Coluna | Tipo | Constraints | Descrição |
 |--------|------|-------------|-----------|
 | `id` | UUID | PK, DEFAULT gen_random_uuid() | Identificador único da pessoa |
-| `tipo_documento` | VARCHAR(5) | NOT NULL | Tipo do documento: 'CPF' ou 'CNPJ' |
-| `documento` | VARCHAR(14) | NOT NULL, UNIQUE | Número do documento (CPF: 11 dígitos, CNPJ: 14 dígitos) |
+| `tipo_documento` | VARCHAR(10) | NOT NULL, CHECK (tipo_documento IN ('CPF', 'CNPJ')) | Tipo do documento |
+| `documento` | VARCHAR(14) | NOT NULL, UNIQUE, CHECK (tamanho condicional) | Número do documento (CPF: 11 dígitos, CNPJ: 14 dígitos) |
 | `nome` | VARCHAR(150) | NOT NULL | Nome completo da pessoa |
 | `telefone` | VARCHAR(15) | | Telefone para contato (formato: (XX) XXXXX-XXXX) |
 | `email` | VARCHAR(255) | NOT NULL, UNIQUE | Endereço de e-mail (usado para login) |
 | `senha_hash` | VARCHAR(255) | NOT NULL | Senha com hash (BCrypt) |
 | `logradouro_id` | UUID | FK → logradouro_t.id | Endereço da pessoa |
-| `data_cadastro` | TIMESTAMP | NOT NULL, DEFAULT NOW() | Data e hora do cadastro |
-| `data_ultima_alteracao` | TIMESTAMP | NOT NULL, DEFAULT NOW() | Data e hora da última alteração |
+| `data_cadastro` | TIMESTAMP | NOT NULL, DEFAULT CURRENT_TIMESTAMP | Data e hora do cadastro |
+| `data_ultima_alteracao` | TIMESTAMP | NOT NULL, DEFAULT CURRENT_TIMESTAMP | Data e hora da última alteração |
 
 **Índices:**
-- `idx_pessoa_documento` UNIQUE ON (tipo_documento, documento)
-- `idx_pessoa_email` UNIQUE ON (email)
+- `uk_pessoa_documento` UNIQUE ON (tipo_documento, documento)
+- `uk_pessoa_email` UNIQUE ON (email)
 - `idx_pessoa_logradouro` ON (logradouro_id)
+
+**Restrições (CHECKs):**
+- `chk_tipo_documento`: Garante que tipo_documento é 'CPF' ou 'CNPJ'
+- `chk_documento_tamanho`: Valida comprimento do documento (11 para CPF, 14 para CNPJ)
 
 ---
 
@@ -266,8 +239,7 @@ erDiagram
 
 | Coluna | Tipo | Constraints | Descrição |
 |--------|------|-------------|-----------|
-| `id` | UUID | PK, DEFAULT gen_random_uuid() | Identificador único do usuário |
-| `pessoa_id` | UUID | FK → pessoa_t.id, NOT NULL, UNIQUE | Referência à pessoa (1:1) |
+| `pessoa_id` | UUID | PK, FK → pessoa_t.id, NOT NULL | Identificador único e referência à pessoa (1:1) |
 
 **Regra de negócio:** Um usuário é uma pessoa que pode realizar pedidos no sistema.
 
@@ -277,14 +249,12 @@ erDiagram
 
 | Coluna | Tipo | Constraints | Descrição |
 |--------|------|-------------|-----------|
-| `id` | UUID | PK, DEFAULT gen_random_uuid() | Identificador único do proprietário |
-| `pessoa_id` | UUID | FK → pessoa_t.id, NOT NULL, UNIQUE | Referência à pessoa (1:1) |
+| `pessoa_id` | UUID | PK, FK → pessoa_t.id, NOT NULL | Identificador único e referência à pessoa (1:1) |
 | `rg` | VARCHAR(20) | NOT NULL, UNIQUE | Registro Geral do proprietário |
 | `exibir_no_site_publico` | BOOLEAN | NOT NULL, DEFAULT false | Se true, perfil aparece no site público |
 
 **Índices:**
-- `idx_proprietario_rg` UNIQUE ON (rg)
-- `idx_proprietario_pessoa` UNIQUE ON (pessoa_id)
+- `uk_proprietario_rg` UNIQUE ON (rg) (*Nota: A migration também cria um índice idx_proprietario_rg explicitamente, mantido por fidelidade ao código*)
 
 ---
 
@@ -292,9 +262,11 @@ erDiagram
 
 | Coluna | Tipo | Constraints | Descrição |
 |--------|------|-------------|-----------|
-| `id` | UUID | PK, DEFAULT gen_random_uuid() | Identificador único do admin |
-| `pessoa_id` | UUID | FK → pessoa_t.id, NOT NULL, UNIQUE | Referência à pessoa (1:1) |
-| `nivel_acesso` | VARCHAR(20) | NOT NULL, DEFAULT 'ADMIN' | Nível de acesso: 'SUPER_ADMIN', 'ADMIN', 'MODERADOR' |
+| `pessoa_id` | UUID | PK, FK → pessoa_t.id, NOT NULL | Identificador único e referência à pessoa (1:1) |
+| `nivel_acesso` | VARCHAR(20) | NOT NULL, DEFAULT 'ADMIN', CHECK | Nível de acesso |
+
+**Restrições (CHECKs):**
+- `chk_nivel_acesso`: Garante que nivel_acesso está contido em ('SUPER_ADMIN', 'ADMIN', 'MODERADOR')
 
 ---
 
@@ -308,10 +280,13 @@ erDiagram
 | `complemento` | VARCHAR(100) | | Complemento (casa, apto, etc.) |
 | `bairro` | VARCHAR(100) | | Bairro ou comunidade |
 | `municipio` | VARCHAR(100) | NOT NULL | Município |
-| `uf` | VARCHAR(2) | NOT NULL | Unidade Federativa (2 caracteres) |
+| `uf` | VARCHAR(2) | NOT NULL, CHECK (formato) | Unidade Federativa (2 caracteres) |
 | `cep` | VARCHAR(9) | | CEP (formato: XXXXX-XXX) |
 
 **Nota:** Tabela compartilhada por pessoa, comunidade e propriedade.
+
+**Restrições (CHECKs):**
+- `chk_uf`: Garante que UF possui apenas duas letras maiúsculas (ex: '^[A-Z]{2}$')
 
 ---
 
@@ -466,52 +441,6 @@ erDiagram
 
 ---
 
-#### `plantio_t` — Registros de plantio (front-site)
-
-| Coluna | Tipo | Constraints | Descrição |
-|--------|------|-------------|-----------|
-| `id` | UUID | PK, DEFAULT gen_random_uuid() | Identificador único do plantio |
-| `propriedade_id` | UUID | FK → propriedade_t.id, NOT NULL | Propriedade onde está plantado |
-| `produto_id` | UUID | FK → produto_t.id, NOT NULL | Semente/muda utilizada |
-| `data_inicio` | DATE | NOT NULL, DEFAULT CURRENT_DATE | Data de início do plantio |
-| `previsao_colheita` | DATE | | Previsão de colheita |
-| `area_plantada` | DOUBLE PRECISION | | Área plantada (hectares) |
-| `talhao` | VARCHAR(100) | | Nome/identificação do talhão |
-| `status` | VARCHAR(15) | NOT NULL, DEFAULT 'ATIVO' | Status: 'ATIVO', 'CONCLUIDO', 'CANCELADO' |
-| `data_cadastro` | TIMESTAMP | NOT NULL, DEFAULT NOW() | Data de cadastro do registro |
-
-**Índices:**
-- `idx_plantio_propriedade` ON (propriedade_id)
-- `idx_plantio_produto` ON (produto_id)
-- `idx_plantio_status` ON (status)
-
----
-
-#### `adubacao_t` — Registro de adubações (front-site)
-
-| Coluna | Tipo | Constraints | Descrição |
-|--------|------|-------------|-----------|
-| `id` | UUID | PK, DEFAULT gen_random_uuid() | Identificador único da adubação |
-| `plantio_id` | UUID | FK → plantio_t.id, NOT NULL | Plantio ao qual se refere |
-| `data_adubacao` | DATE | NOT NULL, DEFAULT CURRENT_DATE | Data da adubação |
-| `tipo_adubo` | VARCHAR(100) | NOT NULL | Tipo de adubo utilizado |
-| `quantidade` | DOUBLE PRECISION | NOT NULL, CHECK > 0 | Quantidade aplicada |
-
-**Índices:**
-- `idx_adubacao_plantio` ON (plantio_id)
-
----
-
-#### `tecnica_t` — Técnicas agroecológicas (front-site)
-
-| Coluna | Tipo | Constraints | Descrição |
-|--------|------|-------------|-----------|
-| `id` | UUID | PK, DEFAULT gen_random_uuid() | Identificador único da técnica |
-| `nome_tecnica` | VARCHAR(150) | NOT NULL | Nome da técnica |
-| `descricao` | TEXT | | Descrição detalhada da técnica |
-
----
-
 #### `solicitacao_cadastro_t` — Solicitações de cadastro (front-site admin)
 
 | Coluna | Tipo | Constraints | Descrição |
@@ -530,21 +459,6 @@ erDiagram
 
 **Índices:**
 - `idx_solicitacao_status` ON (status)
-
----
-
-#### `conta_produtor_t` — Contas de produtores (front-site)
-
-| Coluna | Tipo | Constraints | Descrição |
-|--------|------|-------------|-----------|
-| `id` | UUID | PK, DEFAULT gen_random_uuid() | Identificador único da conta |
-| `email` | VARCHAR(255) | NOT NULL, UNIQUE | Email do produtor |
-| `senha_hash` | VARCHAR(255) | NOT NULL | Senha com hash |
-| `nome` | VARCHAR(150) | NOT NULL | Nome do produtor |
-| `comunidade_id` | UUID | FK → comunidade_t.id, NOT NULL | Comunidade vinculada |
-
-**Índices:**
-- `idx_conta_produtor_comunidade` ON (comunidade_id)
 
 ---
 
@@ -567,8 +481,9 @@ erDiagram
 ## 4. Enums do PostgreSQL
 
 ```sql
--- Tipo de documento
-CREATE TYPE tipo_documento_enum AS ENUM ('CPF', 'CNPJ');
+-- NOTA: Os domínios tipo_documento_enum e nivel_acesso_enum foram implementados 
+-- usando VARCHAR + CHECK por compatibilidade com banco H2 nos testes. 
+-- A lista abaixo mantém a representação conceitual para os demais domínios.
 
 -- Status da comunidade
 CREATE TYPE status_comunidade_enum AS ENUM ('ATIVA', 'PENDENTE_APROVACAO', 'REJEITADA');
@@ -600,9 +515,12 @@ CREATE TYPE status_pedido_enum AS ENUM ('PENDENTE', 'CONFIRMADO', 'CANCELADO');
 -- Tipo de relatório
 CREATE TYPE tipo_relatorio_enum AS ENUM ('ESTOQUE_SEMENTES', 'PEDIDOS_REALIZADOS');
 
--- Nível de acesso do admin
-CREATE TYPE nivel_acesso_enum AS ENUM ('SUPER_ADMIN', 'ADMIN', 'MODERADOR');
 ```
+
+> **Recomendação de Arquitetura:** As colunas relacionadas aos enums acima 
+> deveriam ser substituídas por tipos VARCHAR acompanhados de uma `CONSTRAINT CHECK`, 
+> conforme já implementado nas tabelas `pessoa_t` e `admin_t`. Essa recomendação 
+> aguarda validação do time para os demais módulos.
 
 ---
 
@@ -622,7 +540,6 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 -- ENUMS
 -- =====================================================
 
-CREATE TYPE tipo_documento_enum AS ENUM ('CPF', 'CNPJ');
 CREATE TYPE status_comunidade_enum AS ENUM ('ATIVA', 'PENDENTE_APROVACAO', 'REJEITADA');
 CREATE TYPE tipo_produto_enum AS ENUM ('HORTALICA', 'FRUTIFERA', 'FORRAGEIRA', 'CEREAL', 'LEGUMINOSA', 'VERDURA', 'MEDICINAL', 'OUTRAS');
 CREATE TYPE especie_geral_enum AS ENUM ('FEIJAO', 'MILHO', 'ABOBORA', 'ALFACE', 'ARROZ', 'CEBOLA', 'ALHO', 'OUTRAS');
@@ -633,7 +550,6 @@ CREATE TYPE tipo_movimentacao_enum AS ENUM ('ENTRADA', 'SAIDA_VENDA', 'SAIDA_TRO
 CREATE TYPE tipo_pedido_enum AS ENUM ('VENDA', 'TROCA', 'DOACAO');
 CREATE TYPE status_pedido_enum AS ENUM ('PENDENTE', 'CONFIRMADO', 'CANCELADO');
 CREATE TYPE tipo_relatorio_enum AS ENUM ('ESTOQUE_SEMENTES', 'PEDIDOS_REALIZADOS');
-CREATE TYPE nivel_acesso_enum AS ENUM ('SUPER_ADMIN', 'ADMIN', 'MODERADOR');
 
 -- =====================================================
 -- TABELAS
@@ -647,7 +563,7 @@ CREATE TABLE logradouro_t (
     complemento VARCHAR(100),
     bairro VARCHAR(100),
     municipio VARCHAR(100) NOT NULL,
-    uf CHAR(2) NOT NULL,
+    uf VARCHAR(2) NOT NULL,
     cep VARCHAR(9),
     CONSTRAINT chk_uf CHECK (uf ~ '^[A-Z]{2}$')
 );
@@ -657,17 +573,18 @@ COMMENT ON TABLE logradouro_t IS 'Endereços compartilhados por pessoas, comunid
 -- Tabela base de pessoas (herança por tabela)
 CREATE TABLE pessoa_t (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tipo_documento tipo_documento_enum NOT NULL,
+    tipo_documento VARCHAR(10) NOT NULL,
     documento VARCHAR(14) NOT NULL,
     nome VARCHAR(150) NOT NULL,
     telefone VARCHAR(15),
     email VARCHAR(255) NOT NULL,
     senha_hash VARCHAR(255) NOT NULL,
     logradouro_id UUID REFERENCES logradouro_t(id) ON DELETE SET NULL,
-    data_cadastro TIMESTAMP NOT NULL DEFAULT NOW(),
-    data_ultima_alteracao TIMESTAMP NOT NULL DEFAULT NOW(),
+    data_cadastro TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    data_ultima_alteracao TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uk_pessoa_documento UNIQUE (tipo_documento, documento),
     CONSTRAINT uk_pessoa_email UNIQUE (email),
+    CONSTRAINT chk_tipo_documento CHECK (tipo_documento IN ('CPF', 'CNPJ')),
     CONSTRAINT chk_documento_tamanho CHECK (
         (tipo_documento = 'CPF' AND LENGTH(documento) = 11) OR
         (tipo_documento = 'CNPJ' AND LENGTH(documento) = 14)
@@ -680,20 +597,16 @@ CREATE INDEX idx_pessoa_logradouro ON pessoa_t(logradouro_id);
 
 -- Tabela de usuários (herda identidade de pessoa)
 CREATE TABLE usuario_t (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    pessoa_id UUID NOT NULL REFERENCES pessoa_t(id) ON DELETE CASCADE,
-    CONSTRAINT uk_usuario_pessoa UNIQUE (pessoa_id)
+    pessoa_id UUID PRIMARY KEY REFERENCES pessoa_t(id) ON DELETE CASCADE
 );
 
 COMMENT ON TABLE usuario_t IS 'Usuários que podem realizar pedidos no sistema';
 
 -- Tabela de proprietários (herda identidade de pessoa)
 CREATE TABLE proprietario_t (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    pessoa_id UUID NOT NULL REFERENCES pessoa_t(id) ON DELETE CASCADE,
+    pessoa_id UUID PRIMARY KEY REFERENCES pessoa_t(id) ON DELETE CASCADE,
     rg VARCHAR(20) NOT NULL,
     exibir_no_site_publico BOOLEAN NOT NULL DEFAULT false,
-    CONSTRAINT uk_proprietario_pessoa UNIQUE (pessoa_id),
     CONSTRAINT uk_proprietario_rg UNIQUE (rg)
 );
 
@@ -703,10 +616,9 @@ CREATE INDEX idx_proprietario_rg ON proprietario_t(rg);
 
 -- Tabela de administradores (herda identidade de pessoa)
 CREATE TABLE admin_t (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    pessoa_id UUID NOT NULL REFERENCES pessoa_t(id) ON DELETE CASCADE,
-    nivel_acesso nivel_acesso_enum NOT NULL DEFAULT 'ADMIN',
-    CONSTRAINT uk_admin_pessoa UNIQUE (pessoa_id)
+    pessoa_id UUID PRIMARY KEY REFERENCES pessoa_t(id) ON DELETE CASCADE,
+    nivel_acesso VARCHAR(20) NOT NULL DEFAULT 'ADMIN',
+    CONSTRAINT chk_nivel_acesso CHECK (nivel_acesso IN ('SUPER_ADMIN', 'ADMIN', 'MODERADOR'))
 );
 
 COMMENT ON TABLE admin_t IS 'Administradores do sistema';
@@ -852,46 +764,6 @@ COMMENT ON TABLE relatorio_t IS 'Histórico de relatórios gerados pelos proprie
 CREATE INDEX idx_relatorio_proprietario ON relatorio_t(proprietario_id);
 CREATE INDEX idx_relatorio_tipo ON relatorio_t(tipo);
 
--- Tabela de plantios (front-site)
-CREATE TABLE plantio_t (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    propriedade_id UUID NOT NULL REFERENCES propriedade_t(id) ON DELETE CASCADE,
-    produto_id UUID NOT NULL REFERENCES produto_t(id) ON DELETE RESTRICT,
-    data_inicio DATE NOT NULL DEFAULT CURRENT_DATE,
-    previsao_colheita DATE,
-    area_plantada DOUBLE PRECISION CHECK (area_plantada IS NULL OR area_plantada > 0),
-    talhao VARCHAR(100),
-    status VARCHAR(15) NOT NULL DEFAULT 'ATIVO' CHECK (status IN ('ATIVO', 'CONCLUIDO', 'CANCELADO')),
-    data_cadastro TIMESTAMP NOT NULL DEFAULT NOW()
-);
-
-COMMENT ON TABLE plantio_t IS 'Registros de plantio nas propriedades';
-
-CREATE INDEX idx_plantio_propriedade ON plantio_t(propriedade_id);
-CREATE INDEX idx_plantio_produto ON plantio_t(produto_id);
-CREATE INDEX idx_plantio_status ON plantio_t(status);
-
--- Tabela de adubações (front-site)
-CREATE TABLE adubacao_t (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    plantio_id UUID NOT NULL REFERENCES plantio_t(id) ON DELETE CASCADE,
-    data_adubacao DATE NOT NULL DEFAULT CURRENT_DATE,
-    tipo_adubo VARCHAR(100) NOT NULL,
-    quantidade DOUBLE PRECISION NOT NULL CHECK (quantidade > 0)
-);
-
-COMMENT ON TABLE adubacao_t IS 'Registro de adubações aplicadas nos plantios';
-
-CREATE INDEX idx_adubacao_plantio ON adubacao_t(plantio_id);
-
--- Tabela de técnicas agroecológicas (front-site)
-CREATE TABLE tecnica_t (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    nome_tecnica VARCHAR(150) NOT NULL,
-    descricao TEXT
-);
-
-COMMENT ON TABLE tecnica_t IS 'Técnicas agroecológicas disponíveis no sistema';
 
 -- Tabela de solicitações de cadastro (front-site admin)
 CREATE TABLE solicitacao_cadastro_t (
@@ -912,18 +784,6 @@ COMMENT ON TABLE solicitacao_cadastro_t IS 'Solicitações de cadastro de novos 
 
 CREATE INDEX idx_solicitacao_status ON solicitacao_cadastro_t(status);
 
--- Tabela de contas de produtores (front-site)
-CREATE TABLE conta_produtor_t (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    email VARCHAR(255) NOT NULL UNIQUE,
-    senha_hash VARCHAR(255) NOT NULL,
-    nome VARCHAR(150) NOT NULL,
-    comunidade_id UUID NOT NULL REFERENCES comunidade_t(id) ON DELETE RESTRICT
-);
-
-COMMENT ON TABLE conta_produtor_t IS 'Contas de produtores do site público';
-
-CREATE INDEX idx_conta_produtor_comunidade ON conta_produtor_t(comunidade_id);
 
 -- =====================================================
 -- FUNÇÕES DE AUDITORIA
@@ -1013,15 +873,9 @@ flowchart TB
         REL[relatorio_t]
     end
 
-    subgraph Plantio["Plantio e Técnicas"]
-        PL[plantio_t]
-        AD[adubacao_t]
-        TC[tecnica_t]
-    end
 
     subgraph Site["Cadastro e Contas"]
         SC[solicitacao_cadastro_t]
-        CP[conta_produtor_t]
     end
 
     PESS --> USU
@@ -1047,11 +901,7 @@ flowchart TB
     NOTI -.-> PED
     REL --> PROP
 
-    PL --> PROPR
-    PL --> PROD
-    AD --> PL
     SC -.-> COM
-    CP --> COM
 ```
 
 ---
@@ -1070,9 +920,7 @@ flowchart TB
 | **R8** | Notificação gerada automaticamente pós-pedido | Trigger ou lógica no PedidoService |
 | **R9** | Datas de auditoria atualizadas automaticamente | Triggers `fn_atualizar_data_alteracao` |
 | **R10** | Senhas armazenadas com hash BCrypt | Aplicação (não no banco) |
-| **R11** | Plantio só pode referenciar produtores e produtos existentes | FK constraints em plantio_t |
 | **R12** | Solicitação de cadastro duplicada bloqueada por email | Verificação no service |
-| **R13** | Conta de produtor vinculada a comunidade ativa | FK + CHECK em conta_produtor_t |
 
 ---
 
@@ -1082,12 +930,13 @@ O modelo utiliza **Table Per Type (TPT)** para herança, onde:
 
 - `pessoa_t` armazena os dados comuns (nome, email, documento, etc.)
 - `usuario_t`, `proprietario_t` e `admin_t` armazenam apenas os dados específicos
-- A relação é 1:1 via FK com UNIQUE constraint
+- A relação 1:1 é implementada de forma combinada (PK/FK). O campo `pessoa_id` nas tabelas filhas atua simultaneamente como Chave Primária e Chave Estrangeira (equivalente a `@PrimaryKeyJoinColumn` no JPA).
 - ON DELETE CASCADE garante exclusão em cascata
 
 **Vantagens:**
 - Normalização completa (3NF)
 - Economia de espaço (sem colunas nulas)
+- Elimina completamente colunas `id` redundantes ou autoincrementadas nas tabelas filhas, otimizando a estrutura e garantindo a integridade
 - Facilidade de extensão (adicionar novo tipo de pessoa)
 - Conforme com o diagrama de classes original
 
@@ -1104,8 +953,6 @@ O modelo utiliza **Table Per Type (TPT)** para herança, onde:
 | Notificações não lidas | `idx_notificacao_proprietario_lida` | Badge de notificação |
 | Propriedades por comunidade | `idx_propriedade_comunidade` | Listagem |
 | Relatórios do proprietário | `idx_relatorio_proprietario` | Histórico |
-| Plantios por propriedade | `idx_plantio_propriedade` | Listagem de plantios |
-| Plantios ativos | `idx_plantio_status` | Dashboard de plantio |
 | Solicitações pendentes | `idx_solicitacao_status` | Painel admin |
 
 ---
