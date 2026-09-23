@@ -55,6 +55,7 @@ public class Relatorio {
     // reordenação do enum passaria a apontar para o valor errado.
     // Mesma abordagem já usada em Comunidade.status (StatusComunidade).
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(nullable = false, length = 20)
     private TipoRelatorio tipo;
 

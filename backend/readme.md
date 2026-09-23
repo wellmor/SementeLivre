@@ -23,33 +23,80 @@ Para rodar este projeto na sua máquina, você precisará ter instalado:
 
 ## 4. Como executar o projeto
 
-A execução do projeto é dividida em duas etapas: subir a infraestrutura (banco de dados) e rodar a aplicação.
+Compose sobe PostgreSQL e aplicação juntos:
 
-**Passo 1: Subir o Banco de Dados**
-
-Na raiz da pasta `backend`, abra o terminal e execute:
 ```bash
-docker compose up -d
+docker compose up --build -d
 ```
-Esse comando fará o download da imagem do PostgreSQL 15 e iniciará o container em segundo plano.
 
-**Passo 2: Iniciar o Spring Boot**
+O serviço `app` espera PostgreSQL ficar saudável antes de iniciar. Aplicação fica disponível em `http://localhost:8080`; PostgreSQL fica disponível em `localhost:5433`.
 
-Com o banco rodando, inicie a aplicação através do Maven Wrapper:
+Verifique serviços e logs:
 
-- No **Linux / macOS**:
-  ```bash
-  ./mvnw spring-boot:run
-  ```
-- No **Windows**:
-  ```cmd
-  mvnw.cmd spring-boot:run
-  ```
-    > **Nota para Windows:** Se você já tiver o Maven instalado globalmente na sua máquina, também pode usar simplesmente `mvn spring-boot:run`. Caso contrário, utilize o `mvnw.cmd spring-boot:run` para que o script baixe o Maven automaticamente.
+```bash
+docker compose ps
+docker compose logs app
+```
 
-## 5. Configuração do Banco de Dados
-O banco de dados roda de forma isolada no Docker. As credenciais de acesso local (usuário, senha e banco) estão definidas no arquivo docker-compose.yml.
-O Spring Boot já está configurado para se conectar automaticamente a ele utilizando o profile dev. Se precisar acessar o banco via DBeaver ou DataGrip, utilize a porta 5433 (mapeada no localhost) e as credenciais descritas no compose.
+Pare ambiente:
+
+```bash
+docker compose down
+```
+
+Para iniciar só PostgreSQL e executar aplicação no host:
+
+```bash
+docker compose up -d db
+```
+
+- Linux/macOS: `./mvnw spring-boot:run`
+- Windows: `mvnw.cmd spring-boot:run`
+
+### Testes
+
+Testes de integração usam Testcontainers com PostgreSQL 15. Docker precisa estar em execução.
+
+```bash
+mvn test
+```
+
+Ou Maven Wrapper:
+
+- Linux/macOS: `./mvnw test`
+- Windows: `mvnw.cmd test`
+
+Teste inicia contexto Spring, aplica migrations Flyway e persiste/consulta grafo de `Comunidade` e `Propriedade` em PostgreSQL real.
+
+## 5. Swagger/OpenAPI e CORS
+
+Com aplicação rodando, acesse:
+
+- Swagger UI: `http://localhost:8080/swagger-ui.html`
+- Swagger UI direto: `http://localhost:8080/swagger-ui/index.html`
+- Documento JSON: `http://localhost:8080/v3/api-docs`
+
+Em ambiente `dev`, CORS permite somente:
+
+- `http://localhost:3000` (`front-app`)
+- `http://localhost:3001` (`front-site`)
+
+Métodos permitidos: `GET`, `POST`, `PUT`, `PATCH`, `DELETE` e `OPTIONS`. Origem externa não recebe autorização CORS.
+
+Backend ainda não possui controllers REST. Por isso, documento OpenAPI lista metadados e schemas DTO, mas `paths` fica vazio até endpoints serem implementados.
+
+Teste preflight:
+
+```bash
+curl -i -X OPTIONS http://localhost:8080/v3/api-docs -H "Origin: http://localhost:3000" -H "Access-Control-Request-Method: GET"
+```
+
+## 6. Configuração do Banco de Dados
+
+PostgreSQL e aplicação rodam no Docker Compose. As credenciais de desenvolvimento estão definidas em docker-compose.yml.
+O profile `dev` conecta à porta interna `5432` quando aplicação roda no Compose e à porta `5433` quando aplicação roda no host. DBeaver e DataGrip usam `localhost:5433`.
+PostgreSQL e aplicação rodam no Docker Compose. As credenciais de desenvolvimento estão definidas em docker-compose.yml.
+O profile `dev` conecta à porta interna `5432` quando aplicação roda no Compose e à porta `5433` quando aplicação roda no host. DBeaver e DataGrip usam `localhost:5433`.
 
 ## 6. Profiles de Ambiente (dev / prod)
 A aplicação está configurada para separar as propriedades de desenvolvimento e produção. O profile padrão ativo ao rodar o projeto localmente é o `dev`.
@@ -66,7 +113,7 @@ Se for necessário testar ou forçar a execução de um profile específico via 
 As migrações do banco de dados (criação e alteração de tabelas) são gerenciadas pelo Flyway. Os scripts SQL estão localizados no diretório:
 `src/main/resources/db/migration/`
 
-A migração base do projeto é o arquivo `V1__init.sql`. Ao iniciar o Spring Boot, o Flyway detecta automaticamente novos arquivos nesse diretório e os executa no PostgreSQL na ordem correta.
+As migrações `V1__init.sql` e `V2__create_domain_tables.sql` são executadas automaticamente pelo Flyway na ordem correta ao iniciar Spring Boot.
 
 ### Fluxo de Migrações
 O desenvolvimento de novas migrações deve seguir a nomenclatura sequencial, utilizando sub-versões para evitar conflitos em branches paralelas (ex: `V1_1__...`, `V1_2__...`). O escopo base do sistema (Fase 1) foi organizado em:
@@ -87,14 +134,17 @@ Na versão Community do Flyway utilizada no projeto, rollbacks automatizados (sc
 
 ## 8. Como verificar se está funcionando
 
-- **Docker:** Para garantir que o banco subiu, execute `docker ps` e procure pelo container `semente_livre_db`.
-- **Spring Boot:** O terminal da aplicação deve exibir a mensagem `Started BackendApplication in X seconds` sem erros em vermelho.
-- **Tabelas (Flyway):** Para confirmar que a migração ocorreu, você pode entrar no container e listar as tabelas:
-  ```bash
-  docker exec -it semente_livre_db psql -U devuser -d devdb
-  \dt
-  ```
-  Isso deve listar a sua tabela de teste e a tabela automática `flyway_schema_history`.
+Na pasta `backend`, verifique serviços e logs:
+
+```bash
+docker compose ps
+docker compose logs app
+```
+
+- `db` deve estar `healthy`.
+- `app` deve exibir `Started BackendApplication`.
+- `flyway_schema_history`, `teste_inicial` e tabelas de domínio devem existir.
+
 
 ## 9. Estrutura do Projeto
 Uma visão geral da organização dos arquivos de configuração e código fonte:
@@ -106,15 +156,18 @@ backend/
 │   ├── main/
 │   │   ├── java/                # Código fonte Java
 │   │   └── resources/
-│   │       ├── db/migration/    # Scripts SQL do Flyway (ex: V1__init.sql)
-│   │       ├── application.yml        # Configuração mestre (define o profile ativo)
+│   │       ├── db/migration/    # Scripts SQL do Flyway
+│   │       ├── application.yml        # Configuração padrão
 │   │       ├── application-dev.yml    # Configurações locais (Docker)
-│   │       └── application-prod.yml   # Configurações de nuvem/servidor
-├── docker-compose.yml           # Receita da infraestrutura do PostgreSQL
+│   │       ├── application-test.yml   # Configurações dos testes
+│   │       └── application-prod.yml   # Configurações de produção
+│   └── test/                    # Testes e fixtures com Testcontainers
+├── Dockerfile                   # Imagem da aplicação
+├── docker-compose.yml           # Aplicação + PostgreSQL
 ├── mvnw                         # Script do Maven para Linux/Mac
 ├── mvnw.cmd                     # Script do Maven para Windows
 ├── pom.xml                      # Dependências do projeto
-└── README.md                    # Documentação do projeto
+└── readme.md                    # Documentação do projeto
 ```
 
 ## 10. Arquitetura de Pacotes (Backend)

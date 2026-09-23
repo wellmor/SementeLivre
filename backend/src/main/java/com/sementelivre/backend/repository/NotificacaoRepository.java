@@ -39,6 +39,8 @@ public interface NotificacaoRepository extends BaseRepository<Notificacao, UUID>
      */
     List<Notificacao> findByProprietarioIdAndLidaFalseOrderByDataGeracaoDesc(UUID proprietarioId);
 
+    List<Notificacao> findByPedidoRelacionadoId(UUID pedidoId);
+
     /**
      * Quantidade de notificações não lidas, usada no "badge" com o número de
      * pendências. Contar no banco é bem mais barato do que trazer a lista

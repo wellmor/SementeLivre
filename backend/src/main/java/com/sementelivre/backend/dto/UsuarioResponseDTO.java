@@ -1,5 +1,8 @@
 package com.sementelivre.backend.dto;
 
+import java.util.UUID;
+
+import io.swagger.v3.oas.annotations.media.Schema;
 import com.sementelivre.backend.entity.Logradouro;
 import com.sementelivre.backend.entity.Usuario;
 import com.sementelivre.backend.entity.enums.TipoDocumento;
@@ -11,21 +14,27 @@ import lombok.Setter;
 
 import java.time.LocalDateTime;
 import java.util.Set;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Getter
 @Setter
+@Schema(name = "UsuarioResponseDTO", description = "Dados retornados de um usuário")
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 public class UsuarioResponseDTO {
-
+    @Schema(description = "Identificador do usuário", example = "550e8400-e29b-41d4-a716-446655440000", accessMode = Schema.AccessMode.READ_ONLY)
     private UUID id;
+
     private TipoDocumento tipoDocumento;
     private String documento;
+
+    @Schema(description = "Nome do usuário", example = "Maria da Silva", accessMode = Schema.AccessMode.READ_ONLY)
     private String nome;
+
     private String telefone;
+
+    @Schema(description = "Email do usuário", example = "maria@example.com", accessMode = Schema.AccessMode.READ_ONLY)
     private String email;
     private LogradouroDTO endereco;
     private LocalDateTime dataCadastro;

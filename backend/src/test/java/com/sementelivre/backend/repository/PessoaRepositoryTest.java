@@ -8,17 +8,17 @@ import com.sementelivre.backend.entity.Usuario;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.jdbc.core.JdbcTemplate;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.sementelivre.backend.integration.AbstractPostgresIntegrationTest;
+
 @SpringBootTest
-@ActiveProfiles("test") // Garante uso do H2 se configurado com este profile
 @Transactional
-public class PessoaRepositoryTest {
+public class PessoaRepositoryTest extends AbstractPostgresIntegrationTest {
 
     @Autowired
     private PessoaRepository pessoaRepository;

@@ -3,6 +3,9 @@ package com.sementelivre.backend.entity;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import com.sementelivre.backend.entity.enums.StatusComunidade;
 
 import jakarta.persistence.Column;
@@ -40,6 +43,7 @@ public class Comunidade {
     private Logradouro logradouro;
 
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(nullable = false, length = 30)
     private StatusComunidade status;
 
