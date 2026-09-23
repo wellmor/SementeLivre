@@ -45,6 +45,12 @@ erDiagram
         uuid pessoa_id PK, FK
     }
 
+    COMPRADOR_T {
+        uuid comprador_id PK, FK
+        varchar nome
+        varchar telefone        
+    }
+
     PROPRIETARIO_T {
         uuid pessoa_id PK, FK
         varchar rg
@@ -152,30 +158,6 @@ erDiagram
         uuid proprietario_id FK
     }
 
-    PLANTIO_T {
-        uuid id PK
-        uuid propriedade_id FK
-        uuid produto_id FK
-        date data_inicio
-        date previsao_colheita
-        float area_plantada
-        varchar talhao
-        varchar status
-    }
-
-    ADUBACAO_T {
-        uuid id PK
-        uuid plantio_id FK
-        date data_adubacao
-        varchar tipo_adubo
-        float quantidade
-    }
-
-    TECNICA_T {
-        uuid id PK
-        varchar nome_tecnica
-        varchar descricao
-    }
 
     SOLICITACAO_CADASTRO_T {
         uuid id PK
@@ -191,15 +173,9 @@ erDiagram
         text observacao
     }
 
-    CONTA_PRODUTOR_T {
-        uuid id PK
-        varchar email
-        varchar senha_hash
-        varchar nome
-        uuid comunidade_id FK
-    }
 
-    PESSOA_T ||--o| USUARIO_T : "eh um usuario"
+    ADMIN_T ||--o| USUARIO_T : "eh um admin"
+    PROPRIETARIO_T ||--o| USUARIO_T : "eh um proprietario"
     PESSOA_T ||--o| PROPRIETARIO_T : "eh um proprietario"
     PESSOA_T ||--o| ADMIN_T : "eh um admin"
     PESSOA_T }o--|| LOGRADOURO_T : "possui endereco"
@@ -213,7 +189,7 @@ erDiagram
     ESTOQUE_T }o--|| PROPRIETARIO_T : "gerenciado por"
     ESTOQUE_T }o--|| PRODUTO_T : "referencia a"
 
-    PEDIDO_T }o--|| USUARIO_T : "solicitado por"
+    PEDIDO_T }o--|| COMPRADOR_T : "solicitado por"
     PEDIDO_T }o--|| PROPRIETARIO_T : "recebido por"
     ITENS_PEDIDO_T }o--|| PEDIDO_T : "contem"
     ITENS_PEDIDO_T }o--|| PRODUTO_T : "referencia a"
@@ -223,12 +199,8 @@ erDiagram
 
     RELATORIO_T }o--|| PROPRIETARIO_T : "solicitado por"
 
-    PLANTIO_T }o--|| PROPRIEDADE_T : "cultivado em"
-    PLANTIO_T }o--|| PRODUTO_T : "usa semente"
-    ADUBACAO_T }o--|| PLANTIO_T : "aduba plantio"
 
     SOLICITACAO_CADASTRO_T }o--o| COMUNIDADE_T : "solicita comunidade"
-    CONTA_PRODUTOR_T }o--|| COMUNIDADE_T : "pertence a"
 ```
 
 ---
@@ -469,52 +441,6 @@ erDiagram
 
 ---
 
-#### `plantio_t` — Registros de plantio (front-site)
-
-| Coluna | Tipo | Constraints | Descrição |
-|--------|------|-------------|-----------|
-| `id` | UUID | PK, DEFAULT gen_random_uuid() | Identificador único do plantio |
-| `propriedade_id` | UUID | FK → propriedade_t.id, NOT NULL | Propriedade onde está plantado |
-| `produto_id` | UUID | FK → produto_t.id, NOT NULL | Semente/muda utilizada |
-| `data_inicio` | DATE | NOT NULL, DEFAULT CURRENT_DATE | Data de início do plantio |
-| `previsao_colheita` | DATE | | Previsão de colheita |
-| `area_plantada` | DOUBLE PRECISION | | Área plantada (hectares) |
-| `talhao` | VARCHAR(100) | | Nome/identificação do talhão |
-| `status` | VARCHAR(15) | NOT NULL, DEFAULT 'ATIVO' | Status: 'ATIVO', 'CONCLUIDO', 'CANCELADO' |
-| `data_cadastro` | TIMESTAMP | NOT NULL, DEFAULT NOW() | Data de cadastro do registro |
-
-**Índices:**
-- `idx_plantio_propriedade` ON (propriedade_id)
-- `idx_plantio_produto` ON (produto_id)
-- `idx_plantio_status` ON (status)
-
----
-
-#### `adubacao_t` — Registro de adubações (front-site)
-
-| Coluna | Tipo | Constraints | Descrição |
-|--------|------|-------------|-----------|
-| `id` | UUID | PK, DEFAULT gen_random_uuid() | Identificador único da adubação |
-| `plantio_id` | UUID | FK → plantio_t.id, NOT NULL | Plantio ao qual se refere |
-| `data_adubacao` | DATE | NOT NULL, DEFAULT CURRENT_DATE | Data da adubação |
-| `tipo_adubo` | VARCHAR(100) | NOT NULL | Tipo de adubo utilizado |
-| `quantidade` | DOUBLE PRECISION | NOT NULL, CHECK > 0 | Quantidade aplicada |
-
-**Índices:**
-- `idx_adubacao_plantio` ON (plantio_id)
-
----
-
-#### `tecnica_t` — Técnicas agroecológicas (front-site)
-
-| Coluna | Tipo | Constraints | Descrição |
-|--------|------|-------------|-----------|
-| `id` | UUID | PK, DEFAULT gen_random_uuid() | Identificador único da técnica |
-| `nome_tecnica` | VARCHAR(150) | NOT NULL | Nome da técnica |
-| `descricao` | TEXT | | Descrição detalhada da técnica |
-
----
-
 #### `solicitacao_cadastro_t` — Solicitações de cadastro (front-site admin)
 
 | Coluna | Tipo | Constraints | Descrição |
@@ -533,21 +459,6 @@ erDiagram
 
 **Índices:**
 - `idx_solicitacao_status` ON (status)
-
----
-
-#### `conta_produtor_t` — Contas de produtores (front-site)
-
-| Coluna | Tipo | Constraints | Descrição |
-|--------|------|-------------|-----------|
-| `id` | UUID | PK, DEFAULT gen_random_uuid() | Identificador único da conta |
-| `email` | VARCHAR(255) | NOT NULL, UNIQUE | Email do produtor |
-| `senha_hash` | VARCHAR(255) | NOT NULL | Senha com hash |
-| `nome` | VARCHAR(150) | NOT NULL | Nome do produtor |
-| `comunidade_id` | UUID | FK → comunidade_t.id, NOT NULL | Comunidade vinculada |
-
-**Índices:**
-- `idx_conta_produtor_comunidade` ON (comunidade_id)
 
 ---
 
@@ -853,46 +764,6 @@ COMMENT ON TABLE relatorio_t IS 'Histórico de relatórios gerados pelos proprie
 CREATE INDEX idx_relatorio_proprietario ON relatorio_t(proprietario_id);
 CREATE INDEX idx_relatorio_tipo ON relatorio_t(tipo);
 
--- Tabela de plantios (front-site)
-CREATE TABLE plantio_t (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    propriedade_id UUID NOT NULL REFERENCES propriedade_t(id) ON DELETE CASCADE,
-    produto_id UUID NOT NULL REFERENCES produto_t(id) ON DELETE RESTRICT,
-    data_inicio DATE NOT NULL DEFAULT CURRENT_DATE,
-    previsao_colheita DATE,
-    area_plantada DOUBLE PRECISION CHECK (area_plantada IS NULL OR area_plantada > 0),
-    talhao VARCHAR(100),
-    status VARCHAR(15) NOT NULL DEFAULT 'ATIVO' CHECK (status IN ('ATIVO', 'CONCLUIDO', 'CANCELADO')),
-    data_cadastro TIMESTAMP NOT NULL DEFAULT NOW()
-);
-
-COMMENT ON TABLE plantio_t IS 'Registros de plantio nas propriedades';
-
-CREATE INDEX idx_plantio_propriedade ON plantio_t(propriedade_id);
-CREATE INDEX idx_plantio_produto ON plantio_t(produto_id);
-CREATE INDEX idx_plantio_status ON plantio_t(status);
-
--- Tabela de adubações (front-site)
-CREATE TABLE adubacao_t (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    plantio_id UUID NOT NULL REFERENCES plantio_t(id) ON DELETE CASCADE,
-    data_adubacao DATE NOT NULL DEFAULT CURRENT_DATE,
-    tipo_adubo VARCHAR(100) NOT NULL,
-    quantidade DOUBLE PRECISION NOT NULL CHECK (quantidade > 0)
-);
-
-COMMENT ON TABLE adubacao_t IS 'Registro de adubações aplicadas nos plantios';
-
-CREATE INDEX idx_adubacao_plantio ON adubacao_t(plantio_id);
-
--- Tabela de técnicas agroecológicas (front-site)
-CREATE TABLE tecnica_t (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    nome_tecnica VARCHAR(150) NOT NULL,
-    descricao TEXT
-);
-
-COMMENT ON TABLE tecnica_t IS 'Técnicas agroecológicas disponíveis no sistema';
 
 -- Tabela de solicitações de cadastro (front-site admin)
 CREATE TABLE solicitacao_cadastro_t (
@@ -913,18 +784,6 @@ COMMENT ON TABLE solicitacao_cadastro_t IS 'Solicitações de cadastro de novos 
 
 CREATE INDEX idx_solicitacao_status ON solicitacao_cadastro_t(status);
 
--- Tabela de contas de produtores (front-site)
-CREATE TABLE conta_produtor_t (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    email VARCHAR(255) NOT NULL UNIQUE,
-    senha_hash VARCHAR(255) NOT NULL,
-    nome VARCHAR(150) NOT NULL,
-    comunidade_id UUID NOT NULL REFERENCES comunidade_t(id) ON DELETE RESTRICT
-);
-
-COMMENT ON TABLE conta_produtor_t IS 'Contas de produtores do site público';
-
-CREATE INDEX idx_conta_produtor_comunidade ON conta_produtor_t(comunidade_id);
 
 -- =====================================================
 -- FUNÇÕES DE AUDITORIA
@@ -1014,15 +873,9 @@ flowchart TB
         REL[relatorio_t]
     end
 
-    subgraph Plantio["Plantio e Técnicas"]
-        PL[plantio_t]
-        AD[adubacao_t]
-        TC[tecnica_t]
-    end
 
     subgraph Site["Cadastro e Contas"]
         SC[solicitacao_cadastro_t]
-        CP[conta_produtor_t]
     end
 
     PESS --> USU
@@ -1048,11 +901,7 @@ flowchart TB
     NOTI -.-> PED
     REL --> PROP
 
-    PL --> PROPR
-    PL --> PROD
-    AD --> PL
     SC -.-> COM
-    CP --> COM
 ```
 
 ---
@@ -1071,9 +920,7 @@ flowchart TB
 | **R8** | Notificação gerada automaticamente pós-pedido | Trigger ou lógica no PedidoService |
 | **R9** | Datas de auditoria atualizadas automaticamente | Triggers `fn_atualizar_data_alteracao` |
 | **R10** | Senhas armazenadas com hash BCrypt | Aplicação (não no banco) |
-| **R11** | Plantio só pode referenciar produtores e produtos existentes | FK constraints em plantio_t |
 | **R12** | Solicitação de cadastro duplicada bloqueada por email | Verificação no service |
-| **R13** | Conta de produtor vinculada a comunidade ativa | FK + CHECK em conta_produtor_t |
 
 ---
 
@@ -1106,8 +953,6 @@ O modelo utiliza **Table Per Type (TPT)** para herança, onde:
 | Notificações não lidas | `idx_notificacao_proprietario_lida` | Badge de notificação |
 | Propriedades por comunidade | `idx_propriedade_comunidade` | Listagem |
 | Relatórios do proprietário | `idx_relatorio_proprietario` | Histórico |
-| Plantios por propriedade | `idx_plantio_propriedade` | Listagem de plantios |
-| Plantios ativos | `idx_plantio_status` | Dashboard de plantio |
 | Solicitações pendentes | `idx_solicitacao_status` | Painel admin |
 
 ---

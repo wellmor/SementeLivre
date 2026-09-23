@@ -13,6 +13,8 @@ docs/
 ├── diagramas/         # Diagramas UML (classes, sequência, implantação, DAO)
 ├── cronograma/        # Cronograma de sprints e plano da Fase 0
 ├── gestao/            # Guias de configuração e gestão (GitHub Projects)
+├── wiki/              # Documentação completa e contínua do sistema
+├── Justificativa-Escolha-Tecnologias.md  # Justificativas (PWA/Spring) e quadro comparativo
 └── README.md          # Este índice
 ```
 
@@ -53,6 +55,9 @@ docs/
 | [Cronograma-Backend-Sprint.md](cronograma/Cronograma-Backend-Sprint.md) | Cronograma completo de 9 semanas: estrutura da equipe, fases, riscos, DoD e Gantt simplificado |
 | [Fase0-Preparacao.md](cronograma/Fase0-Preparacao.md) | Detalhamento da Fase 0 (Semana 0) — estudos técnicos, setup de ambiente e infraestrutura de testes |
 | [Fase1-Fundacao.md](cronograma/Fase1-Fundacao.md) | Detalhamento da Fase 1 (Semanas 1–2) — infraestrutura do projeto, mapeamento JPA e CRUDs básicos |
+| [Fase2-Negocio.md](cronograma/Fase2-Negocio.md) | Detalhamento da Fase 2 (Semanas 3–4) — lógica de negócio, validações e autenticação JWT |
+| [Fase3-Integracao.md](cronograma/Fase3-Integracao.md) | Detalhamento da Fase 3 (Semanas 5–6) — integração frontend-backend, relatórios e testes cross-domain |
+| [Fase4-Qualidade-Deploy.md](cronograma/Fase4-Qualidade-Deploy.md) | Detalhamento da Fase 4 (Semanas 7–8) — qualidade, correção de bugs, testes de carga e deploy final |
 
 ---
 
@@ -61,6 +66,20 @@ docs/
 | Arquivo | Descrição |
 |---|---|
 | [Guia-GitHub-Projects.md](gestao/Guia-GitHub-Projects.md) | Guia passo a passo de configuração do GitHub Projects: milestones, cards e organização do Kanban |
+
+---
+
+## 6. Justificativa Tecnológica
+
+| Arquivo | Descrição |
+|---|---|
+| [Justificativa-Escolha-Tecnologias.md](Justificativa-Escolha-Tecnologias.md) | Parágrafo de justificativa da adoção de PWA e Java Spring Boot + quadros comparativos de frontend e backend (React, Node, ASP.NET, Python, Next.js, etc.) |
+
+---
+
+## 7. Wiki do Sistema
+
+A documentação completa e contínua do sistema está na pasta [`wiki/`](wiki/README.md), com visão geral, requisitos, arquitetura, modelo de dados, API, frontends, segurança, guia de desenvolvimento, infraestrutura, gestão e equipe.
 
 ---
 

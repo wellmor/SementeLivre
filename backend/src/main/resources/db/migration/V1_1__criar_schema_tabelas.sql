@@ -155,14 +155,6 @@ CREATE TABLE solicitacao_cadastro_t(
     observacao TEXT
 );
 
-CREATE TABLE conta_produtor_t(
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    email VARCHAR(255) NOT NULL UNIQUE,
-    senha_hash VARCHAR(255) NOT NULL,
-    nome VARCHAR(150) NOT NULL,
-    comunidade_id UUID NOT NULL REFERENCES comunidade_t(id) ON DELETE RESTRICT
-);
-
 CREATE TABLE relatorio_t(
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tipo tipo_relatorio_enum NOT NULL,
