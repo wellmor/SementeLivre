@@ -1,39 +1,27 @@
 package com.sementelivre.backend.integration;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import java.time.LocalDateTime;
-import java.util.List;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import com.sementelivre.backend.BackendApplication;
-import com.sementelivre.backend.dto.EstoqueRequestDTO;
-import com.sementelivre.backend.dto.ItemPedidoRequestDTO;
-import com.sementelivre.backend.dto.PedidoRequestDTO;
 import com.sementelivre.backend.dto.PedidoResponseDTO;
 import com.sementelivre.backend.entity.Estoque;
 import com.sementelivre.backend.entity.Pedido;
-import com.sementelivre.backend.entity.Produto;
-import com.sementelivre.backend.entity.Proprietario;
-import com.sementelivre.backend.entity.Usuario;
-import com.sementelivre.backend.entity.enums.Disponibilidade;
-import com.sementelivre.backend.entity.enums.EspecieGeral;
-import com.sementelivre.backend.entity.enums.FormatoProduto;
-import com.sementelivre.backend.entity.enums.Pesagem;
 import com.sementelivre.backend.entity.enums.StatusPedido;
-import com.sementelivre.backend.entity.enums.TipoDocumento;
-import com.sementelivre.backend.entity.enums.TipoMovimentacao;
-import com.sementelivre.backend.entity.enums.TipoPedido;
-import com.sementelivre.backend.entity.enums.TipoProduto;
 import com.sementelivre.backend.entity.repository.EstoqueRepository;
 import com.sementelivre.backend.entity.repository.PedidoRepository;
 import com.sementelivre.backend.entity.repository.ProdutoRepository;
+import com.sementelivre.backend.exception.EstoqueInsuficienteException;
+import com.sementelivre.backend.exception.TransicaoStatusInvalidaException;
+import com.sementelivre.backend.repository.NotificacaoRepository;
 import com.sementelivre.backend.service.EstoqueService;
 import com.sementelivre.backend.service.PedidoService;
 
@@ -42,8 +30,8 @@ import jakarta.persistence.EntityManager;
 @SpringBootTest(classes = BackendApplication.class)
 class PedidoEstoqueIntegrationTest extends AbstractPostgresIntegrationTest {
 
-    private static final double QUANTIDADE_INICIAL = 10.0;
-    private static final double QUANTIDADE_PEDIDA = 4.0;
+    private static final double ESTOQUE_INICIAL = 100.0;
+    private static final double QUANTIDADE_PEDIDA = 20.0;
 
     @Autowired
     private EntityManager entityManager;
@@ -63,90 +51,134 @@ class PedidoEstoqueIntegrationTest extends AbstractPostgresIntegrationTest {
     @Autowired
     private PedidoService pedidoService;
 
+    @Autowired
+    private NotificacaoRepository notificacaoRepository;
+
+    @Autowired
+    private TransactionTemplate transactionTemplate;
+
     @Test
     @Transactional
-    void deveConfirmarPedidoEBaixarEstoqueNoPostgres() {
-        Proprietario proprietario = persistirProprietario();
-        Usuario usuario = persistirUsuario();
-        Produto produto = persistirProduto();
+    void registrarPedido_deveDiminuirSaldoEstoque() {
+        CrossDomainFixture.Scenario scenario = fixture(ESTOQUE_INICIAL);
 
-        persistirEstoque(proprietario, produto);
-
-        PedidoResponseDTO pedidoCriado = pedidoService.criar(new PedidoRequestDTO(
-                TipoPedido.VENDA,
-                "Pedido de integração",
-                usuario.getId(),
-                proprietario.getId(),
-                List.of(new ItemPedidoRequestDTO(produto.getId(), QUANTIDADE_PEDIDA, 15.0))
-        ));
-
-        PedidoResponseDTO pedidoConfirmado = pedidoService.confirmar(pedidoCriado.id());
+        PedidoResponseDTO pedido = pedidoService.criar(CrossDomainFixture.pedido(scenario, QUANTIDADE_PEDIDA));
         entityManager.flush();
         entityManager.clear();
 
-        Pedido pedidoPersistido = pedidoRepository.findByIdComItens(pedidoCriado.id()).orElseThrow();
-        Estoque estoquePersistido = estoqueRepository
-                .findByProprietarioIdAndProdutoId(proprietario.getId(), produto.getId())
-                .orElseThrow();
+        Estoque estoque = estoque(scenario);
+        Pedido persistido = pedidoRepository.findByIdComItens(pedido.id()).orElseThrow();
 
-        assertEquals(StatusPedido.CONFIRMADO, pedidoPersistido.getStatus());
-        assertEquals(QUANTIDADE_INICIAL - QUANTIDADE_PEDIDA, estoquePersistido.getQuantidade());
-        assertEquals(produto.getId(), pedidoPersistido.getItens().get(0).getProduto().getId());
-        assertEquals(StatusPedido.CONFIRMADO, pedidoConfirmado.status());
+        assertEquals(ESTOQUE_INICIAL - QUANTIDADE_PEDIDA, estoque.getQuantidade());
+        assertEquals(StatusPedido.PENDENTE, persistido.getStatus());
     }
 
-    private Proprietario persistirProprietario() {
-        String sufixo = UUID.randomUUID().toString().substring(0, 8);
-        Proprietario proprietario = new Proprietario();
-        proprietario.setTipoDocumento(TipoDocumento.CPF);
-        proprietario.setDocumento("529" + sufixo);
-        proprietario.setNome("Proprietario Pedido " + sufixo);
-        proprietario.setEmail("proprietario.pedido." + sufixo + "@teste.com");
-        proprietario.setSenhaHash("hash123");
-        proprietario.setRg("MG-P" + sufixo);
-        entityManager.persist(proprietario);
+    @Test
+    @Transactional
+    void cancelarPedido_deveRestaurarSaldoEstoque() {
+        CrossDomainFixture.Scenario scenario = fixture(ESTOQUE_INICIAL);
+        PedidoResponseDTO criado = pedidoService.criar(CrossDomainFixture.pedido(scenario, QUANTIDADE_PEDIDA));
+
+        pedidoService.cancelar(criado.id());
         entityManager.flush();
-        return proprietario;
+        entityManager.clear();
+
+        assertEquals(ESTOQUE_INICIAL, estoque(scenario).getQuantidade());
+        assertEquals(StatusPedido.CANCELADO,
+                pedidoRepository.findById(criado.id()).orElseThrow().getStatus());
     }
 
-    private Usuario persistirUsuario() {
-        String sufixo = UUID.randomUUID().toString().substring(0, 8);
-        Usuario usuario = new Usuario();
-        usuario.setTipoDocumento(TipoDocumento.CPF);
-        usuario.setDocumento("529" + sufixo);
-        usuario.setNome("Usuario Pedido " + sufixo);
-        usuario.setEmail("usuario.pedido." + sufixo + "@teste.com");
-        usuario.setSenhaHash("hash123");
-        entityManager.persist(usuario);
-        return usuario;
+    @Test
+    @Transactional
+    void estoqueInsuficiente_deveRejeitarPedidoSemAlterarDados() {
+        CrossDomainFixture.Scenario scenario = fixture(10.0);
+
+        assertThrows(EstoqueInsuficienteException.class,
+                () -> pedidoService.criar(CrossDomainFixture.pedido(scenario, QUANTIDADE_PEDIDA)));
+        entityManager.flush();
+        entityManager.clear();
+
+        assertEquals(10.0, estoque(scenario).getQuantidade());
+        assertEquals(0, pedidoRepository.count());
     }
 
-    private Produto persistirProduto() {
-        Produto produto = Produto.builder()
-                .nomePopular("Milho de integração")
-                .nomeCientifico("Zea mays")
-                .urlFoto("https://example.com/milho.png")
-                .tipo(TipoProduto.CEREAL)
-                .especie(EspecieGeral.MILHO)
-                .formato(FormatoProduto.SEMENTE)
-                .dataInclusao(LocalDateTime.now())
-                .dataUltimaAlteracao(LocalDateTime.now())
-                .build();
-        Produto salvo = produtoRepository.saveAndFlush(produto);
-        assertNotNull(salvo.getId());
-        return salvo;
+    @Test
+    @Transactional
+    void cancelarPedidoDuasVezes_deveFalharSemAlterarEstoque() {
+        CrossDomainFixture.Scenario scenario = fixture(ESTOQUE_INICIAL);
+        PedidoResponseDTO criado = pedidoService.criar(CrossDomainFixture.pedido(scenario, QUANTIDADE_PEDIDA));
+
+        pedidoService.cancelar(criado.id());
+        assertThrows(TransicaoStatusInvalidaException.class, () -> pedidoService.cancelar(criado.id()));
+        entityManager.flush();
+        entityManager.clear();
+
+        assertEquals(ESTOQUE_INICIAL, estoque(scenario).getQuantidade());
+        assertEquals(StatusPedido.CANCELADO,
+                pedidoRepository.findById(criado.id()).orElseThrow().getStatus());
     }
 
-    private void persistirEstoque(Proprietario proprietario, Produto produto) {
-        estoqueService.criar(new EstoqueRequestDTO(
-                proprietario.getId(),
-                produto.getId(),
-                "Estoque de integração",
-                15.0,
-                QUANTIDADE_INICIAL,
-                Pesagem.KG,
-                Disponibilidade.PARA_VENDA,
-                TipoMovimentacao.ENTRADA
-        ));
+    @Test
+    @Transactional
+    void excluirPedidoPendente_deveExcluirItensERestaurarEstoque() {
+        CrossDomainFixture.Scenario scenario = fixture(ESTOQUE_INICIAL);
+        PedidoResponseDTO criado = pedidoService.criar(CrossDomainFixture.pedido(scenario, QUANTIDADE_PEDIDA));
+
+        pedidoService.excluir(criado.id());
+        entityManager.flush();
+        entityManager.clear();
+
+        assertEquals(ESTOQUE_INICIAL, estoque(scenario).getQuantidade());
+        assertEquals(0, pedidoRepository.count());
+    }
+
+    @Test
+    void falhaAoRegistrarPedido_deveFazerRollbackDePedidoEEstoque() {
+        CrossDomainFixture.Scenario scenario = transactionTemplate.execute(status ->
+                CrossDomainFixture.create(entityManager, produtoRepository, estoqueService, ESTOQUE_INICIAL));
+
+        assertThrows(RuntimeException.class, () -> transactionTemplate.executeWithoutResult(status -> {
+            pedidoService.criar(CrossDomainFixture.pedido(scenario, QUANTIDADE_PEDIDA));
+            throw new TestRollbackException();
+        }));
+
+        assertEquals(ESTOQUE_INICIAL, estoque(scenario).getQuantidade());
+        assertEquals(0, pedidoRepository.count());
+    }
+
+    @Test
+    void falhaAoConfirmarPedido_deveFazerRollbackDePedidoEstoqueENotificacao() {
+        CrossDomainFixture.Scenario scenario = transactionTemplate.execute(status -> {
+            CrossDomainFixture.Scenario created = CrossDomainFixture.create(
+                    entityManager, produtoRepository, estoqueService, ESTOQUE_INICIAL);
+            pedidoService.criar(CrossDomainFixture.pedido(created, QUANTIDADE_PEDIDA));
+            return created;
+        });
+        UUID pedidoId = pedidoRepository.findAll().stream().findFirst().orElseThrow().getId();
+
+        assertThrows(RuntimeException.class, () -> transactionTemplate.executeWithoutResult(status -> {
+            pedidoService.confirmar(pedidoId);
+            throw new TestRollbackException();
+        }));
+
+        entityManager.clear();
+        assertEquals(StatusPedido.PENDENTE, pedidoRepository.findById(pedidoId).orElseThrow().getStatus());
+        assertEquals(ESTOQUE_INICIAL - QUANTIDADE_PEDIDA, estoque(scenario).getQuantidade());
+        assertEquals(0, notificacaoRepository
+            .findByProprietarioIdOrderByDataGeracaoDesc(scenario.proprietario().getId()).size());
+    }
+
+    private static final class TestRollbackException extends RuntimeException {
+        private static final long serialVersionUID = 1L;
+    }
+
+    private CrossDomainFixture.Scenario fixture(double quantidade) {
+        return CrossDomainFixture.create(entityManager, produtoRepository, estoqueService, quantidade);
+    }
+
+    private Estoque estoque(CrossDomainFixture.Scenario scenario) {
+        return estoqueRepository
+                .findByProprietarioIdAndProdutoId(scenario.proprietario().getId(), scenario.produto().getId())
+                .orElseThrow();
     }
 }

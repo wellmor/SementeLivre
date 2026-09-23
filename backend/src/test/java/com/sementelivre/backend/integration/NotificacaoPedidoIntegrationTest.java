@@ -2,11 +2,8 @@ package com.sementelivre.backend.integration;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 
-import java.time.LocalDateTime;
 import java.util.List;
-import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,27 +11,14 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.sementelivre.backend.BackendApplication;
-import com.sementelivre.backend.dto.EstoqueRequestDTO;
-import com.sementelivre.backend.dto.ItemPedidoRequestDTO;
-import com.sementelivre.backend.dto.NotificacaoRequestDTO;
-import com.sementelivre.backend.dto.NotificacaoResponseDTO;
-import com.sementelivre.backend.dto.PedidoRequestDTO;
 import com.sementelivre.backend.dto.PedidoResponseDTO;
-import com.sementelivre.backend.entity.Produto;
-import com.sementelivre.backend.entity.Proprietario;
-import com.sementelivre.backend.entity.Usuario;
-import com.sementelivre.backend.entity.enums.Disponibilidade;
-import com.sementelivre.backend.entity.enums.EspecieGeral;
-import com.sementelivre.backend.entity.enums.FormatoProduto;
-import com.sementelivre.backend.entity.enums.Pesagem;
-import com.sementelivre.backend.entity.enums.TipoDocumento;
-import com.sementelivre.backend.entity.enums.TipoMovimentacao;
-import com.sementelivre.backend.entity.enums.TipoPedido;
-import com.sementelivre.backend.entity.enums.TipoProduto;
-import com.sementelivre.backend.entity.repository.ProdutoRepository;
+import com.sementelivre.backend.entity.Estoque;
+import com.sementelivre.backend.entity.Notificacao;
+import com.sementelivre.backend.entity.enums.StatusPedido;
+import com.sementelivre.backend.entity.repository.EstoqueRepository;
+import com.sementelivre.backend.entity.repository.PedidoRepository;
 import com.sementelivre.backend.repository.NotificacaoRepository;
 import com.sementelivre.backend.service.EstoqueService;
-import com.sementelivre.backend.service.NotificacaoService;
 import com.sementelivre.backend.service.PedidoService;
 
 import jakarta.persistence.EntityManager;
@@ -42,11 +26,14 @@ import jakarta.persistence.EntityManager;
 @SpringBootTest(classes = BackendApplication.class)
 class NotificacaoPedidoIntegrationTest extends AbstractPostgresIntegrationTest {
 
+    private static final double ESTOQUE_INICIAL = 100.0;
+    private static final double QUANTIDADE_PEDIDA = 20.0;
+
     @Autowired
     private EntityManager entityManager;
 
     @Autowired
-    private ProdutoRepository produtoRepository;
+    private com.sementelivre.backend.entity.repository.ProdutoRepository produtoRepository;
 
     @Autowired
     private EstoqueService estoqueService;
@@ -55,94 +42,60 @@ class NotificacaoPedidoIntegrationTest extends AbstractPostgresIntegrationTest {
     private PedidoService pedidoService;
 
     @Autowired
-    private NotificacaoService notificacaoService;
+    private PedidoRepository pedidoRepository;
+
+    @Autowired
+    private EstoqueRepository estoqueRepository;
 
     @Autowired
     private NotificacaoRepository notificacaoRepository;
 
     @Test
     @Transactional
-    void devePersistirNotificacaoRelacionadaAoPedidoNoPostgres() {
-        Proprietario proprietario = persistirProprietario();
-        Usuario usuario = persistirUsuario();
-        Produto produto = persistirProduto();
+    void confirmarPedido_deveCriarNotificacaoNaoLidaSemNovaBaixa() {
+        CrossDomainFixture.Scenario scenario = CrossDomainFixture.create(
+                entityManager, produtoRepository, estoqueService, ESTOQUE_INICIAL);
+        PedidoResponseDTO criado = pedidoService.criar(
+                CrossDomainFixture.pedido(scenario, QUANTIDADE_PEDIDA));
 
-        estoqueService.criar(new EstoqueRequestDTO(
-                proprietario.getId(),
-                produto.getId(),
-                "Estoque de notificação",
-                15.0,
-                5.0,
-                Pesagem.KG,
-                Disponibilidade.PARA_VENDA,
-                TipoMovimentacao.ENTRADA
-        ));
-
-        PedidoResponseDTO pedido = pedidoService.criar(new PedidoRequestDTO(
-                TipoPedido.VENDA,
-                "Pedido relacionado à notificação",
-                usuario.getId(),
-                proprietario.getId(),
-                List.of(new ItemPedidoRequestDTO(produto.getId(), 2.0, 15.0))
-        ));
-
-        NotificacaoResponseDTO notificacaoCriada = notificacaoService.criar(new NotificacaoRequestDTO(
-                "Novo pedido recebido",
-                "Um novo pedido foi criado para seu estoque.",
-                proprietario.getId(),
-                pedido.id()
-        ));
+        pedidoService.confirmar(criado.id());
         entityManager.flush();
         entityManager.clear();
 
-        var persistida = notificacaoRepository.findById(notificacaoCriada.id()).orElseThrow();
+        var pedido = pedidoRepository.findByIdComItens(criado.id()).orElseThrow();
+        Estoque estoque = estoqueRepository
+                .findByProprietarioIdAndProdutoId(
+                        scenario.proprietario().getId(), scenario.produto().getId())
+                .orElseThrow();
+        List<Notificacao> notificacoes = notificacaoRepository
+                .findByProprietarioIdOrderByDataGeracaoDesc(scenario.proprietario().getId());
 
-        assertNotNull(persistida.getId());
-        assertEquals("Novo pedido recebido", persistida.getTitulo());
-        assertEquals("Um novo pedido foi criado para seu estoque.", persistida.getMensagem());
-        assertFalse(persistida.isLida());
-        assertEquals(proprietario.getId(), persistida.getProprietario().getId());
-        assertEquals(pedido.id(), persistida.getPedidoRelacionado().getId());
+        assertEquals(StatusPedido.CONFIRMADO, pedido.getStatus());
+        assertEquals(ESTOQUE_INICIAL - QUANTIDADE_PEDIDA, estoque.getQuantidade());
+        assertEquals(1, notificacoes.size());
+        assertFalse(notificacoes.get(0).isLida());
+        assertEquals(pedido.getId(), notificacoes.get(0).getPedidoRelacionado().getId());
+        assertEquals(scenario.proprietario().getId(), notificacoes.get(0).getProprietario().getId());
+        assertEquals("Pedido confirmado", notificacoes.get(0).getTitulo());
     }
 
-    private Proprietario persistirProprietario() {
-        String sufixo = UUID.randomUUID().toString().substring(0, 8);
-        Proprietario proprietario = new Proprietario();
-        proprietario.setTipoDocumento(TipoDocumento.CPF);
-        proprietario.setDocumento("529" + sufixo);
-        proprietario.setNome("Proprietario Notificacao " + sufixo);
-        proprietario.setEmail("proprietario.notificacao." + sufixo + "@teste.com");
-        proprietario.setSenhaHash("hash123");
-        proprietario.setRg("MG-N" + sufixo);
-        entityManager.persist(proprietario);
+    @Test
+    @Transactional
+    void excluirPedido_deveManterNotificacaoComPedidoRelacionadoNulo() {
+        CrossDomainFixture.Scenario scenario = CrossDomainFixture.create(
+                entityManager, produtoRepository, estoqueService, ESTOQUE_INICIAL);
+        PedidoResponseDTO criado = pedidoService.criar(
+                CrossDomainFixture.pedido(scenario, QUANTIDADE_PEDIDA));
+        pedidoService.confirmar(criado.id());
         entityManager.flush();
-        return proprietario;
-    }
 
-    private Usuario persistirUsuario() {
-        String sufixo = UUID.randomUUID().toString().substring(0, 8);
-        Usuario usuario = new Usuario();
-        usuario.setTipoDocumento(TipoDocumento.CPF);
-        usuario.setDocumento("529" + sufixo);
-        usuario.setNome("Usuario Notificacao " + sufixo);
-        usuario.setEmail("usuario.notificacao." + sufixo + "@teste.com");
-        usuario.setSenhaHash("hash123");
-        entityManager.persist(usuario);
+        pedidoService.excluir(criado.id());
         entityManager.flush();
-        return usuario;
-    }
+        entityManager.clear();
 
-    private Produto persistirProduto() {
-        Produto produto = Produto.builder()
-                .nomePopular("Feijão de integração")
-                .nomeCientifico("Phaseolus vulgaris")
-                .urlFoto("https://example.com/feijao.png")
-                .tipo(TipoProduto.LEGUMINOSA)
-                .especie(EspecieGeral.FEIJAO)
-                .formato(FormatoProduto.SEMENTE)
-                .dataInclusao(LocalDateTime.now())
-                .dataUltimaAlteracao(LocalDateTime.now())
-                .build();
-        return produtoRepository.saveAndFlush(produto);
+        Notificacao notificacao = notificacaoRepository
+                .findByProprietarioIdOrderByDataGeracaoDesc(scenario.proprietario().getId())
+                .get(0);
+        assertEquals(null, notificacao.getPedidoRelacionado());
     }
 }
