@@ -45,6 +45,12 @@ erDiagram
         uuid pessoa_id PK, FK
     }
 
+    COMPRADOR_T {
+        uuid comprador_id PK, FK
+        varchar nome
+        varchar telefone        
+    }
+
     PROPRIETARIO_T {
         uuid pessoa_id PK, FK
         varchar rg
@@ -168,7 +174,8 @@ erDiagram
     }
 
 
-    PESSOA_T ||--o| USUARIO_T : "eh um usuario"
+    ADMIN_T ||--o| USUARIO_T : "eh um admin"
+    PROPRIETARIO_T ||--o| USUARIO_T : "eh um proprietario"
     PESSOA_T ||--o| PROPRIETARIO_T : "eh um proprietario"
     PESSOA_T ||--o| ADMIN_T : "eh um admin"
     PESSOA_T }o--|| LOGRADOURO_T : "possui endereco"
@@ -182,7 +189,7 @@ erDiagram
     ESTOQUE_T }o--|| PROPRIETARIO_T : "gerenciado por"
     ESTOQUE_T }o--|| PRODUTO_T : "referencia a"
 
-    PEDIDO_T }o--|| USUARIO_T : "solicitado por"
+    PEDIDO_T }o--|| COMPRADOR_T : "solicitado por"
     PEDIDO_T }o--|| PROPRIETARIO_T : "recebido por"
     ITENS_PEDIDO_T }o--|| PEDIDO_T : "contem"
     ITENS_PEDIDO_T }o--|| PRODUTO_T : "referencia a"
