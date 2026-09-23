@@ -58,7 +58,7 @@ Critérios: maturidade, robustez/segurança, performance, disponibilidade da equ
 | Frontend (app interno) | **PWA — Next.js + TypeScript** | React SPA, Vue, Flutter, nativo Android | Offline + instalação sem loja + reuso de ecossistema |
 | Frontend (site público) | **Next.js + TypeScript + shadcn/ui** | React SPA, HTML/CSS/JS puro | SEO, catálogo público, design system |
 | Backend | **Java 21 + Spring Boot** | Node.js (Express/NestJS), Python (Django/FastAPI), ASP.NET, PHP (Laravel) | Segurança, tipagem, integridade transacional, maturidade |
-| Banco de dados | **PostgreSQL (Supabase)** + Firestore (app) | MySQL, Firebase-only, MongoDB | Integridade relacional e backups automatizados |
+| Banco de dados | **PostgreSQL (Supabase)** | MySQL, Firebase-only, MongoDB | Integridade relacional e backups automatizados |
 
 A escolha atende simultaneamente aos requisitos essenciais (RNF-01, RNF-02, RNF-04, RNF-06, RNF-08 e RNF-09 do documento de requisitos), restrições do público rural e limitações do contexto acadêmico, mantendo o sistema simples de manter, seguro e preparado para crescer.
 
