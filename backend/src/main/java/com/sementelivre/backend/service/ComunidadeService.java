@@ -9,6 +9,8 @@ import com.sementelivre.backend.exception.ResourceNotFoundException;
 import com.sementelivre.backend.repository.ComunidadeRepository;
 import com.sementelivre.backend.repository.LogradouroRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.CacheEvict;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -27,6 +29,7 @@ public class ComunidadeService implements CrudService<ComunidadeRequestDTO, Comu
 
     //Criar
     @Override
+    @CacheEvict(value = "comunidades", allEntries = true)
     public ComunidadeResponseDTO criar(ComunidadeRequestDTO dto) {
         Logradouro logradouro = logradouroRepository.findById(dto.logradouroId())
                 .orElseThrow(() -> new ResourceNotFoundException("Logradouro não encontrado com o id: " + dto.logradouroId()));
@@ -52,6 +55,7 @@ public class ComunidadeService implements CrudService<ComunidadeRequestDTO, Comu
     }
 
     @Override
+    @Cacheable(value = "comunidades")
     public List<ComunidadeResponseDTO> listar() {
         return comunidadeRepository.findAll()
                 .stream()
@@ -60,6 +64,7 @@ public class ComunidadeService implements CrudService<ComunidadeRequestDTO, Comu
     }
 
     @Override
+    @CacheEvict(value = "comunidades", allEntries = true)
     public ComunidadeResponseDTO atualizar(UUID id, ComunidadeRequestDTO dto) {
         Comunidade comunidade = buscarEntidadePorId(id);
 
@@ -80,6 +85,7 @@ public class ComunidadeService implements CrudService<ComunidadeRequestDTO, Comu
     }
 
     @Override
+    @CacheEvict(value = "comunidades", allEntries = true)
     public void deletar(UUID id) {
 
         Comunidade comunidade = buscarEntidadePorId(id);
@@ -102,7 +108,7 @@ public class ComunidadeService implements CrudService<ComunidadeRequestDTO, Comu
     }
 
     //Metodos de Aprovação e Rejeição de Comunidades
-
+    @CacheEvict(value = "comunidades", allEntries = true)
     public ComunidadeResponseDTO aprovar(UUID id){
         Comunidade comunidade = buscarEntidadePorId(id);
         comunidade.setStatus(StatusComunidade.ATIVA);
@@ -111,7 +117,8 @@ public class ComunidadeService implements CrudService<ComunidadeRequestDTO, Comu
         Comunidade comunidadeAprovada = comunidadeRepository.save(comunidade);
         return toResponseDTO(comunidadeAprovada);
     }
-
+    
+    @CacheEvict(value = "comunidades", allEntries = true)
     public ComunidadeResponseDTO rejeitar(UUID id){
         Comunidade comunidade = buscarEntidadePorId(id);
         comunidade.setStatus(StatusComunidade.REJEITADA);

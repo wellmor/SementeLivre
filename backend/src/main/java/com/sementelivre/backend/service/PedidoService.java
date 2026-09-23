@@ -83,10 +83,10 @@ public class PedidoService {
         return mapToResponse(pedidoRepository.save(pedido));
     }
 
-    // READ - todos
+    // READ - listar pedidos do proprietario
     @Transactional(readOnly = true)
-    public List<PedidoResponseDTO> listarTodos() {
-        return pedidoRepository.findAllComItens()
+    public List<PedidoResponseDTO> listarTodos(UUID proprietarioId) {
+        return pedidoRepository.findAllByProprietarioRecebedorId(proprietarioId)
                 .stream()
                 .map(this::mapToResponse)
                 .toList();

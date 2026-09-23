@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import com.sementelivre.backend.dto.PedidoRequestDTO;
 import com.sementelivre.backend.dto.PedidoResponseDTO;
@@ -41,12 +42,12 @@ public class PedidoController {
         );
     }
 
-    // READ - todos
+    // READ - todos os pedidos de um proprietario especifico
     @GetMapping
-    public ResponseEntity<List<PedidoResponseDTO>> listarTodos() {
+    public ResponseEntity<List<PedidoResponseDTO>> listarTodos(@RequestParam UUID proprietarioId) {
 
         return ResponseEntity.ok(
-                pedidoService.listarTodos()
+                pedidoService.listarTodos(proprietarioId)
         );
     }
 

@@ -1,12 +1,16 @@
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/devdb
-    username: postgres
-    password: 1234
+    url: jdbc:postgresql://localhost:5433/devdb
+    username: devuser
+    password: devpassword
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        highlight_sql: true
   flyway: 
     enabled: true
   mail:

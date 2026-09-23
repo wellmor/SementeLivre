@@ -11,6 +11,8 @@ import com.sementelivre.backend.dto.ProdutoResponseDTO;
 import com.sementelivre.backend.entity.Produto;
 import com.sementelivre.backend.entity.repository.ProdutoRepository;
 import com.sementelivre.backend.exception.RecursoNaoEncontradoException;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.CacheEvict;
 
 @Service
 public class ProdutoService {
@@ -27,6 +29,7 @@ public class ProdutoService {
 }
 
     // CREATE
+    @CacheEvict(value = "produtos", allEntries = true)
     public ProdutoResponseDTO criar(ProdutoRequestDTO dto) {
 
 
@@ -55,6 +58,7 @@ public class ProdutoService {
     }
 
     // READ - todos
+    @Cacheable(value = "produtos")
     public List<ProdutoResponseDTO> listarTodos() {
         return produtoRepository.findAll()
                 .stream()
@@ -70,6 +74,7 @@ public class ProdutoService {
     }
 
     // UPDATE
+    @CacheEvict(value = "produtos", allEntries = true)
     public ProdutoResponseDTO atualizar(UUID id, ProdutoRequestDTO dto) {
 
         Produto produto = buscarEntidadePorId(id);
@@ -98,6 +103,7 @@ public class ProdutoService {
     }
 
     // DELETE
+    @CacheEvict(value = "produtos", allEntries = true)
     public void excluir(UUID id) {
         Produto produto = buscarEntidadePorId(id);
 

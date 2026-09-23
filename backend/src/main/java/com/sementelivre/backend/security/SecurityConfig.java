@@ -43,6 +43,10 @@ public class SecurityConfig {
                         // Somente leitura e somente produtores com exibirNoSitePublico = true;
                         // o filtro fica no ProdutorPublicoService.
                         .requestMatchers(HttpMethod.GET, "/produtores/**").permitAll()
+
+                        .requestMatchers(HttpMethod.GET, "/produtos/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/comunidades/**").permitAll()
+                        
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(securityFilter, UsernamePasswordAuthenticationFilter.class)
