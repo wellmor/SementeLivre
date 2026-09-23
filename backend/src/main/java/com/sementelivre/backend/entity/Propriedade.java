@@ -36,7 +36,7 @@ public class Propriedade {
     private String nome;
 
     //Escolhi BigDecimal para representar o tamanho em hectares, pois ele é mais preciso para valores decimais e é comumente usado
-    @Column(name = "tamanho_hectares", nullable = false)
+    @Column(name = "tamanho_hectares", nullable = false, columnDefinition = "float8")
     private BigDecimal tamanhoHectares;
 
     @ManyToOne
