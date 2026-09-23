@@ -48,17 +48,20 @@ public class PedidoService {
     private final ProdutoRepository produtoRepository;
     private final EstoqueRepository estoqueRepository;
     private final UsuarioRepository usuarioRepository;
+    private final NotificacaoService notificacaoService;
 
     public PedidoService(
             PedidoRepository pedidoRepository,
             ProdutoRepository produtoRepository,
             EstoqueRepository estoqueRepository,
-            UsuarioRepository usuarioRepository) {
+            UsuarioRepository usuarioRepository,
+            NotificacaoService notificacaoService) {
 
         this.pedidoRepository = pedidoRepository;
         this.produtoRepository = produtoRepository;
         this.estoqueRepository = estoqueRepository;
         this.usuarioRepository = usuarioRepository;
+        this.notificacaoService = notificacaoService;
     }
 
     // CREATE
@@ -74,8 +77,7 @@ public class PedidoService {
 
         preencherItens(pedido, dto.itens());
 
-        // Bloqueia na entrada se o proprietario nao tem o quanto foi pedido
-        validarEstoqueDisponivel(pedido);
+        reservarEstoque(pedido);
 
         // Os itens sao persistidos junto pelo cascade configurado em Pedido.itens
         return mapToResponse(pedidoRepository.save(pedido));
@@ -111,6 +113,8 @@ public class PedidoService {
                             + pedido.getStatus());
         }
 
+        devolverEstoque(pedido);
+
         pedido.setTipoPedido(dto.tipoPedido());
         pedido.setMensagemOpcional(dto.mensagemOpcional());
 
@@ -118,7 +122,7 @@ public class PedidoService {
         pedido.getItens().clear();
         preencherItens(pedido, dto.itens());
 
-        validarEstoqueDisponivel(pedido);
+        reservarEstoque(pedido);
 
         return mapToResponse(pedidoRepository.save(pedido));
     }
@@ -131,9 +135,12 @@ public class PedidoService {
 
         // Se o estoque chegou a ser baixado, devolve antes de apagar o pedido,
         // senao a quantidade some do sistema junto com o registro.
-        if (pedido.getStatus() == StatusPedido.CONFIRMADO) {
+        if (pedido.getStatus() == StatusPedido.PENDENTE
+            || pedido.getStatus() == StatusPedido.CONFIRMADO) {
             devolverEstoque(pedido);
         }
+
+        notificacaoService.desvincularPedido(pedido.getId());
 
         pedidoRepository.delete(pedido);
     }
@@ -146,13 +153,11 @@ public class PedidoService {
         Pedido pedido = buscarEntidadeComItens(id);
         validarTransicao(pedido, StatusPedido.CONFIRMADO);
 
-        // Revalida agora: entre a criacao e a confirmacao outro pedido pode ter
-        // consumido o estoque. A checagem e a baixa acontecem sob o mesmo lock.
-        baixarEstoque(pedido);
-
         pedido.setStatus(StatusPedido.CONFIRMADO);
+        Pedido confirmado = pedidoRepository.save(pedido);
+        notificacaoService.criarParaPedidoConfirmado(confirmado);
 
-        return mapToResponse(pedidoRepository.save(pedido));
+        return mapToResponse(confirmado);
     }
 
     @Transactional
@@ -161,8 +166,8 @@ public class PedidoService {
         Pedido pedido = buscarEntidadeComItens(id);
         validarTransicao(pedido, StatusPedido.CANCELADO);
 
-        // Cancelar um PENDENTE nao devolve nada: nunca houve baixa.
-        if (pedido.getStatus() == StatusPedido.CONFIRMADO) {
+        if (pedido.getStatus() == StatusPedido.PENDENTE
+            || pedido.getStatus() == StatusPedido.CONFIRMADO) {
             devolverEstoque(pedido);
         }
 
@@ -173,36 +178,8 @@ public class PedidoService {
 
     // REGRAS DE ESTOQUE
 
-    /**
-     * Valida sem escrever nada. Usado em criar/alterar, onde o pedido ainda nao
-     * reserva estoque e por isso nao precisa de lock.
-     */
-    private void validarEstoqueDisponivel(Pedido pedido) {
-
-        UUID proprietarioId = pedido.getProprietarioRecebedor().getId();
-
-        quantidadePorProduto(pedido).forEach((produtoId, quantidadePedida) -> {
-
-            Estoque estoque = estoqueRepository
-                    .findByProprietarioIdAndProdutoId(proprietarioId, produtoId)
-                    .orElseThrow(() -> new EstoqueInsuficienteException(
-                            "O proprietário " + proprietarioId
-                                    + " não possui estoque do produto " + produtoId));
-
-            if (estoque.getQuantidade() < quantidadePedida) {
-                throw new EstoqueInsuficienteException(
-                        "Estoque insuficiente para o produto " + produtoId
-                                + ": disponível " + estoque.getQuantidade()
-                                + ", solicitado " + quantidadePedida);
-            }
-        });
-    }
-
-    /**
-     * Revalida e subtrai, com lock pessimista na linha do estoque para que duas
-     * confirmacoes simultaneas nao leiam a mesma quantidade.
-     */
-    private void baixarEstoque(Pedido pedido) {
+    /** Reserva o estoque sob lock pessimista antes de persistir o pedido. */
+    private void reservarEstoque(Pedido pedido) {
 
         UUID proprietarioId = pedido.getProprietarioRecebedor().getId();
 
@@ -227,7 +204,7 @@ public class PedidoService {
     }
 
     /**
-     * Soma de volta o que foi baixado na confirmacao. Se a linha de estoque
+     * Soma de volta o que foi reservado no registro. Se a linha de estoque
      * sumiu no meio do caminho nao ha o que restaurar, e o cancelamento nao
      * pode falhar por causa disso.
      */

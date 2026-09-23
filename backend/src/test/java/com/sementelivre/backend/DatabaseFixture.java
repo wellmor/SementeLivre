@@ -17,6 +17,35 @@ public final class DatabaseFixture {
     private DatabaseFixture() {
     }
 
+        public static Proprietario persistProprietario(EntityManager entityManager) {
+                return persistProprietario(entityManager, "52998224725", "Proprietario Teste",
+                                "proprietario.teste@teste.com", "MG-000000");
+        }
+
+        public static Proprietario persistProprietario(EntityManager entityManager, String sufixo) {
+                return persistProprietario(entityManager, "529" + sufixo,
+                                "Proprietario Cross Domain " + sufixo,
+                                "proprietario.cross." + sufixo + "@teste.com", "MG-C" + sufixo);
+        }
+
+        private static Proprietario persistProprietario(
+                        EntityManager entityManager,
+                        String documento,
+                        String nome,
+                        String email,
+                        String rg) {
+                Proprietario proprietario = new Proprietario();
+                proprietario.setTipoDocumento(com.sementelivre.backend.entity.enums.TipoDocumento.CPF);
+                proprietario.setDocumento(documento);
+                proprietario.setNome(nome);
+                proprietario.setEmail(email);
+                proprietario.setSenhaHash("hash123");
+                proprietario.setRg(rg);
+                entityManager.persist(proprietario);
+                entityManager.flush();
+                return proprietario;
+        }
+
     public static Propriedade persistCommunityGraph(EntityManager entityManager) {
         Logradouro logradouro = Logradouro.builder()
                 .logradouro("Rua Teste")
@@ -28,13 +57,7 @@ public final class DatabaseFixture {
                 .cep("36180-000")
                 .build();
 
-        Proprietario proprietario = new Proprietario();
-        proprietario.setTipoDocumento(com.sementelivre.backend.entity.enums.TipoDocumento.CPF);
-        proprietario.setDocumento("52998224725");
-        proprietario.setNome("Proprietario Teste");
-        proprietario.setEmail("proprietario.teste@teste.com");
-        proprietario.setSenhaHash("hash123");
-        proprietario.setRg("MG-000000");
+        Proprietario proprietario = persistProprietario(entityManager);
 
         Comunidade comunidade = Comunidade.builder()
                 .nome("Comunidade Teste")
@@ -52,7 +75,6 @@ public final class DatabaseFixture {
                 .build();
 
         entityManager.persist(logradouro);
-        entityManager.persist(proprietario);
         entityManager.persist(comunidade);
         entityManager.persist(propriedade);
         entityManager.flush();

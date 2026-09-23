@@ -12,13 +12,17 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.sementelivre.backend.entity.Notificacao;
 import com.sementelivre.backend.entity.Pedido;
 import com.sementelivre.backend.entity.Proprietario;
 import com.sementelivre.backend.entity.Relatorio;
+import com.sementelivre.backend.entity.Usuario;
 import com.sementelivre.backend.entity.enums.TipoDocumento;
+import com.sementelivre.backend.entity.enums.TipoPedido;
+import com.sementelivre.backend.integration.AbstractPostgresIntegrationTest;
 import com.sementelivre.backend.entity.enums.TipoRelatorio;
 import com.sementelivre.backend.repository.NotificacaoRepository;
 import com.sementelivre.backend.repository.RelatorioRepository;
@@ -40,8 +44,9 @@ import jakarta.persistence.EntityManager;
  * validação definitiva do tipo {@code jsonb} continua sendo contra o PostgreSQL
  * do docker-compose.</p>
  */
-@DataJpaTest
-class NotificacaoRelatorioPersistenciaTest {
+@SpringBootTest(classes = com.sementelivre.backend.BackendApplication.class)
+@Transactional
+class NotificacaoRelatorioPersistenciaTest extends AbstractPostgresIntegrationTest {
 
     @Autowired
     private EntityManager entityManager;
@@ -64,7 +69,7 @@ class NotificacaoRelatorioPersistenciaTest {
 
         Proprietario proprietario = new Proprietario();
         proprietario.setTipoDocumento(TipoDocumento.CPF);
-        proprietario.setDocumento("52998224725");
+        proprietario.setDocumento("529" + sufixo);
         proprietario.setNome("Proprietario " + sufixo);
         proprietario.setEmail("proprietario." + sufixo + "@teste.com");
         proprietario.setSenhaHash("hash123");
@@ -72,11 +77,27 @@ class NotificacaoRelatorioPersistenciaTest {
         return proprietario;
     }
 
+        private Usuario novoUsuario() {
+                String sufixo = UUID.randomUUID().toString().substring(0, 8);
+                Usuario usuario = new Usuario();
+                usuario.setTipoDocumento(TipoDocumento.CPF);
+                usuario.setDocumento("529" + sufixo);
+                usuario.setNome("Usuario " + sufixo);
+                usuario.setEmail("usuario." + sufixo + "@teste.com");
+                usuario.setSenhaHash("hash123");
+                return usuario;
+        }
+
     @Test
     void deveSalvarNotificacaoLigadaAProprietarioEPedido() {
         // Arrange
         Proprietario proprietario = novoProprietario();
-        Pedido pedido = Pedido.builder().build();
+        Usuario usuario = novoUsuario();
+        Pedido pedido = Pedido.builder()
+                .tipoPedido(TipoPedido.VENDA)
+                .usuarioSolicitante(usuario)
+                .proprietarioRecebedor(proprietario)
+                .build();
 
         Notificacao notificacao = Notificacao.builder()
                 .titulo("Novo pedido recebido")
@@ -87,6 +108,7 @@ class NotificacaoRelatorioPersistenciaTest {
 
         // Act
         entityManager.persist(proprietario);
+        entityManager.persist(usuario);
         entityManager.persist(pedido);
         entityManager.persist(notificacao);
         entityManager.flush();

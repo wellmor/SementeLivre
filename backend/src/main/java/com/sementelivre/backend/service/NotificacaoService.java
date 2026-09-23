@@ -47,6 +47,28 @@ public class NotificacaoService
         return toResponseDTO(salva);
     }
 
+    public NotificacaoResponseDTO criarParaPedidoConfirmado(Pedido pedido) {
+        entityManager.flush();
+        Pedido pedidoGerenciado = entityManager.getReference(Pedido.class, pedido.getId());
+        Proprietario proprietarioGerenciado = entityManager.getReference(
+            Proprietario.class, pedido.getProprietarioRecebedor().getId());
+
+        Notificacao notificacao = Notificacao.builder()
+            .titulo("Pedido confirmado")
+            .mensagem("O pedido " + pedido.getId() + " foi confirmado.")
+            .proprietario(proprietarioGerenciado)
+            .pedidoRelacionado(pedidoGerenciado)
+            .build();
+
+        return toResponseDTO(notificacaoRepository.saveAndFlush(notificacao));
+    }
+
+    public void desvincularPedido(UUID pedidoId) {
+        notificacaoRepository.findByPedidoRelacionadoId(pedidoId)
+                .forEach(notificacao -> notificacao.setPedidoRelacionado(null));
+        notificacaoRepository.flush();
+    }
+
     // READ - por ID
     @Override
     public NotificacaoResponseDTO buscarPorId(UUID id) {
