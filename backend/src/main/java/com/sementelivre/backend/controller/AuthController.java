@@ -20,7 +20,7 @@ public class AuthController {
     }
 
     @PostMapping("/cadastrar")
-    public ResponseEntity<UsuarioResponseDTO> cadastrar(@RequestBody @Valid CadastroRequestDTO dto) {
+    public ResponseEntity<UsuarioResponseDTO> cadastrar(@RequestBody @Valid ProprietarioCreateRequestDTO dto) {
         UsuarioResponseDTO usuarioCriado = authService.cadastrar(dto);
         return ResponseEntity.status(HttpStatus.CREATED).body(usuarioCriado);
     }

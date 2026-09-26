@@ -1,25 +1,30 @@
 package com.sementelivre.backend.service;
 
-import com.sementelivre.backend.dto.LogradouroDTO;
-import com.sementelivre.backend.dto.UsuarioCreateRequestDTO;
-import com.sementelivre.backend.exception.DocumentoJaCadastradoException;
-import com.sementelivre.backend.exception.EmailJaCadastradoException;
-import com.sementelivre.backend.entity.Logradouro;
-import com.sementelivre.backend.entity.enums.TipoDocumento;
+import com.sementelivre.backend.entity.Proprietario;
+import com.sementelivre.backend.entity.Role;
 import com.sementelivre.backend.entity.Usuario;
-import com.sementelivre.backend.repository.LogradouroRepository;
-import com.sementelivre.backend.repository.PessoaRepository;
+import com.sementelivre.backend.entity.enums.PerfilEnum;
+import com.sementelivre.backend.exception.ResourceNotFoundException;
+import com.sementelivre.backend.repository.RefreshTokenRepository;
+import com.sementelivre.backend.repository.RoleRepository;
+import com.sementelivre.backend.repository.TokenRecuperacaoSenhaRepository;
 import com.sementelivre.backend.repository.UsuarioRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.util.Optional;
+import java.util.UUID;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -30,10 +35,13 @@ public class UsuarioServiceTest {
     private UsuarioRepository usuarioRepository;
 
     @Mock
-    private PessoaRepository pessoaRepository;
+    private RoleRepository roleRepository;
 
     @Mock
-    private LogradouroRepository logradouroRepository;
+    private RefreshTokenRepository refreshTokenRepository;
+
+    @Mock
+    private TokenRecuperacaoSenhaRepository tokenRecuperacaoSenhaRepository;
 
     @Mock
     private PasswordEncoder passwordEncoder;
@@ -41,84 +49,73 @@ public class UsuarioServiceTest {
     @InjectMocks
     private UsuarioService usuarioService;
 
-    private UsuarioCreateRequestDTO dtoValido() {
-        UsuarioCreateRequestDTO dto = new UsuarioCreateRequestDTO();
-        dto.setNome("Teste Usuario");
-        dto.setTipoDocumento(TipoDocumento.CPF);
-        dto.setDocumento("52998224725");
-        dto.setEmail("teste@email.com");
-        dto.setSenha("senhaSegura123");
-        return dto;
+    private Proprietario proprietario() {
+        Proprietario proprietario = new Proprietario();
+        proprietario.setId(UUID.randomUUID());
+        proprietario.setNome("Teste Proprietario");
+        proprietario.setEmail("prop@email.com");
+        return proprietario;
     }
 
     @Test
-    public void deveLancarConflitoQuandoEmailDuplicado() {
-        UsuarioCreateRequestDTO dto = dtoValido();
-        when(pessoaRepository.existsByEmail(dto.getEmail())).thenReturn(true);
-
-        assertThatThrownBy(() -> usuarioService.criar(dto))
-                .isInstanceOf(EmailJaCadastradoException.class);
-    }
-
-    @Test
-    public void deveLancarConflitoQuandoDocumentoDuplicado() {
-        UsuarioCreateRequestDTO dto = dtoValido();
-        when(pessoaRepository.existsByEmail(dto.getEmail())).thenReturn(false);
-        when(pessoaRepository.existsByDocumento(dto.getDocumento())).thenReturn(true);
-
-        assertThatThrownBy(() -> usuarioService.criar(dto))
-                .isInstanceOf(DocumentoJaCadastradoException.class);
-    }
-
-    @Test
-    public void deveRejeitarCpfComDigitoVerificadorInvalido() {
-        UsuarioCreateRequestDTO dto = dtoValido();
-        dto.setDocumento("52998224726");
-
-        assertThatThrownBy(() -> usuarioService.criar(dto))
-                .isInstanceOf(IllegalArgumentException.class);
-    }
-
-    @Test
-    public void deveSalvarSenhaComHashBcryptAoCriar() {
-        UsuarioCreateRequestDTO dto = dtoValido();
-        when(pessoaRepository.existsByEmail(dto.getEmail())).thenReturn(false);
-        when(pessoaRepository.existsByDocumento(dto.getDocumento())).thenReturn(false);
-        when(passwordEncoder.encode(dto.getSenha())).thenReturn("hash-bcrypt-simulado");
+    public void deveCriarContaComSenhaEmHashEPerfilDaPessoa() {
+        Proprietario proprietario = proprietario();
+        Role roleProprietario = Role.builder().nome(PerfilEnum.ROLE_PROPRIETARIO).build();
+        when(roleRepository.findByNome(PerfilEnum.ROLE_PROPRIETARIO)).thenReturn(Optional.of(roleProprietario));
+        when(passwordEncoder.encode("senhaSegura123")).thenReturn("hash-bcrypt-simulado");
         when(usuarioRepository.save(any(Usuario.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        Usuario usuario = usuarioService.criar(dto);
+        Usuario usuario = usuarioService.criarConta(proprietario, "senhaSegura123", PerfilEnum.ROLE_PROPRIETARIO);
 
-        verify(passwordEncoder).encode(dto.getSenha());
+        assertThat(usuario.getPessoa()).isSameAs(proprietario);
+        assertThat(usuario.getEmail()).isEqualTo("prop@email.com");
+        assertThat(usuario.isAtivo()).isTrue();
+        assertThat(usuario.getRoles()).containsExactly(roleProprietario);
         assertThat(usuario.getSenhaHash()).isEqualTo("hash-bcrypt-simulado");
         // Reforço de legibilidade: deixa explícito que a senha em texto puro nunca é persistida.
-        assertThat(usuario.getSenhaHash()).isNotEqualTo(dto.getSenha());
+        assertThat(usuario.getSenhaHash()).isNotEqualTo("senhaSegura123");
     }
 
     @Test
-    public void deveCriarUsuarioComSucessoComTodosOsCampos() {
-        UsuarioCreateRequestDTO dto = dtoValido();
-        dto.setTelefone("(32) 99999-0000");
-        LogradouroDTO endereco = new LogradouroDTO();
-        endereco.setLogradouro("Rua A");
-        endereco.setMunicipio("Cidade");
-        endereco.setUf("MG");
-        dto.setEndereco(endereco);
+    public void deveFalharAoCriarContaQuandoPerfilNaoExiste() {
+        when(roleRepository.findByNome(PerfilEnum.ROLE_ADMIN)).thenReturn(Optional.empty());
 
-        when(pessoaRepository.existsByEmail(dto.getEmail())).thenReturn(false);
-        when(pessoaRepository.existsByDocumento(dto.getDocumento())).thenReturn(false);
-        when(passwordEncoder.encode(dto.getSenha())).thenReturn("hash-bcrypt-simulado");
-        when(usuarioRepository.save(any(Usuario.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        assertThatThrownBy(() -> usuarioService.criarConta(proprietario(), "senha", PerfilEnum.ROLE_ADMIN))
+                .isInstanceOf(IllegalStateException.class);
+        verify(usuarioRepository, never()).save(any());
+    }
 
-        Usuario usuario = usuarioService.criar(dto);
+    @Test
+    public void deveLancarNaoEncontradoQuandoContaNaoExiste() {
+        UUID id = UUID.randomUUID();
+        when(usuarioRepository.findById(id)).thenReturn(Optional.empty());
 
-        assertThat(usuario.getNome()).isEqualTo(dto.getNome());
-        assertThat(usuario.getTipoDocumento()).isEqualTo(TipoDocumento.CPF);
-        assertThat(usuario.getDocumento()).isEqualTo(dto.getDocumento());
-        assertThat(usuario.getTelefone()).isEqualTo(dto.getTelefone());
-        assertThat(usuario.getEmail()).isEqualTo(dto.getEmail());
-        assertThat(usuario.getLogradouro()).isNotNull();
-        assertThat(usuario.getLogradouro().getLogradouro()).isEqualTo("Rua A");
-        verify(logradouroRepository).save(any(Logradouro.class));
+        assertThatThrownBy(() -> usuarioService.buscarPorId(id))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    public void deveRemoverTokensAntesDeExcluirConta() {
+        Usuario usuario = new Usuario();
+        usuario.setPessoa(proprietario());
+        UUID id = usuario.getPessoa().getId();
+        when(usuarioRepository.findById(id)).thenReturn(Optional.of(usuario));
+
+        usuarioService.excluir(id);
+
+        InOrder ordem = inOrder(refreshTokenRepository, tokenRecuperacaoSenhaRepository, usuarioRepository);
+        ordem.verify(refreshTokenRepository).deleteByUsuario(usuario);
+        ordem.verify(tokenRecuperacaoSenhaRepository).deleteByUsuario(usuario);
+        ordem.verify(usuarioRepository).delete(usuario);
+    }
+
+    @Test
+    public void naoDeveFazerNadaAoExcluirContaDePessoaSemConta() {
+        UUID pessoaId = UUID.randomUUID();
+        when(usuarioRepository.findById(pessoaId)).thenReturn(Optional.empty());
+
+        usuarioService.excluirContaDaPessoa(pessoaId);
+
+        verify(usuarioRepository, never()).delete(any());
     }
 }

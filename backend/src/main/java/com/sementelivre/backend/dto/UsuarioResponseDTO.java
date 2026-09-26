@@ -3,7 +3,10 @@ package com.sementelivre.backend.dto;
 import java.util.UUID;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import com.sementelivre.backend.entity.Admin;
 import com.sementelivre.backend.entity.Logradouro;
+import com.sementelivre.backend.entity.Pessoa;
+import com.sementelivre.backend.entity.Proprietario;
 import com.sementelivre.backend.entity.Usuario;
 import com.sementelivre.backend.entity.enums.TipoDocumento;
 import lombok.AllArgsConstructor;
@@ -131,21 +134,27 @@ public class UsuarioResponseDTO {
     }
 
     public static UsuarioResponseDTO fromEntity(Usuario usuario) {
+        Pessoa pessoa = usuario.getPessoa();
+
         UsuarioResponseDTO dto = new UsuarioResponseDTO();
         dto.setId(usuario.getId());
-        dto.setTipoDocumento(usuario.getTipoDocumento());
-        dto.setDocumento(usuario.getDocumento());
-        dto.setNome(usuario.getNome());
-        dto.setTelefone(usuario.getTelefone());
-        dto.setEmail(usuario.getEmail());
-        dto.setDataCadastro(usuario.getDataCadastro());
-        dto.setDataUltimaAlteracao(usuario.getDataUltimaAlteracao());
-        dto.setTipoPessoa("USUARIO");
+        dto.setTipoDocumento(pessoa.getTipoDocumento());
+        dto.setDocumento(pessoa.getDocumento());
+        dto.setNome(pessoa.getNome());
+        dto.setTelefone(pessoa.getTelefone());
+        dto.setEmail(pessoa.getEmail());
+        dto.setDataCadastro(pessoa.getDataCadastro());
+        dto.setDataUltimaAlteracao(pessoa.getDataUltimaAlteracao());
+        if (pessoa instanceof Admin) {
+            dto.setTipoPessoa("ADMIN");
+        } else if (pessoa instanceof Proprietario) {
+            dto.setTipoPessoa("PROPRIETARIO");
+        }
         dto.setRoles(usuario.getRoles().stream()
                 .map(role -> role.getNome().name())
                 .collect(Collectors.toSet()));
 
-        Logradouro l = usuario.getLogradouro();
+        Logradouro l = pessoa.getLogradouro();
         if (l != null) {
             LogradouroDTO endereco = new LogradouroDTO();
             endereco.setLogradouro(l.getLogradouro());

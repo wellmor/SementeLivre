@@ -7,6 +7,7 @@ import com.sementelivre.backend.exception.EmailJaCadastradoException;
 import com.sementelivre.backend.exception.RgJaCadastradoException;
 import com.sementelivre.backend.entity.Logradouro;
 import com.sementelivre.backend.entity.Proprietario;
+import com.sementelivre.backend.entity.enums.PerfilEnum;
 import com.sementelivre.backend.entity.enums.TipoDocumento;
 import com.sementelivre.backend.repository.LogradouroRepository;
 import com.sementelivre.backend.repository.PessoaRepository;
@@ -16,7 +17,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.security.crypto.password.PasswordEncoder;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -38,7 +38,7 @@ public class ProprietarioServiceTest {
     private LogradouroRepository logradouroRepository;
 
     @Mock
-    private PasswordEncoder passwordEncoder;
+    private UsuarioService usuarioService;
 
     @InjectMocks
     private ProprietarioService proprietarioService;
@@ -108,7 +108,6 @@ public class ProprietarioServiceTest {
         when(pessoaRepository.existsByEmail(dto.getEmail())).thenReturn(false);
         when(pessoaRepository.existsByDocumento(dto.getDocumento())).thenReturn(false);
         when(proprietarioRepository.existsByRg(dto.getRg())).thenReturn(false);
-        when(passwordEncoder.encode(dto.getSenha())).thenReturn("hash-bcrypt-simulado");
         when(proprietarioRepository.save(any(Proprietario.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         Proprietario proprietario = proprietarioService.criar(dto);
@@ -120,9 +119,8 @@ public class ProprietarioServiceTest {
         assertThat(proprietario.getEmail()).isEqualTo(dto.getEmail());
         assertThat(proprietario.getRg()).isEqualTo(dto.getRg());
         assertThat(proprietario.isExibirNoSitePublico()).isTrue();
-        assertThat(proprietario.getSenhaHash()).isEqualTo("hash-bcrypt-simulado");
-        // Reforço de legibilidade: deixa explícito que a senha em texto puro nunca é persistida.
-        assertThat(proprietario.getSenhaHash()).isNotEqualTo(dto.getSenha());
+        // A senha vai para a conta de login do proprietario, não para a pessoa
+        verify(usuarioService).criarConta(proprietario, dto.getSenha(), PerfilEnum.ROLE_PROPRIETARIO);
         assertThat(proprietario.getLogradouro()).isNotNull();
         assertThat(proprietario.getLogradouro().getLogradouro()).isEqualTo("Rua A");
         verify(logradouroRepository).save(any(Logradouro.class));

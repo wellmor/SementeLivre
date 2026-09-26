@@ -7,7 +7,6 @@ import com.sementelivre.backend.entity.Admin;
 import com.sementelivre.backend.entity.Logradouro;
 import com.sementelivre.backend.entity.Pessoa;
 import com.sementelivre.backend.entity.Proprietario;
-import com.sementelivre.backend.entity.Usuario;
 import com.sementelivre.backend.service.PessoaService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
@@ -68,8 +67,6 @@ public class PessoaController {
             dto.setTipoPessoa("PROPRIETARIO");
         } else if (p instanceof Admin) {
             dto.setTipoPessoa("ADMIN");
-        } else if (p instanceof Usuario) {
-            dto.setTipoPessoa("USUARIO");
         }
 
         if (p.getLogradouro() != null) {

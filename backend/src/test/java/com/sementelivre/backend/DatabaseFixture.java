@@ -8,8 +8,10 @@ import jakarta.persistence.EntityManager;
 
 import com.sementelivre.backend.entity.Comunidade;
 import com.sementelivre.backend.entity.Logradouro;
+import com.sementelivre.backend.entity.Pessoa;
 import com.sementelivre.backend.entity.Propriedade;
 import com.sementelivre.backend.entity.Proprietario;
+import com.sementelivre.backend.entity.Usuario;
 import com.sementelivre.backend.entity.enums.StatusComunidade;
 
 public final class DatabaseFixture {
@@ -39,11 +41,20 @@ public final class DatabaseFixture {
                 proprietario.setDocumento(documento);
                 proprietario.setNome(nome);
                 proprietario.setEmail(email);
-                proprietario.setSenhaHash("hash123");
                 proprietario.setRg(rg);
                 entityManager.persist(proprietario);
                 entityManager.flush();
                 return proprietario;
+        }
+
+        /** Cria a conta de login (Usuario) de uma pessoa ja persistida. */
+        public static Usuario persistUsuario(EntityManager entityManager, Pessoa pessoa) {
+                Usuario usuario = new Usuario();
+                usuario.setPessoa(pessoa);
+                usuario.setSenhaHash("hash123");
+                entityManager.persist(usuario);
+                entityManager.flush();
+                return usuario;
         }
 
     public static Propriedade persistCommunityGraph(EntityManager entityManager) {
