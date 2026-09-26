@@ -1,12 +1,12 @@
 'use client';
 
-import React from 'react';
-import { AuthProvider } from '@/context/AuthContext';
+import React, { useEffect } from 'react';
+import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { NotificationProvider } from '@/context/NotificationContext';
 import { Header } from '@/components/layout/Header';
 import { BottomNavigation } from '@/components/layout/BottomNavigation';
 import { ToastProvider } from '@/components/feedback/Toast';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import styles from './app.module.css';
 
 const headerConfig: Record<string, { title: string; showBack?: boolean; showNotifications?: boolean }> = {
@@ -23,7 +23,27 @@ const headerConfig: Record<string, { title: string; showBack?: boolean; showNoti
 };
 
 function AppLayoutInner({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth();
+  const router = useRouter();
   const pathname = usePathname();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      router.replace('/entrar');
+    }
+  }, [loading, user, router]);
+
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', minHeight: '100vh', alignItems: 'center', justifyContent: 'center' }}>
+        <p style={{ color: 'var(--color-text-muted)', fontFamily: 'sans-serif' }}>Carregando sessão...</p>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
 
   const config = Object.entries(headerConfig).find(([key]) =>
     pathname === key || (key !== '/sementes' && key !== '/pedidos' && key !== '/propriedades' && pathname.startsWith(key + '/'))

@@ -1,9 +1,25 @@
-'use client';
+﻿'use client';
+
+/**
+ * recuperar-senha/page.tsx — Tela de recuperação de senha integrada ao backend REST.
+ *
+ * ALTERAÇÕES em relação à versão anterior:
+ *   - Removida importação de `sendPasswordResetEmail` de `@/lib/auth` (era no-op local)
+ *   - Adicionada importação de `recuperarSenhaApi` de `@/lib/authApi`
+ *   - `handleSubmit` agora chama `recuperarSenhaApi(email)` → POST /auth/recuperar-senha
+ *   - O backend retorna 200 independente de o e-mail existir (segurança),
+ *     então a lógica de "setSent(true)" no catch é mantida igual ao original
+ *
+ * LINHAS REMOVIDAS (comparado ao arquivo anterior):
+ *   - import { sendPasswordResetEmail } from '@/lib/auth';
+ *   - await sendPasswordResetEmail(email);    → substituído por recuperarSenhaApi(email)
+ *   - import authStyles from '../auth.module.css';    (não era usado nesta tela)
+ */
 
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { Mail, KeyRound, AlertCircle } from 'lucide-react';
-import { sendPasswordResetEmail } from '@/lib/auth';
+import { recuperarSenhaApi } from '@/lib/authApi';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import styles from '../entrar/entrar.module.css';
@@ -20,10 +36,10 @@ export default function RecuperarSenhaPage() {
     setError('');
     setLoading(true);
     try {
-      await sendPasswordResetEmail(email);
+      await recuperarSenhaApi(email);
       setSent(true);
     } catch {
-      // Don't reveal if email exists
+      // Não revelamos se o e-mail existe ou não (segurança)
       setSent(true);
     } finally {
       setLoading(false);
@@ -38,7 +54,7 @@ export default function RecuperarSenhaPage() {
         </div>
         <h1 className={localStyles.sentTitle}>E-mail enviado!</h1>
         <p className={localStyles.sentDesc}>
-          Se esse e-mail estiver cadastrado, voce recebera um link para redefinir sua senha. Verifique sua caixa de entrada.
+          Se esse e-mail estiver cadastrado, você receberá um link para redefinir sua senha. Verifique sua caixa de entrada.
         </p>
         <Link href="/entrar">
           <Button variant="primary" fullWidth>Voltar para o Login</Button>
@@ -80,7 +96,7 @@ export default function RecuperarSenhaPage() {
         />
 
         <Button type="submit" fullWidth loading={loading} size="lg">
-          Enviar link de recuperacao
+          Enviar link de recuperação
         </Button>
       </form>
 

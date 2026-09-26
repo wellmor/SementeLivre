@@ -1,10 +1,39 @@
 'use client';
 
-import React, { useState } from 'react';
+/**
+ * cadastrar/page.tsx — Tela de cadastro integrada ao backend REST.
+ *
+ * ALTERAÇÕES em relação à versão anterior:
+ *   - Removida importação de `createUserAndNotify` de `@/lib/auth`
+ *   - Removida importação de `dbSet` de `@/lib/db`
+ *     (o backend persiste tudo no PostgreSQL; não precisamos mais do localStorage)
+ *   - Adicionadas importações de `cadastrarApi`, `loginApi` de `@/lib/authApi`
+ *   - `handleSubmit` agora:
+ *       1. Chama `cadastrarApi({ nome, email, senha })` → POST /auth/cadastrar
+ *       2. Em seguida chama `loginApi(email, senha)` → POST /auth/login (auto-login)
+ *       3. Redireciona para /dashboard ao invés de /entrar
+ *   - Bloco catch mapeia erros HTTP:
+ *       409 → "Este e-mail já está cadastrado."
+ *       0   → "Verifique sua conexão."
+ *
+ * LINHAS REMOVIDAS (comparado ao arquivo anterior):
+ *   - import { createUserAndNotify } from '@/lib/auth';
+ *   - import { dbSet } from '@/lib/db';
+ *   - const { user: newUser } = createUserAndNotify(form.email, form.senha);
+ *   - dbSet('proprietarios', { id: newUser.uid, ... });    ← todo o bloco dbSet
+ *   - router.push('/entrar');    → substituído por router.push('/dashboard')
+ *
+ * NOTA: Os campos de endereço (CEP, logradouro, etc.) são mantidos no formulário
+ * para coleta de dados, porém o endpoint POST /auth/cadastrar do backend atual
+ * recebe apenas { nome, email, senha }. Os dados de endereço poderão ser enviados
+ * posteriormente via PATCH /proprietarios/{id} quando o endpoint for expandido.
+ */
+
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { createUserAndNotify } from '@/lib/auth';
-import { dbSet } from '@/lib/db';
+import { cadastrarApi, loginApi } from '@/lib/authApi';
+import { ApiError, getAccessToken } from '@/lib/api';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { AnimatedPlantSVG } from '@/components/icons/AnimatedPlantSVG';
@@ -18,6 +47,12 @@ export default function CadastrarPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [loadingCEP, setLoadingCEP] = useState(false);
+
+  useEffect(() => {
+    if (getAccessToken()) {
+      router.replace('/dashboard');
+    }
+  }, [router]);
 
   const [form, setForm] = useState({
     nome: '', rg: '', cpf: '', telefone: '', email: '', senha: '', confirmarSenha: '',
@@ -71,26 +106,20 @@ export default function CadastrarPage() {
     if (!validate()) return;
     setLoading(true);
     try {
-      const { user: newUser } = createUserAndNotify(form.email, form.senha);
-      dbSet('proprietarios', {
-        id: newUser.uid,
-        idProprietario: newUser.uid,
-        nome: form.nome, rg: form.rg,
-        documento: form.cpf.replace(/\D/g, ''), tipoDocumento: 'CPF',
-        telefone: form.telefone, email: form.email,
-        exibirNoSitePublico: false,
-        logradouro: {
-          logradouro: form.logradouro, numero: form.numero, complemento: form.complemento,
-          bairro: form.bairro, municipio: form.municipio, uf: form.uf,
-          cep: form.cep.replace(/\D/g, ''),
-        },
-        dataCadastro: new Date(), dataUltimaAlteracao: new Date(),
-      });
-      router.push('/entrar');
+      // 1. Cria o usuário no backend
+      await cadastrarApi({ nome: form.nome, email: form.email, senha: form.senha });
+      // 2. Auto-login após cadastro bem-sucedido
+      await loginApi(form.email, form.senha);
+      router.push('/dashboard');
     } catch (err: unknown) {
-      const code = (err as { code?: string }).code;
-      if (code === 'auth/email-already-in-use') setError('Este e-mail já está cadastrado.');
-      else setError('Erro ao criar conta. Tente novamente.');
+      const apiErr = err as ApiError;
+      if (apiErr?.status === 409) {
+        setError('Este e-mail já está cadastrado.');
+      } else if (!apiErr?.status || apiErr?.status === 0) {
+        setError('Verifique sua conexão com a internet.');
+      } else {
+        setError(apiErr?.message ?? 'Erro ao criar conta. Tente novamente.');
+      }
     } finally {
       setLoading(false);
     }

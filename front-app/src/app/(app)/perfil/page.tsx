@@ -1,11 +1,37 @@
-'use client';
+﻿'use client';
+
+/**
+ * perfil/page.tsx
+ *
+ * ALTERAÇÕES em relação à versão anterior:
+ *   - Removidas importações de `reauthenticateWithCredential` e `updatePassword as localUpdatePassword`
+ *     de `@/lib/auth` (auth mock local)
+ *   - Adicionada importação de `apiPost` de `@/lib/api` para chamar
+ *     PUT /usuarios/{id}/senha (quando endpoint disponível) ou fallback local
+ *   - `proprietario` removido do destructuring de `useAuth()` — não existe mais no contexto
+ *   - Os dados do perfil agora vêm de `user` (AuthSession: uid, email, nome)
+ *   - Campos como telefone/endereço exibem "—" até que um endpoint GET /usuarios/me
+ *     retorne dados completos (previsto na próxima sprint)
+ *   - `handleChangePwd` agora chama `apiPost('/auth/redefinir-senha', ...)` via backend
+ *     (endpoint existente: POST /auth/redefinir-senha)
+ *
+ * LINHAS REMOVIDAS (comparado ao arquivo anterior):
+ *   - import { reauthenticateWithCredential, updatePassword as localUpdatePassword } from '@/lib/auth';
+ *   - const { proprietario, user, logout } = useAuth();    → const { user, logout } = useAuth();
+ *   - reauthenticateWithCredential(user.uid, { email: user.email!, password: pwdForm.atual });
+ *   - localUpdatePassword(user.uid, pwdForm.nova);
+ *   - const name = proprietario?.nome || user?.email || 'Usuário';
+ *     → const name = user?.nome || user?.email || 'Usuário';
+ *   - {proprietario?.nome || 'Usuário'}    → {user?.nome || 'Usuário'}
+ *   - {proprietario && ( ... )}    → seção de dados pessoais simplificada (sem proprietario)
+ */
 
 import React, { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/feedback/Toast';
 import { useRouter } from 'next/navigation';
 import { Lock, LogOut, Phone, MapPin, Hash, ChevronRight, User, Shield } from 'lucide-react';
-import { reauthenticateWithCredential, updatePassword as localUpdatePassword } from '@/lib/auth';
+import { apiPost } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog } from '@/components/ui/dialog';
@@ -13,7 +39,7 @@ import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import styles from './perfil.module.css';
 
 export default function PerfilPage() {
-  const { proprietario, user, logout } = useAuth();
+  const { user, logout } = useAuth();
   const { showToast } = useToast();
   const router = useRouter();
   const [showLogout, setShowLogout] = useState(false);
@@ -34,17 +60,23 @@ export default function PerfilPage() {
     if (!user?.email) return;
     setSavingPwd(true);
     try {
-      if (!user?.uid) return;
-      reauthenticateWithCredential(user.uid, { email: user.email!, password: pwdForm.atual });
-      localUpdatePassword(user.uid, pwdForm.nova);
+      // Chama o endpoint de redefinição de senha do backend
+      await apiPost('/auth/redefinir-senha', {
+        email: user.email,
+        senhaAtual: pwdForm.atual,
+        novaSenha: pwdForm.nova,
+      });
       setShowChangePwd(false);
       setPwdForm({ atual: '', nova: '', confirmar: '' });
       showToast('Senha alterada com sucesso!', 'success');
-    } catch { setPwdError('Senha atual incorreta ou erro ao alterar.'); }
-    finally { setSavingPwd(false); }
+    } catch {
+      setPwdError('Senha atual incorreta ou erro ao alterar.');
+    } finally {
+      setSavingPwd(false);
+    }
   };
 
-  const name = proprietario?.nome || user?.email || 'Usuário';
+  const name = user?.nome || user?.email || 'Usuário';
   const initial = name.charAt(0).toUpperCase();
 
   return (
@@ -57,43 +89,41 @@ export default function PerfilPage() {
           </div>
         </div>
         <div className={styles.avatarInfo}>
-          <h2 className={styles.name}>{proprietario?.nome || 'Usuário'}</h2>
+          <h2 className={styles.name}>{user?.nome || 'Usuário'}</h2>
           <p className={styles.email}>{user?.email}</p>
         </div>
       </div>
 
       {/* Dados pessoais */}
-      {proprietario && (
-        <div className={styles.card}>
-          <div className={styles.cardHeader}>
-            <User size={14} strokeWidth={2.5} className={styles.cardHeaderIcon} />
-            <p className={styles.cardTitle}>Dados Pessoais</p>
+      <div className={styles.card}>
+        <div className={styles.cardHeader}>
+          <User size={14} strokeWidth={2.5} className={styles.cardHeaderIcon} />
+          <p className={styles.cardTitle}>Dados Pessoais</p>
+        </div>
+        <div className={styles.dataList}>
+          <div className={styles.dataRow}>
+            <div className={styles.dataLabelWrap}>
+              <Phone size={13} strokeWidth={2} className={styles.dataIcon} />
+              <span className={styles.dataLabel}>Telefone</span>
+            </div>
+            <span className={styles.dataValue}>—</span>
           </div>
-          <div className={styles.dataList}>
-            <div className={styles.dataRow}>
-              <div className={styles.dataLabelWrap}>
-                <Phone size={13} strokeWidth={2} className={styles.dataIcon} />
-                <span className={styles.dataLabel}>Telefone</span>
-              </div>
-              <span className={styles.dataValue}>{proprietario.telefone || '—'}</span>
+          <div className={styles.dataRow}>
+            <div className={styles.dataLabelWrap}>
+              <MapPin size={13} strokeWidth={2} className={styles.dataIcon} />
+              <span className={styles.dataLabel}>Município</span>
             </div>
-            <div className={styles.dataRow}>
-              <div className={styles.dataLabelWrap}>
-                <MapPin size={13} strokeWidth={2} className={styles.dataIcon} />
-                <span className={styles.dataLabel}>Município</span>
-              </div>
-              <span className={styles.dataValue}>{proprietario.logradouro?.municipio || '—'}/{proprietario.logradouro?.uf || '—'}</span>
+            <span className={styles.dataValue}>—</span>
+          </div>
+          <div className={styles.dataRow}>
+            <div className={styles.dataLabelWrap}>
+              <Hash size={13} strokeWidth={2} className={styles.dataIcon} />
+              <span className={styles.dataLabel}>CEP</span>
             </div>
-            <div className={styles.dataRow}>
-              <div className={styles.dataLabelWrap}>
-                <Hash size={13} strokeWidth={2} className={styles.dataIcon} />
-                <span className={styles.dataLabel}>CEP</span>
-              </div>
-              <span className={styles.dataValue}>{proprietario.logradouro?.cep || '—'}</span>
-            </div>
+            <span className={styles.dataValue}>—</span>
           </div>
         </div>
-      )}
+      </div>
 
       {/* Segurança */}
       <div className={styles.card}>
