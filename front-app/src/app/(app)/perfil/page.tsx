@@ -18,7 +18,7 @@ import { useToast } from '@/components/feedback/Toast';
 import { useRouter } from 'next/navigation';
 import { Lock, LogOut, Phone, MapPin, Hash, ChevronRight, User, Shield, Mail, Pencil } from 'lucide-react';
 import { alterarSenhaApi, atualizarProprietarioApi } from '@/lib/authApi';
-import { renovarToken } from '@/lib/api';
+import { isApiError, renovarToken } from '@/lib/api';
 import { aplicarErrosDaApi, comMascara } from '@/lib/forms';
 import {
   AlterarSenhaForm, alterarSenhaSchema, fetchCEP, formatCEP, formatCPF, formatTelefone,
@@ -136,6 +136,7 @@ export default function PerfilPage() {
         novaSenha: 'nova',
       });
       if (geral) setPwdError(geral);
+      if (isApiError(err) && err.fieldErrors.senhaAtual) showToast(err.fieldErrors.senhaAtual, 'error');
     }
   };
 
