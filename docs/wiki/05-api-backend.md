@@ -9,7 +9,7 @@
 
 | Método | Endpoint | Descrição | Autenticação |
 |---|---|---|---|
-| `POST` | `/auth/cadastrar` | Cadastrar novo usuário | Não |
+| `POST` | `/auth/cadastrar` | Cadastro de proprietário (cria Pessoa + Proprietário + conta de login) | Não |
 | `POST` | `/auth/login` | Login (retorna access + refresh token) | Não |
 | `POST` | `/auth/refresh` | Renovar access token | Refresh token |
 | `POST` | `/auth/recuperar-senha` | Solicitar link de redefinição de senha | Não |
@@ -22,7 +22,7 @@
 
 | Método | Endpoint | Descrição |
 |---|---|---|
-| `POST` | `/api/proprietarios` | Criar proprietário (Pessoa + Proprietário) |
+| `POST` | `/api/proprietarios` | Criar proprietário (Pessoa + Proprietário + conta de login) |
 | `GET` | `/api/proprietarios` | Listar todos |
 | `GET` | `/api/proprietarios/{id}` | Buscar por ID |
 | `PUT` | `/api/proprietarios/{id}` | Atualizar |
@@ -32,13 +32,13 @@
 
 ## 5.3 Usuários (`/api/usuarios`)
 
+Contas de login de admins e proprietários. A conta nasce junto com o proprietário (`/auth/cadastrar` ou `POST /api/proprietarios`); nome, e-mail e endereço são editados em `/api/pessoas` ou `/api/proprietarios`.
+
 | Método | Endpoint | Descrição |
 |---|---|---|
-| `POST` | `/api/usuarios` | Criar usuário |
-| `GET` | `/api/usuarios` | Listar todos |
-| `GET` | `/api/usuarios/{id}` | Buscar por ID |
-| `PUT` | `/api/usuarios/{id}` | Atualizar |
-| `DELETE` | `/api/usuarios/{id}` | Excluir |
+| `GET` | `/api/usuarios` | Listar contas |
+| `GET` | `/api/usuarios/{id}` | Buscar conta por ID (mesmo ID da pessoa) |
+| `DELETE` | `/api/usuarios/{id}` | Excluir só a conta de login (a pessoa continua) |
 
 ---
 

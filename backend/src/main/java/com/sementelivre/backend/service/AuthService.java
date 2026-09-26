@@ -2,7 +2,7 @@ package com.sementelivre.backend.service;
 
 import com.sementelivre.backend.dto.*;
 import com.sementelivre.backend.entity.*;
-import com.sementelivre.backend.entity.enums.PerfilEnum;
+import com.sementelivre.backend.exception.SenhaAtualIncorretaException;
 import com.sementelivre.backend.repository.*;
 import com.sementelivre.backend.security.JwtService;
 import org.springframework.beans.factory.annotation.Value;
@@ -20,7 +20,8 @@ import java.util.UUID;
 public class AuthService {
 
     private final UsuarioRepository usuarioRepository;
-    private final RoleRepository roleRepository;
+    private final UsuarioService usuarioService;
+    private final ProprietarioService proprietarioService;
     private final RefreshTokenRepository refreshTokenRepository;
     private final TokenRecuperacaoSenhaRepository tokenRecuperacaoRepository;
     private final PasswordEncoder passwordEncoder;
@@ -31,12 +32,14 @@ public class AuthService {
     @Value("${jwt.refresh-expiration-days:7}")
     private Long refreshExpirationDays;
 
-    public AuthService(UsuarioRepository usuarioRepository, RoleRepository roleRepository,
+    public AuthService(UsuarioRepository usuarioRepository, UsuarioService usuarioService,
+                       ProprietarioService proprietarioService,
                        RefreshTokenRepository refreshTokenRepository, TokenRecuperacaoSenhaRepository tokenRecuperacaoRepository,
                        PasswordEncoder passwordEncoder, AuthenticationManager authenticationManager,
                        JwtService jwtService, EmailService emailService) {
         this.usuarioRepository = usuarioRepository;
-        this.roleRepository = roleRepository;
+        this.usuarioService = usuarioService;
+        this.proprietarioService = proprietarioService;
         this.refreshTokenRepository = refreshTokenRepository;
         this.tokenRecuperacaoRepository = tokenRecuperacaoRepository;
         this.passwordEncoder = passwordEncoder;
@@ -45,24 +48,28 @@ public class AuthService {
         this.emailService = emailService;
     }
 
+    // O proprietario e o unico perfil com cadastro aberto; admins nao se cadastram por aqui.
     @Transactional
-    public UsuarioResponseDTO cadastrar(CadastroRequestDTO dto) {
-        if (usuarioRepository.existsByEmail(dto.email())) {
-            throw new IllegalArgumentException("E-mail já cadastrado no sistema.");
+    public UsuarioResponseDTO cadastrar(ProprietarioCreateRequestDTO dto) {
+        Proprietario proprietario = proprietarioService.criar(dto);
+        return UsuarioResponseDTO.fromEntity(usuarioService.buscarPorId(proprietario.getId()));
+    }
+
+    // Recarrega a conta dentro de uma transacao: o Usuario que chega do SecurityFilter foi lido
+    // fora de sessao, e o logradouro da pessoa (LAZY) nao carregaria a partir dele.
+    @Transactional(readOnly = true)
+    public UsuarioResponseDTO perfil(UUID usuarioId) {
+        return UsuarioResponseDTO.fromEntity(usuarioService.buscarPorId(usuarioId));
+    }
+
+    @Transactional
+    public void alterarSenha(UUID usuarioId, AlterarSenhaDTO dto) {
+        Usuario usuario = usuarioService.buscarPorId(usuarioId);
+        if (!passwordEncoder.matches(dto.senhaAtual(), usuario.getSenhaHash())) {
+            throw new SenhaAtualIncorretaException("Senha atual incorreta.");
         }
-
-        Role roleUsuario = roleRepository.findByNome(PerfilEnum.ROLE_USUARIO)
-                .orElseThrow(() -> new IllegalStateException("Role ROLE_USUARIO não encontrada."));
-
-        Usuario usuario = new Usuario();
-        usuario.setNome(dto.nome());
-        usuario.setEmail(dto.email());
-        usuario.setSenhaHash(passwordEncoder.encode(dto.senha())); // Criptografia segura com BCrypt
-        usuario.setAtivo(true);
-        usuario.getRoles().add(roleUsuario);
-
-        Usuario salvo = usuarioRepository.save(usuario);
-        return UsuarioResponseDTO.fromEntity(salvo);
+        usuario.setSenhaHash(passwordEncoder.encode(dto.novaSenha()));
+        usuarioRepository.save(usuario);
     }
 
     @Transactional
@@ -102,7 +109,7 @@ public class AuthService {
 
     @Transactional
     public void solicitarRecuperacaoSenha(SolicitarRecuperacaoDTO dto) {
-        var usuarioOpt = usuarioRepository.findByEmail(dto.email());
+        var usuarioOpt = usuarioRepository.findByPessoaEmail(dto.email());
         if (usuarioOpt.isEmpty()) {
             return; // Retorno silencioso por segurança
         }

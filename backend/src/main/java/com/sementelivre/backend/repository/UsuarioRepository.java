@@ -8,6 +8,5 @@ import java.util.UUID;
 
 @Repository
 public interface UsuarioRepository extends BaseRepository<Usuario, UUID> {
-    Optional<Usuario> findByEmail(String email);
-    boolean existsByEmail(String email);
+    Optional<Usuario> findByPessoaEmail(String email);
 }

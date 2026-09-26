@@ -18,33 +18,128 @@ export function validateCPF(cpf: string): boolean {
   return remainder === parseInt(cleaned[10]);
 }
 
+// Regras espelhando o backend (DTOs + DocumentoValidator + tamanhos das colunas).
+// Campos opcionais no backend (telefone, número, complemento, bairro, CEP) seguem opcionais,
+// mas quando preenchidos precisam ter formato válido.
+
+const UFS = [
+  'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA',
+  'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO',
+];
+
+const apenasDigitos = (v: string) => v.replace(/\D/g, '');
+
+export const nomeSchema = z
+  .string()
+  .trim()
+  .min(1, 'Nome é obrigatório')
+  .max(150, 'Nome deve ter no máximo 150 caracteres');
+
 export const cpfSchema = z
   .string()
   .min(1, 'CPF é obrigatório')
   .refine((v) => validateCPF(v), { message: 'CPF inválido' });
 
-export const emailSchema = z.string().min(1, 'E-mail é obrigatório').email('E-mail inválido');
+export const rgSchema = z
+  .string()
+  .trim()
+  .min(1, 'RG é obrigatório')
+  .max(20, 'RG deve ter no máximo 20 caracteres');
+
+export const emailSchema = z
+  .string()
+  .trim()
+  .min(1, 'E-mail é obrigatório')
+  .max(255, 'E-mail deve ter no máximo 255 caracteres')
+  .email('E-mail inválido');
 
 export const senhaSchema = z
   .string()
   .min(8, 'Senha deve ter no mínimo 8 caracteres')
+  .max(72, 'Senha deve ter no máximo 72 caracteres')
   .regex(/[A-Z]/, 'Senha deve ter ao menos uma letra maiúscula')
   .regex(/[0-9]/, 'Senha deve ter ao menos um número');
 
 export const telefoneSchema = z
   .string()
-  .min(10, 'Telefone inválido')
-  .max(15, 'Telefone inválido');
+  .refine((v) => [0, 10, 11].includes(apenasDigitos(v).length), { message: 'Telefone inválido' });
 
-export const logradouroSchema = z.object({
-  logradouro: z.string().min(1, 'Logradouro é obrigatório'),
-  numero: z.string().min(1, 'Número é obrigatório'),
-  complemento: z.string().optional(),
-  bairro: z.string().min(1, 'Bairro é obrigatório'),
-  municipio: z.string().min(1, 'Município é obrigatório'),
-  uf: z.string().length(2, 'UF inválida'),
-  cep: z.string().length(8, 'CEP inválido'),
+export const enderecoSchema = z.object({
+  cep: z.string().refine((v) => [0, 8].includes(apenasDigitos(v).length), { message: 'CEP inválido' }),
+  logradouro: z.string().trim().min(1, 'Logradouro é obrigatório').max(255, 'Logradouro muito longo'),
+  numero: z.string().trim().max(10, 'Número deve ter no máximo 10 caracteres'),
+  complemento: z.string().trim().max(100, 'Complemento deve ter no máximo 100 caracteres'),
+  bairro: z.string().trim().max(100, 'Bairro deve ter no máximo 100 caracteres'),
+  municipio: z.string().trim().min(1, 'Município é obrigatório').max(100, 'Município muito longo'),
+  uf: z.string().refine((v) => UFS.includes(v), { message: 'UF inválida' }),
 });
+
+/** Dados editáveis do proprietário (perfil). */
+export const perfilSchema = z
+  .object({
+    nome: nomeSchema,
+    telefone: telefoneSchema,
+    email: emailSchema,
+  })
+  .extend(enderecoSchema.shape);
+
+export const cadastroProprietarioSchema = perfilSchema
+  .extend({
+    cpf: cpfSchema,
+    rg: rgSchema,
+    senha: senhaSchema,
+    confirmarSenha: z.string(),
+  })
+  .refine((v) => v.senha === v.confirmarSenha, {
+    message: 'Senhas não coincidem',
+    path: ['confirmarSenha'],
+  });
+
+export const alterarSenhaSchema = z
+  .object({
+    atual: z.string().min(1, 'Senha atual é obrigatória'),
+    nova: senhaSchema,
+    confirmar: z.string(),
+  })
+  .refine((v) => v.nova === v.confirmar, {
+    message: 'As senhas não coincidem',
+    path: ['confirmar'],
+  });
+
+export const redefinirSenhaSchema = z
+  .object({
+    token: z.string().trim().min(1, 'Informe o código recebido por e-mail'),
+    nova: senhaSchema,
+    confirmar: z.string(),
+  })
+  .refine((v) => v.nova === v.confirmar, {
+    message: 'As senhas não coincidem',
+    path: ['confirmar'],
+  });
+
+export type PerfilForm = z.infer<typeof perfilSchema>;
+export type AlterarSenhaForm = z.infer<typeof alterarSenhaSchema>;
+export type RedefinirSenhaForm = z.infer<typeof redefinirSenhaSchema>;
+export type CadastroProprietarioForm = z.infer<typeof cadastroProprietarioSchema>;
+
+/** Monta o corpo de dados pessoais + endereço no formato da API (só dígitos em telefone e CEP). */
+export function paraPessoaRequest(form: PerfilForm) {
+  const opcional = (v: string) => v.trim() || undefined;
+  return {
+    nome: form.nome.trim(),
+    telefone: opcional(apenasDigitos(form.telefone)),
+    email: form.email.trim(),
+    endereco: {
+      logradouro: form.logradouro.trim(),
+      numero: opcional(form.numero),
+      complemento: opcional(form.complemento),
+      bairro: opcional(form.bairro),
+      municipio: form.municipio.trim(),
+      uf: form.uf,
+      cep: opcional(apenasDigitos(form.cep)),
+    },
+  };
+}
 
 export interface ViaCEPResponse {
   cep: string;

@@ -2,9 +2,9 @@ package com.sementelivre.backend.integration;
 
 import com.sementelivre.backend.exception.ErrorResponse;
 import com.sementelivre.backend.exception.GlobalExceptionHandler;
+import com.sementelivre.backend.entity.Admin;
 import com.sementelivre.backend.entity.Logradouro;
 import com.sementelivre.backend.entity.Proprietario;
-import com.sementelivre.backend.entity.Usuario;
 import com.sementelivre.backend.entity.enums.TipoDocumento;
 import com.sementelivre.backend.repository.PessoaRepository;
 import com.sementelivre.backend.repository.ProprietarioRepository;
@@ -39,14 +39,13 @@ class GlobalExceptionHandlerIntegrationTest extends AbstractPostgresIntegrationT
 
     private final GlobalExceptionHandler globalExceptionHandler = new GlobalExceptionHandler();
 
-    private Usuario novoUsuario(String documento, String email) {
-        Usuario usuario = new Usuario();
-        usuario.setTipoDocumento(TipoDocumento.CPF);
-        usuario.setDocumento(documento);
-        usuario.setNome("Usuario Teste");
-        usuario.setEmail(email);
-        usuario.setSenhaHash("hash123");
-        return usuario;
+    private Admin novoAdmin(String documento, String email) {
+        Admin admin = new Admin();
+        admin.setTipoDocumento(TipoDocumento.CPF);
+        admin.setDocumento(documento);
+        admin.setNome("Admin Teste");
+        admin.setEmail(email);
+        return admin;
     }
 
     private Proprietario novoProprietario(String documento, String email, String rg) {
@@ -55,7 +54,6 @@ class GlobalExceptionHandlerIntegrationTest extends AbstractPostgresIntegrationT
         proprietario.setDocumento(documento);
         proprietario.setNome("Proprietario Teste");
         proprietario.setEmail(email);
-        proprietario.setSenhaHash("hash123");
         proprietario.setRg(rg);
         return proprietario;
     }
@@ -69,34 +67,36 @@ class GlobalExceptionHandlerIntegrationTest extends AbstractPostgresIntegrationT
     @Test
     @Transactional
     void colisaoDeEmailDeveRetornar409ComMensagemEspecifica() {
-        pessoaRepository.save(novoUsuario("11122233344", "colisao-email@teste.com"));
+        pessoaRepository.save(novoAdmin("11122233344", "colisao-email@teste.com"));
         pessoaRepository.flush();
 
         try {
-            pessoaRepository.save(novoUsuario("55566677788", "colisao-email@teste.com"));
+            pessoaRepository.save(novoAdmin("55566677788", "colisao-email@teste.com"));
             pessoaRepository.flush();
             fail("Esperava DataIntegrityViolationException por email duplicado");
         } catch (DataIntegrityViolationException ex) {
             ErrorResponse resposta = tratarViolacao(ex);
             assertThat(resposta.getStatus()).isEqualTo(409);
             assertThat(resposta.getMessage()).isEqualTo("E-mail já cadastrado no sistema.");
+            assertThat(resposta.getFieldErrors()).containsExactly("email: E-mail já cadastrado no sistema.");
         }
     }
 
     @Test
     @Transactional
     void colisaoDeDocumentoDeveRetornar409ComMensagemEspecifica() {
-        pessoaRepository.save(novoUsuario("22233344455", "doc1@teste.com"));
+        pessoaRepository.save(novoAdmin("22233344455", "doc1@teste.com"));
         pessoaRepository.flush();
 
         try {
-            pessoaRepository.save(novoUsuario("22233344455", "doc2@teste.com"));
+            pessoaRepository.save(novoAdmin("22233344455", "doc2@teste.com"));
             pessoaRepository.flush();
             fail("Esperava DataIntegrityViolationException por documento duplicado");
         } catch (DataIntegrityViolationException ex) {
             ErrorResponse resposta = tratarViolacao(ex);
             assertThat(resposta.getStatus()).isEqualTo(409);
             assertThat(resposta.getMessage()).isEqualTo("Documento já cadastrado no sistema.");
+            assertThat(resposta.getFieldErrors()).containsExactly("documento: Documento já cadastrado no sistema.");
         }
     }
 
@@ -114,6 +114,7 @@ class GlobalExceptionHandlerIntegrationTest extends AbstractPostgresIntegrationT
             ErrorResponse resposta = tratarViolacao(ex);
             assertThat(resposta.getStatus()).isEqualTo(409);
             assertThat(resposta.getMessage()).isEqualTo("RG já cadastrado no sistema.");
+            assertThat(resposta.getFieldErrors()).containsExactly("rg: RG já cadastrado no sistema.");
         }
     }
 
@@ -126,17 +127,18 @@ class GlobalExceptionHandlerIntegrationTest extends AbstractPostgresIntegrationT
         logradouroInexistente.setMunicipio("Cidade");
         logradouroInexistente.setUf("MG");
 
-        Usuario usuario = novoUsuario("66677788899", "fk-violacao@teste.com");
-        usuario.setLogradouro(logradouroInexistente);
+        Admin admin = novoAdmin("66677788899", "fk-violacao@teste.com");
+        admin.setLogradouro(logradouroInexistente);
 
         try {
-            pessoaRepository.save(usuario);
+            pessoaRepository.save(admin);
             pessoaRepository.flush();
             fail("Esperava DataIntegrityViolationException por violação de foreign key");
         } catch (DataIntegrityViolationException ex) {
             ErrorResponse resposta = tratarViolacao(ex);
             assertThat(resposta.getStatus()).isEqualTo(409);
             assertThat(resposta.getMessage()).isEqualTo("Violação de integridade nos dados.");
+            assertThat(resposta.getFieldErrors()).isNull();
         }
     }
 }

@@ -7,10 +7,10 @@ import com.sementelivre.backend.entity.Admin;
 import com.sementelivre.backend.entity.Logradouro;
 import com.sementelivre.backend.entity.Pessoa;
 import com.sementelivre.backend.entity.Proprietario;
-import com.sementelivre.backend.entity.Usuario;
 import com.sementelivre.backend.service.PessoaService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -41,7 +41,9 @@ public class PessoaController {
         return ResponseEntity.ok(mapToResponse(pessoa));
     }
 
+    // Cada um edita so os proprios dados; admin edita qualquer um.
     @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN') or #id == principal.id")
     public ResponseEntity<PessoaResponseDTO> atualizar(@PathVariable UUID id, @Valid @RequestBody PessoaUpdateRequestDTO dto) {
         Pessoa pessoa = pessoaService.atualizar(id, dto);
         return ResponseEntity.ok(mapToResponse(pessoa));
@@ -68,8 +70,6 @@ public class PessoaController {
             dto.setTipoPessoa("PROPRIETARIO");
         } else if (p instanceof Admin) {
             dto.setTipoPessoa("ADMIN");
-        } else if (p instanceof Usuario) {
-            dto.setTipoPessoa("USUARIO");
         }
 
         if (p.getLogradouro() != null) {

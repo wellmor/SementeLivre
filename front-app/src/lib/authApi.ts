@@ -1,15 +1,19 @@
-﻿/**
- * authApi.ts — Funções que integram com os endpoints de autenticação do backend.
+/**
+ * authApi.ts — Funções que integram com os endpoints de autenticação e de conta do backend.
  *
  * Endpoints consumidos:
  *  POST /auth/login             → retorna { accessToken, refreshToken, tokenType, expiresInSeconds }
- *  POST /auth/cadastrar         → retorna UsuarioResponseDTO (201 Created)
- *  POST /auth/refresh           → retorna { accessToken, refreshToken, tokenType, expiresInSeconds }
+ *  POST /auth/cadastrar         → cria proprietário + conta de login; retorna PerfilUsuario (201 Created)
+ *  POST /auth/refresh           → retorna { accessToken, refreshToken, tokenType, expiresInSeconds } (via api.ts)
  *  POST /auth/recuperar-senha   → retorna { mensagem: string }
- *  GET  /auth/me                → retorna UsuarioResponseDTO (usuário autenticado)
+ *  POST /auth/redefinir-senha   → retorna { mensagem: string }
+ *  GET  /auth/me                → retorna PerfilUsuario (conta autenticada, com endereço e RG)
+ *  POST /auth/alterar-senha     → retorna { mensagem: string }; 400 com fieldErrors "senhaAtual" se a atual não confere
+ *  PUT  /api/proprietarios/{id} → atualiza dados pessoais e endereço do próprio proprietário
  */
 
-import { apiGet, apiPost, saveTokens, clearTokens } from './api';
+import { apiGet, apiPost, apiPut, saveTokens, clearTokens, ApiError } from './api';
+import { PerfilUsuario, PessoaUpdateRequest, Proprietario, ProprietarioCadastroRequest } from '@/types/user';
 
 // ── DTOs (espelham os Records do backend) ─────────────────────────────────────
 
@@ -20,34 +24,26 @@ export interface TokenResponse {
   expiresInSeconds: number;
 }
 
-export interface UsuarioResponse {
-  id: string;
-  nome: string;
-  email: string;
-  telefone?: string;
-  tipoDocumento?: string;
-  documento?: string;
-  tipoPessoa?: string;
-  roles?: string[];
-  dataCadastro?: string;
-  dataUltimaAlteracao?: string;
-  endereco?: {
-    logradouro: string;
-    numero: string;
-    complemento?: string;
-    bairro: string;
-    municipio: string;
-    uf: string;
-    cep: string;
-  };
+interface MensagemResponse {
+  mensagem: string;
 }
 
-// ── Auth Session (o que guardamos na sessão local após login) ─────────────────
+// ── Auth Session (o que o AuthContext expõe como `user`) ──────────────────────
 
 export interface AuthSession {
   uid: string;
   email: string;
   nome: string;
+}
+
+export function sessaoDoPerfil(perfil: PerfilUsuario): AuthSession {
+  return { uid: perfil.id, email: perfil.email, nome: perfil.nome };
+}
+
+// ── me ────────────────────────────────────────────────────────────────────────
+
+export function meApi(): Promise<PerfilUsuario> {
+  return apiGet<PerfilUsuario>('/auth/me');
 }
 
 // ── login ─────────────────────────────────────────────────────────────────────
@@ -57,26 +53,45 @@ export async function loginApi(email: string, senha: string): Promise<AuthSessio
   saveTokens(data.accessToken, data.refreshToken);
 
   // Obtém dados do usuário autenticado para montar a sessão
-  const me = await apiGet<UsuarioResponse>('/auth/me');
-  return { uid: me.id, email: me.email, nome: me.nome };
+  const me = await meApi();
+  if (me.tipoPessoa !== 'PROPRIETARIO') {
+    // O front-app é do proprietário; admin usa o painel do front-site.
+    clearTokens();
+    const erro: ApiError = {
+      status: 403,
+      message: 'Esta conta não é de proprietário. Use o painel administrativo.',
+      code: 'auth/not-proprietario',
+      fieldErrors: {},
+    };
+    throw erro;
+  }
+  return sessaoDoPerfil(me);
 }
 
 // ── cadastrar ─────────────────────────────────────────────────────────────────
 
-export interface CadastroPayload {
-  nome: string;
-  email: string;
-  senha: string;
+export async function cadastrarApi(payload: ProprietarioCadastroRequest): Promise<PerfilUsuario> {
+  return apiPost<PerfilUsuario>('/auth/cadastrar', payload, { public: true });
 }
 
-export async function cadastrarApi(payload: CadastroPayload): Promise<UsuarioResponse> {
-  return apiPost<UsuarioResponse>('/auth/cadastrar', payload, { public: true });
-}
-
-// ── recuperar-senha ───────────────────────────────────────────────────────────
+// ── recuperar / redefinir senha ───────────────────────────────────────────────
 
 export async function recuperarSenhaApi(email: string): Promise<void> {
-  await apiPost<{ mensagem: string }>('/auth/recuperar-senha', { email }, { public: true });
+  await apiPost<MensagemResponse>('/auth/recuperar-senha', { email }, { public: true });
+}
+
+export async function redefinirSenhaApi(token: string, novaSenha: string): Promise<void> {
+  await apiPost<MensagemResponse>('/auth/redefinir-senha', { token, novaSenha }, { public: true });
+}
+
+// ── perfil do proprietário ────────────────────────────────────────────────────
+
+export function atualizarProprietarioApi(id: string, dados: PessoaUpdateRequest): Promise<Proprietario> {
+  return apiPut<Proprietario>(`/api/proprietarios/${id}`, dados);
+}
+
+export async function alterarSenhaApi(senhaAtual: string, novaSenha: string): Promise<void> {
+  await apiPost<MensagemResponse>('/auth/alterar-senha', { senhaAtual, novaSenha });
 }
 
 // ── logout (limpa tokens localmente) ─────────────────────────────────────────

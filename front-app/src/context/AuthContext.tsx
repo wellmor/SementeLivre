@@ -1,50 +1,50 @@
-﻿'use client';
+'use client';
 
 /**
  * AuthContext.tsx — Contexto de autenticação integrado ao backend REST.
  *
- * ALTERAÇÕES em relação à versão anterior (localStorage mock):
- *   - Importa `loginApi`, `logoutApi`, `AuthSession` de `@/lib/authApi` em vez de `@/lib/auth`
- *   - `user` agora é do tipo `AuthSession` (uid + email + nome) em vez de `Session`
- *   - A inicialização da sessão lê o accessToken do localStorage e chama GET /auth/me
- *     para revalidar a sessão de forma segura
- *   - `logout` chama `logoutApi()` que limpa os tokens JWT
- *   - Escuta o evento customizado `sl:session-expired` disparado por `api.ts`
- *     para fazer logout automático quando o refresh falha
- *
- * LINHAS REMOVIDAS do arquivo anterior (comentadas para auditoria):
- *   - import { onAuthStateChanged, signOutAndNotify, Session } from '@/lib/auth';
- *   - import { dbGet } from '@/lib/db';
- *   - import { Proprietario } from '@/types/user';
- *   - const prop = dbGet<Proprietario & { id: string }>('proprietarios', session.uid);
- *   - setProprietario({ ...prop, idProprietario: prop.id });
- *   - Toda lógica de inatividade (resetTimer / 30 min) é mantida sem mudanças
+ *   - A sessão vem dos tokens JWT no localStorage (lib/api.ts); na montagem chama
+ *     GET /auth/me para revalidar e carregar o perfil completo do proprietário.
+ *   - `user` é o resumo da sessão (uid + email + nome); `perfil` é a resposta completa do /auth/me.
+ *   - Escuta `sl:session-expired` (disparado por api.ts quando o refresh falha) para sair.
+ *   - Sem conexão na revalidação: mantém os tokens e expõe `semConexao`, para o layout
+ *     oferecer "tentar novamente" em vez de deslogar.
+ *   - Logout automático após 30 min de inatividade.
  */
 
-import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
-import { AuthSession, logoutApi, UsuarioResponse } from '@/lib/authApi';
-import { apiGet, getAccessToken } from '@/lib/api';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { AuthSession, logoutApi, meApi, sessaoDoPerfil } from '@/lib/authApi';
+import { getAccessToken, isApiError } from '@/lib/api';
+import { PerfilUsuario } from '@/types/user';
 
 interface AuthContextType {
   user: AuthSession | null;
+  perfil: PerfilUsuario | null;
   loading: boolean;
+  semConexao: boolean;
+  /** Recarrega o perfil de GET /auth/me. Lança o erro da API se falhar. */
+  recarregarPerfil: () => Promise<void>;
   logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
+  perfil: null,
   loading: true,
+  semConexao: false,
+  recarregarPerfil: async () => {},
   logout: async () => {},
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<AuthSession | null>(null);
+  const [perfil, setPerfil] = useState<PerfilUsuario | null>(null);
   const [loading, setLoading] = useState(true);
+  const [semConexao, setSemConexao] = useState(false);
   const inactivityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const doLogout = () => {
     logoutApi();
-    setUser(null);
+    setPerfil(null);
   };
 
   const resetTimer = () => {
@@ -54,27 +54,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }, 30 * 60 * 1000); // 30 min de inatividade
   };
 
+  const recarregarPerfil = useCallback(async () => {
+    const me = await meApi();
+    setPerfil(me);
+    setSemConexao(false);
+  }, []);
+
   // ── Revalidar sessão na montagem ──────────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
 
     const init = async () => {
-      const token = getAccessToken();
-      if (!token) {
+      if (!getAccessToken()) {
         setLoading(false);
         return;
       }
       try {
-        const me = await apiGet<UsuarioResponse>('/auth/me');
-        if (!cancelled) {
-          setUser({ uid: me.id, email: me.email, nome: me.nome });
-          resetTimer();
-        }
-      } catch {
-        // Token inválido ou expirado sem refresh → limpa estado
-        if (!cancelled) {
-          logoutApi();
-          setUser(null);
+        await recarregarPerfil();
+        if (!cancelled) resetTimer();
+      } catch (err) {
+        if (cancelled) return;
+        if (isApiError(err) && err.status === 0) {
+          setSemConexao(true); // mantém os tokens; o usuário pode tentar de novo
+        } else {
+          // Token inválido ou expirado sem refresh → limpa estado
+          doLogout();
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -85,7 +89,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Escuta evento de sessão expirada disparado por api.ts
     const handleExpired = () => {
-      setUser(null);
+      setPerfil(null);
     };
     window.addEventListener('sl:session-expired', handleExpired);
 
@@ -105,8 +109,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     doLogout();
   };
 
+  // Memoizado: hooks que dependem de `user` não re-executam a cada render.
+  const user = useMemo(() => (perfil ? sessaoDoPerfil(perfil) : null), [perfil]);
+
   return (
-    <AuthContext.Provider value={{ user, loading, logout }}>
+    <AuthContext.Provider value={{ user, perfil, loading, semConexao, recarregarPerfil, logout }}>
       {children}
     </AuthContext.Provider>
   );
