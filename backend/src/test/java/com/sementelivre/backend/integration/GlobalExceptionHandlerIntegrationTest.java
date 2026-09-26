@@ -78,6 +78,7 @@ class GlobalExceptionHandlerIntegrationTest extends AbstractPostgresIntegrationT
             ErrorResponse resposta = tratarViolacao(ex);
             assertThat(resposta.getStatus()).isEqualTo(409);
             assertThat(resposta.getMessage()).isEqualTo("E-mail já cadastrado no sistema.");
+            assertThat(resposta.getFieldErrors()).containsExactly("email: E-mail já cadastrado no sistema.");
         }
     }
 
@@ -95,6 +96,7 @@ class GlobalExceptionHandlerIntegrationTest extends AbstractPostgresIntegrationT
             ErrorResponse resposta = tratarViolacao(ex);
             assertThat(resposta.getStatus()).isEqualTo(409);
             assertThat(resposta.getMessage()).isEqualTo("Documento já cadastrado no sistema.");
+            assertThat(resposta.getFieldErrors()).containsExactly("documento: Documento já cadastrado no sistema.");
         }
     }
 
@@ -112,6 +114,7 @@ class GlobalExceptionHandlerIntegrationTest extends AbstractPostgresIntegrationT
             ErrorResponse resposta = tratarViolacao(ex);
             assertThat(resposta.getStatus()).isEqualTo(409);
             assertThat(resposta.getMessage()).isEqualTo("RG já cadastrado no sistema.");
+            assertThat(resposta.getFieldErrors()).containsExactly("rg: RG já cadastrado no sistema.");
         }
     }
 
@@ -135,6 +138,7 @@ class GlobalExceptionHandlerIntegrationTest extends AbstractPostgresIntegrationT
             ErrorResponse resposta = tratarViolacao(ex);
             assertThat(resposta.getStatus()).isEqualTo(409);
             assertThat(resposta.getMessage()).isEqualTo("Violação de integridade nos dados.");
+            assertThat(resposta.getFieldErrors()).isNull();
         }
     }
 }

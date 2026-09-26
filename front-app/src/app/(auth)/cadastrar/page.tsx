@@ -3,12 +3,15 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { createUserAndNotify } from '@/lib/auth';
-import { dbSet } from '@/lib/db';
+import { cadastrarProprietario } from '@/lib/auth';
+import { ApiError } from '@/lib/api';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { AnimatedPlantSVG } from '@/components/icons/AnimatedPlantSVG';
-import { fetchCEP, formatCPF, formatTelefone, formatCEP, validateCPF } from '@/lib/validators';
+import {
+  cadastroProprietarioSchema, campoDoFormulario, fetchCEP, formatCPF, formatTelefone, formatCEP,
+  paraPessoaRequest, validarFormulario,
+} from '@/lib/validators';
 import styles from '../entrar/entrar.module.css';
 import authStyles from '../auth.module.css';
 import formStyles from './cadastrar.module.css';
@@ -48,19 +51,7 @@ export default function CadastrarPage() {
   };
 
   const validate = () => {
-    const e: Record<string, string> = {};
-    if (!form.nome) e.nome = 'Nome é obrigatório';
-    if (!form.cpf || !validateCPF(form.cpf)) e.cpf = 'CPF inválido';
-    if (!form.email) e.email = 'E-mail é obrigatório';
-    if (!form.senha || form.senha.length < 8) e.senha = 'Senha deve ter ao menos 8 caracteres';
-    if (!/[A-Z]/.test(form.senha)) e.senha = 'Senha deve ter ao menos uma maiúscula';
-    if (!/[0-9]/.test(form.senha)) e.senha = 'Senha deve ter ao menos um número';
-    if (form.senha !== form.confirmarSenha) e.confirmarSenha = 'Senhas não coincidem';
-    if (!form.cep) e.cep = 'CEP é obrigatório';
-    if (!form.logradouro) e.logradouro = 'Logradouro é obrigatório';
-    if (!form.numero) e.numero = 'Número é obrigatório';
-    if (!form.municipio) e.municipio = 'Município é obrigatório';
-    if (!form.uf) e.uf = 'UF é obrigatória';
+    const e = validarFormulario(cadastroProprietarioSchema, form);
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -71,26 +62,27 @@ export default function CadastrarPage() {
     if (!validate()) return;
     setLoading(true);
     try {
-      const { user: newUser } = createUserAndNotify(form.email, form.senha);
-      dbSet('proprietarios', {
-        id: newUser.uid,
-        idProprietario: newUser.uid,
-        nome: form.nome, rg: form.rg,
-        documento: form.cpf.replace(/\D/g, ''), tipoDocumento: 'CPF',
-        telefone: form.telefone, email: form.email,
-        exibirNoSitePublico: false,
-        logradouro: {
-          logradouro: form.logradouro, numero: form.numero, complemento: form.complemento,
-          bairro: form.bairro, municipio: form.municipio, uf: form.uf,
-          cep: form.cep.replace(/\D/g, ''),
-        },
-        dataCadastro: new Date(), dataUltimaAlteracao: new Date(),
+      await cadastrarProprietario({
+        ...paraPessoaRequest(form),
+        tipoDocumento: 'CPF',
+        documento: form.cpf.replace(/\D/g, ''),
+        rg: form.rg.trim(),
+        senha: form.senha,
       });
-      router.push('/entrar');
+      router.push('/entrar?cadastro=ok');
     } catch (err: unknown) {
-      const code = (err as { code?: string }).code;
-      if (code === 'auth/email-already-in-use') setError('Este e-mail já está cadastrado.');
-      else setError('Erro ao criar conta. Tente novamente.');
+      if (err instanceof ApiError) {
+        const camposComErro = Object.entries(err.fieldErrors).map(([campo, msg]) => [campoDoFormulario(campo), msg]);
+        const doFormulario = camposComErro.filter(([campo]) => campo in form);
+        if (doFormulario.length > 0) {
+          setErrors(Object.fromEntries(doFormulario));
+          if (doFormulario.length < camposComErro.length) setError(err.message);
+        } else {
+          setError(err.message);
+        }
+      } else {
+        setError('Erro ao criar conta. Tente novamente.');
+      }
     } finally {
       setLoading(false);
     }
@@ -122,9 +114,9 @@ export default function CadastrarPage() {
             <Input label="Nome completo" value={form.nome} onChange={(e) => set('nome', e.target.value)} error={errors.nome} required />
             <div className={formStyles.row}>
               <Input label="CPF" value={form.cpf} onChange={(e) => set('cpf', formatCPF(e.target.value))} error={errors.cpf} inputMode="numeric" required placeholder="000.000.000-00" />
-              <Input label="RG" value={form.rg} onChange={(e) => set('rg', e.target.value)} inputMode="numeric" placeholder="Opcional" />
+              <Input label="RG" value={form.rg} onChange={(e) => set('rg', e.target.value)} error={errors.rg} required maxLength={20} />
             </div>
-            <Input label="Telefone" value={form.telefone} onChange={(e) => set('telefone', formatTelefone(e.target.value))} inputMode="tel" placeholder="(00) 00000-0000" />
+            <Input label="Telefone" value={form.telefone} onChange={(e) => set('telefone', formatTelefone(e.target.value))} error={errors.telefone} inputMode="tel" placeholder="(00) 00000-0000" />
           </fieldset>
 
           <fieldset className={formStyles.fieldset}>
@@ -136,13 +128,13 @@ export default function CadastrarPage() {
 
           <fieldset className={formStyles.fieldset}>
             <legend className={formStyles.legend}>Endereço</legend>
-            <Input label="CEP" value={form.cep} onChange={(e) => handleCEP(e.target.value)} error={errors.cep} inputMode="numeric" required placeholder="00000-000" hint={loadingCEP ? 'Buscando CEP...' : undefined} />
+            <Input label="CEP" value={form.cep} onChange={(e) => handleCEP(e.target.value)} error={errors.cep} inputMode="numeric" placeholder="00000-000" hint={loadingCEP ? 'Buscando CEP...' : undefined} />
             <Input label="Logradouro" value={form.logradouro} onChange={(e) => set('logradouro', e.target.value)} error={errors.logradouro} required />
             <div className={formStyles.row}>
-              <Input label="Número" value={form.numero} onChange={(e) => set('numero', e.target.value)} error={errors.numero} required />
-              <Input label="Complemento" value={form.complemento} onChange={(e) => set('complemento', e.target.value)} placeholder="Opcional" />
+              <Input label="Número" value={form.numero} onChange={(e) => set('numero', e.target.value)} error={errors.numero} maxLength={10} />
+              <Input label="Complemento" value={form.complemento} onChange={(e) => set('complemento', e.target.value)} error={errors.complemento} placeholder="Opcional" />
             </div>
-            <Input label="Bairro" value={form.bairro} onChange={(e) => set('bairro', e.target.value)} />
+            <Input label="Bairro" value={form.bairro} onChange={(e) => set('bairro', e.target.value)} error={errors.bairro} />
             <div className={formStyles.row}>
               <div style={{ flex: 2 }}>
                 <Input label="Município" value={form.municipio} onChange={(e) => set('municipio', e.target.value)} error={errors.municipio} required />

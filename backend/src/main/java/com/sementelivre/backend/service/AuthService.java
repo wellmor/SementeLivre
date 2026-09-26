@@ -2,6 +2,7 @@ package com.sementelivre.backend.service;
 
 import com.sementelivre.backend.dto.*;
 import com.sementelivre.backend.entity.*;
+import com.sementelivre.backend.exception.SenhaAtualIncorretaException;
 import com.sementelivre.backend.repository.*;
 import com.sementelivre.backend.security.JwtService;
 import org.springframework.beans.factory.annotation.Value;
@@ -52,6 +53,23 @@ public class AuthService {
     public UsuarioResponseDTO cadastrar(ProprietarioCreateRequestDTO dto) {
         Proprietario proprietario = proprietarioService.criar(dto);
         return UsuarioResponseDTO.fromEntity(usuarioService.buscarPorId(proprietario.getId()));
+    }
+
+    // Recarrega a conta dentro de uma transacao: o Usuario que chega do SecurityFilter foi lido
+    // fora de sessao, e o logradouro da pessoa (LAZY) nao carregaria a partir dele.
+    @Transactional(readOnly = true)
+    public UsuarioResponseDTO perfil(UUID usuarioId) {
+        return UsuarioResponseDTO.fromEntity(usuarioService.buscarPorId(usuarioId));
+    }
+
+    @Transactional
+    public void alterarSenha(UUID usuarioId, AlterarSenhaDTO dto) {
+        Usuario usuario = usuarioService.buscarPorId(usuarioId);
+        if (!passwordEncoder.matches(dto.senhaAtual(), usuario.getSenhaHash())) {
+            throw new SenhaAtualIncorretaException("Senha atual incorreta.");
+        }
+        usuario.setSenhaHash(passwordEncoder.encode(dto.novaSenha()));
+        usuarioRepository.save(usuario);
     }
 
     @Transactional

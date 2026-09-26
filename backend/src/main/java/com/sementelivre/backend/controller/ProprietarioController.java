@@ -9,6 +9,7 @@ import com.sementelivre.backend.service.PessoaService;
 import com.sementelivre.backend.service.ProprietarioService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
@@ -57,7 +58,9 @@ public class ProprietarioController {
         return ResponseEntity.ok(mapToResponse((Proprietario) pessoa));
     }
 
+    // Cada um edita so os proprios dados; admin edita qualquer um.
     @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN') or #id == principal.id")
     public ResponseEntity<ProprietarioResponseDTO> atualizar(@PathVariable UUID id, @Valid @RequestBody PessoaUpdateRequestDTO dto) {
         Pessoa pessoa = pessoaService.buscarPorId(id);
         if (!(pessoa instanceof Proprietario)) {

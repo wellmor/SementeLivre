@@ -1,10 +1,12 @@
 package com.sementelivre.backend.controller;
 
 import com.sementelivre.backend.dto.*;
+import com.sementelivre.backend.entity.Usuario;
 import com.sementelivre.backend.service.AuthService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -49,12 +51,21 @@ public class AuthController {
         return ResponseEntity.ok(Map.of("mensagem", "Senha redefinida com sucesso."));
     }
 
-    @GetMapping("/me")
-    public ResponseEntity<UsuarioResponseDTO> obterPerfilAtual(
-            @org.springframework.security.core.annotation.AuthenticationPrincipal com.sementelivre.backend.entity.Usuario usuarioAutenticado) {
+    @PostMapping("/alterar-senha")
+    public ResponseEntity<Map<String, String>> alterarSenha(
+            @AuthenticationPrincipal Usuario usuarioAutenticado, @RequestBody @Valid AlterarSenhaDTO dto) {
         if (usuarioAutenticado == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        return ResponseEntity.ok(UsuarioResponseDTO.fromEntity(usuarioAutenticado));
+        authService.alterarSenha(usuarioAutenticado.getId(), dto);
+        return ResponseEntity.ok(Map.of("mensagem", "Senha alterada com sucesso."));
+    }
+
+    @GetMapping("/me")
+    public ResponseEntity<UsuarioResponseDTO> obterPerfilAtual(@AuthenticationPrincipal Usuario usuarioAutenticado) {
+        if (usuarioAutenticado == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        return ResponseEntity.ok(authService.perfil(usuarioAutenticado.getId()));
     }
 }

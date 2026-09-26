@@ -1,15 +1,37 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { Suspense, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { Leaf, Eye, EyeOff, AlertCircle } from 'lucide-react';
-import { signInAndNotify } from '@/lib/auth';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Eye, EyeOff, AlertCircle, CircleCheck } from 'lucide-react';
+import { entrar } from '@/lib/auth';
+import { ApiError } from '@/lib/api';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { AnimatedSeedsSVG } from '@/components/icons/AnimatedSeedsSVG';
 import styles from './entrar.module.css';
 import authStyles from '../auth.module.css';
+
+function AvisoLogin() {
+  const params = useSearchParams();
+  if (params.get('cadastro') === 'ok') {
+    return (
+      <div className={styles.successBox} role="status">
+        <CircleCheck size={15} strokeWidth={2.5} />
+        Conta criada com sucesso! Entre com seu e-mail e senha.
+      </div>
+    );
+  }
+  if (params.get('sessao') === 'expirada') {
+    return (
+      <div className={styles.errorBox} role="status">
+        <AlertCircle size={15} strokeWidth={2.5} />
+        Sua sessão expirou. Faça login novamente.
+      </div>
+    );
+  }
+  return null;
+}
 
 export default function EntrarPage() {
   const router = useRouter();
@@ -25,14 +47,15 @@ export default function EntrarPage() {
     if (!email || !senha) { setError('Preencha todos os campos.'); return; }
     setLoading(true);
     try {
-      signInAndNotify(email, senha);
+      await entrar(email.trim(), senha);
       router.push('/dashboard');
     } catch (err: unknown) {
-      const code = (err as { code?: string }).code;
-      if (code === 'auth/user-not-found' || code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
+      if (err instanceof ApiError && err.status === 401) {
         setError('E-mail ou senha incorretos.');
-      } else if (code === 'auth/network-request-failed') {
+      } else if (err instanceof ApiError && err.status === 0) {
         setError('Verifique sua conexão com a internet.');
+      } else if (err instanceof ApiError && err.status === 403) {
+        setError(err.message);
       } else {
         setError('Ocorreu um erro. Tente novamente.');
       }
@@ -60,6 +83,10 @@ export default function EntrarPage() {
       <div className={authStyles.formContainer}>
         <form onSubmit={handleSubmit} className={styles.form} noValidate>
           <h2 className={styles.title}>Entrar na conta</h2>
+
+          <Suspense fallback={null}>
+            <AvisoLogin />
+          </Suspense>
 
           {error && (
             <div className={styles.errorBox} role="alert" aria-live="assertive">
