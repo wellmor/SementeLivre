@@ -1,5 +1,24 @@
-import { redirect } from 'next/navigation';
+'use client';
+
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { getAccessToken } from '@/lib/api';
 
 export default function Home() {
-  redirect('/dashboard');
+  const router = useRouter();
+
+  useEffect(() => {
+    const token = getAccessToken();
+    if (token) {
+      router.replace('/dashboard');
+    } else {
+      router.replace('/entrar');
+    }
+  }, [router]);
+
+  return (
+    <div style={{ display: 'flex', minHeight: '100vh', alignItems: 'center', justifyContent: 'center' }}>
+      <p style={{ color: 'var(--color-text-muted)', fontFamily: 'sans-serif' }}>Carregando...</p>
+    </div>
+  );
 }
