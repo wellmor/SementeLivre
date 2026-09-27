@@ -60,7 +60,7 @@ Telas: `(auth)/entrar`, `(auth)/cadastrar`, `(auth)/recuperar-senha`, `(app)/per
 |---|---|---|
 | `400` | Validação do DTO, documento inválido, senha atual incorreta, token de refresh/recuperação inválido | `ErrorResponse` |
 | `401` | Sem token, token inválido/expirado, **ou** credencial errada no `/auth/login` | vazio |
-| `403` | Autenticado, mas sem permissão (ex.: editar dados de outro proprietário) | JSON padrão do Spring |
+| `403` | Autenticado, mas sem permissão (ex.: editar dados de outro proprietário, excluir sem ser admin) | JSON padrão do Spring |
 | `404` | Recurso não encontrado | `ErrorResponse` |
 | `409` | E-mail, documento ou RG já cadastrado | `ErrorResponse` com `fieldErrors` |
 
@@ -293,7 +293,7 @@ No front, a tela `/recuperar-senha` tem as duas etapas: pedir o código e, com e
 
 ## Pendências
 
-- `GET /api/proprietarios`, `GET /api/proprietarios/{id}` e `DELETE` continuam liberados para qualquer usuário autenticado (expõem CPF/RG de outros proprietários).
+- `GET /api/proprietarios` e `GET /api/proprietarios/{id}` continuam liberados para qualquer usuário autenticado (expõem CPF/RG de outros proprietários). Os `DELETE` de proprietários, pessoas e usuários são só para admin.
 - Unicidade de e-mail é sensível a maiúsculas/minúsculas.
 - O cadastro no backend não valida força de senha (só o front exige maiúscula e número); `redefinir-senha` aceita a partir de 6 caracteres.
 - Sementes, pedidos e propriedades ainda usam `localStorage` (`lib/db.ts`).

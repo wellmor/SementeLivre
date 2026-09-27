@@ -9,150 +9,17 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.List;
-import java.util.UUID;
-import java.util.concurrent.ThreadLocalRandom;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.transaction.support.TransactionTemplate;
-
-import com.jayway.jsonpath.JsonPath;
-import com.sementelivre.backend.BackendApplication;
-import com.sementelivre.backend.entity.Admin;
-import com.sementelivre.backend.entity.enums.PerfilEnum;
-import com.sementelivre.backend.entity.enums.TipoDocumento;
-import com.sementelivre.backend.repository.PessoaRepository;
-import com.sementelivre.backend.service.UsuarioService;
 
 /**
  * Fluxo do proprietario usado pelo front-app (issue #99), passando pela cadeia de
  * seguranca de verdade: cadastro, login, /auth/me, edicao do proprio perfil e troca
- * de senha. Cada teste cria seus proprios proprietarios (e-mail/CPF/RG unicos), porque
- * as requisicoes do MockMvc commitam no Postgres compartilhado.
+ * de senha.
  */
-@SpringBootTest(classes = BackendApplication.class)
-@AutoConfigureMockMvc
-class PerfilProprietarioIntegrationTest extends AbstractPostgresIntegrationTest {
-
-    private static final String SENHA = "Senha1234";
-
-    @Autowired
-    private MockMvc mockMvc;
-
-    @Autowired
-    private PessoaRepository pessoaRepository;
-
-    @Autowired
-    private UsuarioService usuarioService;
-
-    @Autowired
-    private TransactionTemplate transactionTemplate;
-
-    private record Conta(String id, String email, String documento, String rg) {}
-
-    /** Gera um CPF com digitos verificadores validos. */
-    private static String cpfValido() {
-        int[] d = new int[11];
-        for (int i = 0; i < 9; i++) {
-            d[i] = ThreadLocalRandom.current().nextInt(10);
-        }
-        d[0] = 1 + ThreadLocalRandom.current().nextInt(9); // evita todos os digitos iguais
-        for (int pos = 9; pos < 11; pos++) {
-            int soma = 0;
-            for (int i = 0; i < pos; i++) {
-                soma += d[i] * (pos + 1 - i);
-            }
-            int resto = soma % 11;
-            d[pos] = resto < 2 ? 0 : 11 - resto;
-        }
-        StringBuilder cpf = new StringBuilder();
-        for (int digito : d) {
-            cpf.append(digito);
-        }
-        return cpf.toString();
-    }
-
-    private static String cadastroJson(String email, String documento, String rg) {
-        return """
-                {
-                  "nome": "Proprietario Perfil",
-                  "tipoDocumento": "CPF",
-                  "documento": "%s",
-                  "rg": "%s",
-                  "telefone": "32999998888",
-                  "email": "%s",
-                  "senha": "%s",
-                  "endereco": {
-                    "logradouro": "Rua das Sementes",
-                    "numero": "10",
-                    "bairro": "Centro",
-                    "municipio": "Rio Pomba",
-                    "uf": "MG",
-                    "cep": "36180000"
-                  }
-                }
-                """.formatted(documento, rg, email, SENHA);
-    }
-
-    private Conta cadastrar() throws Exception {
-        String sufixo = UUID.randomUUID().toString().substring(0, 8);
-        String email = "perfil-" + sufixo + "@teste.com";
-        String documento = cpfValido();
-        String rg = "MG-" + sufixo;
-
-        String resposta = mockMvc.perform(post("/auth/cadastrar")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(cadastroJson(email, documento, rg)))
-                .andExpect(status().isCreated())
-                .andReturn().getResponse().getContentAsString();
-
-        return new Conta(JsonPath.read(resposta, "$.id"), email, documento, rg);
-    }
-
-    private String login(String email, String senha) throws Exception {
-        String resposta = mockMvc.perform(post("/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"%s\",\"senha\":\"%s\"}".formatted(email, senha)))
-                .andExpect(status().isOk())
-                .andReturn().getResponse().getContentAsString();
-        return "Bearer " + JsonPath.read(resposta, "$.accessToken");
-    }
-
-    /** Cria um admin com conta de login (o admin do seed nao tem senha conhecida) e devolve o token. */
-    private String loginAdmin() throws Exception {
-        String email = "admin-" + UUID.randomUUID().toString().substring(0, 8) + "@teste.com";
-        transactionTemplate.executeWithoutResult(status -> {
-            Admin admin = new Admin();
-            admin.setTipoDocumento(TipoDocumento.CPF);
-            admin.setDocumento(cpfValido());
-            admin.setNome("Admin Teste");
-            admin.setEmail(email);
-            usuarioService.criarConta(pessoaRepository.save(admin), SENHA, PerfilEnum.ROLE_ADMIN);
-        });
-        return login(email, SENHA);
-    }
-
-    private static String atualizacaoJson(String nome, String email) {
-        return """
-                {
-                  "nome": "%s",
-                  "telefone": "32988887777",
-                  "email": "%s",
-                  "endereco": {
-                    "logradouro": "Rua Nova",
-                    "numero": "20",
-                    "municipio": "Mercês",
-                    "uf": "MG",
-                    "cep": "36190000"
-                  }
-                }
-                """.formatted(nome, email);
-    }
+class PerfilProprietarioIntegrationTest extends AbstractAuthIntegrationTest {
 
     @Test
     void meDeveRetornarPerfilCompletoDoProprietario() throws Exception {
@@ -194,13 +61,13 @@ class PerfilProprietarioIntegrationTest extends AbstractPostgresIntegrationTest 
 
         mockMvc.perform(post("/auth/cadastrar")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(cadastroJson("outro-" + existente.email(), existente.documento(), "RG-" + UUID.randomUUID().toString().substring(0, 8))))
+                        .content(cadastroJson("outro-" + existente.email(), existente.documento(), "RG-" + sufixoUnico())))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.fieldErrors", contains("documento: Documento já cadastrado no sistema.")));
 
         mockMvc.perform(post("/auth/cadastrar")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(cadastroJson(existente.email(), cpfValido(), "RG-" + UUID.randomUUID().toString().substring(0, 8))))
+                        .content(cadastroJson(existente.email(), cpfValido(), "RG-" + sufixoUnico())))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.fieldErrors", contains("email: E-mail já cadastrado no sistema.")));
     }

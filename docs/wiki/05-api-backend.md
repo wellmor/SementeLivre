@@ -10,11 +10,14 @@
 | Método | Endpoint | Descrição | Autenticação |
 |---|---|---|---|
 | `POST` | `/auth/cadastrar` | Cadastro de proprietário (cria Pessoa + Proprietário + conta de login) | Não |
-| `POST` | `/auth/login` | Login (retorna access + refresh token) | Não |
-| `POST` | `/auth/refresh` | Renovar access token | Refresh token |
-| `POST` | `/auth/recuperar-senha` | Solicitar link de redefinição de senha | Não |
-| `POST` | `/auth/redefinir-senha` | Definir nova senha | Token de recuperação |
-| `GET` | `/auth/me` | Retornar dados do usuário logado | Sim (JWT) |
+| `POST` | `/auth/login` | Login (retorna access + refresh token; `401` se a credencial estiver errada) | Não |
+| `POST` | `/auth/refresh` | Renovar access token (refresh token no corpo) | Não |
+| `POST` | `/auth/recuperar-senha` | Enviar por e-mail um código de redefinição (responde `200` mesmo se o e-mail não existir) | Não |
+| `POST` | `/auth/redefinir-senha` | Definir nova senha com o código recebido por e-mail | Não |
+| `GET` | `/auth/me` | Perfil completo do usuário logado (pessoa, endereço, `rg`, `exibirNoSitePublico`, `roles`) | Sim (JWT) |
+| `POST` | `/auth/alterar-senha` | Trocar a senha conferindo a senha atual | Sim (JWT) |
+
+Payloads, respostas e status de cada endpoint: [`SPRINT_AUTH_INTEGRATION.md`](../../SPRINT_AUTH_INTEGRATION.md).
 
 ---
 
@@ -25,8 +28,8 @@
 | `POST` | `/api/proprietarios` | Criar proprietário (Pessoa + Proprietário + conta de login) |
 | `GET` | `/api/proprietarios` | Listar todos |
 | `GET` | `/api/proprietarios/{id}` | Buscar por ID |
-| `PUT` | `/api/proprietarios/{id}` | Atualizar |
-| `DELETE` | `/api/proprietarios/{id}` | Excluir (cascata) |
+| `PUT` | `/api/proprietarios/{id}` | Atualizar (só o próprio proprietário ou admin; senão `403`) |
+| `DELETE` | `/api/proprietarios/{id}` | Excluir (cascata; só admin) |
 
 ---
 
@@ -38,7 +41,7 @@ Contas de login de admins e proprietários. A conta nasce junto com o proprietá
 |---|---|---|
 | `GET` | `/api/usuarios` | Listar contas |
 | `GET` | `/api/usuarios/{id}` | Buscar conta por ID (mesmo ID da pessoa) |
-| `DELETE` | `/api/usuarios/{id}` | Excluir só a conta de login (a pessoa continua) |
+| `DELETE` | `/api/usuarios/{id}` | Excluir só a conta de login (a pessoa continua; só admin) |
 
 ---
 
@@ -48,8 +51,8 @@ Contas de login de admins e proprietários. A conta nasce junto com o proprietá
 |---|---|---|
 | `GET` | `/api/pessoas` | Listar todas |
 | `GET` | `/api/pessoas/{id}` | Buscar por ID |
-| `PUT` | `/api/pessoas/{id}` | Atualizar dados |
-| `DELETE` | `/api/pessoas/{id}` | Excluir |
+| `PUT` | `/api/pessoas/{id}` | Atualizar dados (só a própria pessoa ou admin; senão `403`) |
+| `DELETE` | `/api/pessoas/{id}` | Excluir (só admin) |
 
 ---
 
@@ -123,7 +126,8 @@ Contas de login de admins e proprietários. A conta nasce junto com o proprietá
 
 | DTO | Módulo |
 |---|---|
-| `LoginRequestDTO` / `TokenResponseDTO` | Autenticação |
+| `LoginRequestDTO` / `TokenResponseDTO` / `RefreshTokenRequestDTO` | Autenticação |
+| `SolicitarRecuperacaoDTO` / `RedefinirSenhaDTO` / `AlterarSenhaDTO` | Senha |
 | `ProprietarioCreateRequestDTO` / `ProprietarioResponseDTO` | Proprietários |
 | `ProdutoRequestDTO` / `ProdutoResponseDTO` | Sementes |
 | `EstoqueRequestDTO` / `EstoqueResponseDTO` | Estoque |
@@ -138,14 +142,28 @@ Contas de login de admins e proprietários. A conta nasce junto com o proprietá
 
 ## 5.11 Tratamento de Erros
 
-Todos os erros retornam `ErrorResponse` padronizado via `GlobalExceptionHandler`:
+Erros de validação e de negócio retornam `ErrorResponse`, montado pelo `GlobalExceptionHandler`:
 
 ```json
 {
-  "erro": "Mensagem amigável ao usuário",
-  "detalhes": "Detalhes técnicos (apenas em dev)"
+  "error": "Conflict",
+  "message": "E-mail já cadastrado no sistema.",
+  "timestamp": "2026-09-26T21:59:15.985Z",
+  "status": 409,
+  "path": "/auth/cadastrar",
+  "fieldErrors": ["email: E-mail já cadastrado no sistema."]
 }
 ```
+
+`fieldErrors` é uma lista de `"campo: mensagem"`, com o nome do campo do DTO (`email`, `documento`, `rg`, `endereco.uf`, `senhaAtual`...). Vem preenchido nos erros de validação, de duplicidade e de senha atual incorreta; nos demais é `null`.
+
+| Status | Quando | Corpo |
+|---|---|---|
+| `400` | Validação do DTO, documento inválido, senha atual incorreta, token de refresh/recuperação inválido | `ErrorResponse` |
+| `401` | Sem token, token inválido/expirado, ou credencial errada no `/auth/login` | vazio |
+| `403` | Autenticado, mas sem permissão (ex.: editar dados de outra pessoa, excluir sem ser admin) | JSON padrão do Spring (`timestamp`, `status`, `error`, `path`) |
+| `404` | Recurso não encontrado | `ErrorResponse` |
+| `409` | E-mail, documento ou RG já cadastrado | `ErrorResponse` com `fieldErrors` |
 
 ---
 
