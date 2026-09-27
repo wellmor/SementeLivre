@@ -70,7 +70,9 @@ public class ProprietarioController {
         return ResponseEntity.ok(mapToResponse(atualizado));
     }
 
+    // So admin exclui pessoas e contas (#60).
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> deletar(@PathVariable UUID id) {
         Pessoa pessoa = pessoaService.buscarPorId(id);
         if (!(pessoa instanceof Proprietario)) {

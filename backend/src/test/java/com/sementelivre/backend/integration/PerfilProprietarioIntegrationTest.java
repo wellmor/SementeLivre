@@ -1,12 +1,14 @@
 package com.sementelivre.backend.integration;
 
 import static org.hamcrest.Matchers.contains;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -17,9 +19,15 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import com.jayway.jsonpath.JsonPath;
 import com.sementelivre.backend.BackendApplication;
+import com.sementelivre.backend.entity.Admin;
+import com.sementelivre.backend.entity.enums.PerfilEnum;
+import com.sementelivre.backend.entity.enums.TipoDocumento;
+import com.sementelivre.backend.repository.PessoaRepository;
+import com.sementelivre.backend.service.UsuarioService;
 
 /**
  * Fluxo do proprietario usado pelo front-app (issue #99), passando pela cadeia de
@@ -35,6 +43,15 @@ class PerfilProprietarioIntegrationTest extends AbstractPostgresIntegrationTest 
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private PessoaRepository pessoaRepository;
+
+    @Autowired
+    private UsuarioService usuarioService;
+
+    @Autowired
+    private TransactionTemplate transactionTemplate;
 
     private record Conta(String id, String email, String documento, String rg) {}
 
@@ -104,6 +121,20 @@ class PerfilProprietarioIntegrationTest extends AbstractPostgresIntegrationTest 
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
         return "Bearer " + JsonPath.read(resposta, "$.accessToken");
+    }
+
+    /** Cria um admin com conta de login (o admin do seed nao tem senha conhecida) e devolve o token. */
+    private String loginAdmin() throws Exception {
+        String email = "admin-" + UUID.randomUUID().toString().substring(0, 8) + "@teste.com";
+        transactionTemplate.executeWithoutResult(status -> {
+            Admin admin = new Admin();
+            admin.setTipoDocumento(TipoDocumento.CPF);
+            admin.setDocumento(cpfValido());
+            admin.setNome("Admin Teste");
+            admin.setEmail(email);
+            usuarioService.criarConta(pessoaRepository.save(admin), SENHA, PerfilEnum.ROLE_ADMIN);
+        });
+        return login(email, SENHA);
     }
 
     private static String atualizacaoJson(String nome, String email) {
@@ -264,5 +295,44 @@ class PerfilProprietarioIntegrationTest extends AbstractPostgresIntegrationTest 
                         .content("{\"senhaAtual\":\"%s\",\"novaSenha\":\"curta\"}".formatted(SENHA)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.fieldErrors", contains("novaSenha: A nova senha deve ter entre 8 e 72 caracteres")));
+    }
+
+    @Test
+    void soAdminDeveExcluirPessoasEContas() throws Exception {
+        Conta maria = cadastrar();
+        Conta joao = cadastrar();
+        Conta ana = cadastrar();
+        String tokenMaria = login(maria.email(), SENHA);
+
+        for (String rota : List.of("/api/proprietarios/", "/api/pessoas/", "/api/usuarios/")) {
+            mockMvc.perform(delete(rota + joao.id()).header(HttpHeaders.AUTHORIZATION, tokenMaria))
+                    .andExpect(status().isForbidden());
+        }
+        // nem a propria conta: exclusao e so pelo admin
+        mockMvc.perform(delete("/api/proprietarios/" + maria.id()).header(HttpHeaders.AUTHORIZATION, tokenMaria))
+                .andExpect(status().isForbidden());
+        login(joao.email(), SENHA); // continua existindo e logando
+
+        String tokenAdmin = loginAdmin();
+
+        // /api/usuarios remove so a conta de login: a pessoa continua, mas nao loga mais
+        mockMvc.perform(delete("/api/usuarios/" + joao.id()).header(HttpHeaders.AUTHORIZATION, tokenAdmin))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(post("/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"%s\",\"senha\":\"%s\"}".formatted(joao.email(), SENHA)))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/proprietarios/" + joao.id()).header(HttpHeaders.AUTHORIZATION, tokenAdmin))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(delete("/api/pessoas/" + ana.id()).header(HttpHeaders.AUTHORIZATION, tokenAdmin))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(get("/api/pessoas/" + ana.id()).header(HttpHeaders.AUTHORIZATION, tokenAdmin))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(delete("/api/proprietarios/" + maria.id()).header(HttpHeaders.AUTHORIZATION, tokenAdmin))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(get("/api/proprietarios/" + maria.id()).header(HttpHeaders.AUTHORIZATION, tokenAdmin))
+                .andExpect(status().isNotFound());
     }
 }
