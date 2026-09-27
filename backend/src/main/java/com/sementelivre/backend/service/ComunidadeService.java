@@ -5,15 +5,21 @@ import com.sementelivre.backend.dto.ComunidadeResponseDTO;
 import com.sementelivre.backend.entity.Comunidade;
 import com.sementelivre.backend.entity.Logradouro;
 import com.sementelivre.backend.entity.enums.StatusComunidade;
+import com.sementelivre.backend.exception.DependenciaVinculadaException;
+import com.sementelivre.backend.exception.NomeSimilarException;
 import com.sementelivre.backend.exception.ResourceNotFoundException;
 import com.sementelivre.backend.repository.ComunidadeRepository;
 import com.sementelivre.backend.repository.LogradouroRepository;
+import com.sementelivre.backend.repository.PropriedadeRepository;
+import org.apache.commons.text.similarity.LevenshteinDistance;
 import org.springframework.stereotype.Service;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.CacheEvict;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -21,10 +27,12 @@ public class ComunidadeService implements CrudService<ComunidadeRequestDTO, Comu
 
     private final ComunidadeRepository comunidadeRepository;
     private final LogradouroRepository logradouroRepository;
+    private final PropriedadeRepository propriedadeRepository;
 
-    public ComunidadeService(ComunidadeRepository comunidadeRepository, LogradouroRepository logradouroRepository) {
+    public ComunidadeService(ComunidadeRepository comunidadeRepository, LogradouroRepository logradouroRepository, PropriedadeRepository propriedadeRepository) {
         this.comunidadeRepository = comunidadeRepository;
         this.logradouroRepository = logradouroRepository;
+        this.propriedadeRepository = propriedadeRepository;
     }
 
     //Criar
@@ -34,6 +42,24 @@ public class ComunidadeService implements CrudService<ComunidadeRequestDTO, Comu
         Logradouro logradouro = logradouroRepository.findById(dto.logradouroId())
                 .orElseThrow(() -> new ResourceNotFoundException("Logradouro não encontrado com o id: " + dto.logradouroId()));
 
+        LevenshteinDistance levenshtein = new LevenshteinDistance();
+        List<String> listaNomes = comunidadeRepository.findAllNames();
+        String novoNome = dto.nome().toLowerCase(Locale.ROOT);
+
+        Optional<String> nomeConflitante = listaNomes.stream()
+                .filter(nomeExistente -> {
+                    String nomeExistenteNormalizado = nomeExistente.toLowerCase(Locale.ROOT);
+                    int distancia = levenshtein.apply(novoNome, nomeExistenteNormalizado);
+                    float limite = (float) (0.2 * Math.max(novoNome.length(), nomeExistenteNormalizado.length()));
+                    return distancia <= limite;
+                })
+                .findFirst();
+
+        if (nomeConflitante.isPresent()) {
+            throw new NomeSimilarException(
+                    "O nome \"" + dto.nome() + "\" é muito similar ao nome já existente \"" + nomeConflitante.get() + "\"."
+            );
+        }
         Comunidade comunidade = Comunidade.builder()
                 .nome(dto.nome())
                 .logradouro(logradouro)
@@ -90,6 +116,9 @@ public class ComunidadeService implements CrudService<ComunidadeRequestDTO, Comu
 
         Comunidade comunidade = buscarEntidadePorId(id);
 
+        if(propriedadeRepository.existsByComunidadeId(id)){
+            throw new DependenciaVinculadaException("Não é possível excluir a Comunidade, pois existem propriedades vinculada a ela.");
+        }
         comunidadeRepository.delete(comunidade);
     }
 
