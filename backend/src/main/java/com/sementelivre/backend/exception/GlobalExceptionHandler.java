@@ -116,6 +116,37 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(status).body(err);
     }
 
+    @ExceptionHandler(DependenciaVinculadaException.class)
+    public ResponseEntity<ErrorResponse> handleDependenciaVinculada(DependenciaVinculadaException e, HttpServletRequest request){
+        HttpStatus status = HttpStatus.CONFLICT;
+
+        ErrorResponse err = new ErrorResponse(
+                "Dependency Conflict",
+                e.getMessage(),
+                Instant.now(),
+                status.value(),
+                request.getRequestURI(),
+                null
+        );
+        return ResponseEntity.status(status).body(err);
+    }
+
+
+    @ExceptionHandler(NomeSimilarException.class)
+    public ResponseEntity<ErrorResponse> handleNomeSimilar(NomeSimilarException e, HttpServletRequest request){
+        HttpStatus status = HttpStatus.CONFLICT;
+
+        ErrorResponse err = new ErrorResponse(
+                "Name Conflict",
+                e.getMessage(),
+                Instant.now(),
+                status.value(),
+                request.getRequestURI(),
+                null
+        );
+        return ResponseEntity.status(status).body(err);
+    }
+
     private String mensagemParaViolacao(DataIntegrityViolationException ex) {
         String constraintName = extrairNomeConstraint(ex);
         if (constraintName != null && MENSAGENS_POR_CONSTRAINT.containsKey(constraintName)) {

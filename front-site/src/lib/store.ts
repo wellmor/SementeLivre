@@ -1,5 +1,5 @@
 import type {
-  Proprietario, Property, Plantio, Adubacao, Tecnica,
+  Proprietario, Property, Plantio,
   Species, Estoque, Colheita,
   Comunidade, SolicitacaoCadastro, ContaProdutor,
   Pedido, Notificacao,
@@ -9,8 +9,6 @@ interface DbSchema {
   proprietario: Proprietario & { senha: string };
   properties: Property[];
   plantios: Plantio[];
-  adubacoes: Adubacao[];
-  tecnicas: Tecnica[];
   species: Species[];
   estoque: Estoque[];
   colheitas: Colheita[];
@@ -23,13 +21,13 @@ interface DbSchema {
 
 declare global {
   // eslint-disable-next-line no-var
-  var __sementesDb_v6: DbSchema | undefined;
+  var __sementesDb_v7: DbSchema | undefined;
 }
 
 // Key is versioned — bump when schema changes to avoid stale cached objects
 const db: DbSchema =
-  globalThis.__sementesDb_v6 ??
-  (globalThis.__sementesDb_v6 = {
+  globalThis.__sementesDb_v7 ??
+  (globalThis.__sementesDb_v7 = {
     proprietario: {
       nome: "Administrador",
       telefone: "(11) 99999-9999",
@@ -70,42 +68,6 @@ const db: DbSchema =
         area_plantada: 5.0,
         talhao: "Talhão Norte",
         status: "concluido",
-      },
-    ],
-    adubacoes: [
-      {
-        id_adubacao: "adub-1",
-        id_plantio: "plant-1",
-        data_adubacao: "2026-03-20",
-        tipo_adubo: "Composto Orgânico",
-        quantidade: 50,
-      },
-      {
-        id_adubacao: "adub-2",
-        id_plantio: "plant-1",
-        data_adubacao: "2026-04-18",
-        tipo_adubo: "Biofertilizante Líquido",
-        quantidade: 15,
-      },
-    ],
-    tecnicas: [
-      {
-        id_tecnica: "tec-1",
-        nome_tecnica: "Secagem Natural de Sementes",
-        descricao:
-          "Espalhar as sementes em camada fina sobre tecido de algodão à sombra, em local ventilado. Virar as sementes a cada 12h por 3 a 5 dias até atingirem umidade abaixo de 12%. Armazenar em potes de vidro lacrados com sílica.",
-      },
-      {
-        id_tecnica: "tec-2",
-        nome_tecnica: "Adubação Verde com Leguminosas",
-        descricao:
-          "Plantar feijão-de-porco, crotalária ou mucuna entre os ciclos produtivos. Incorporar a biomassa ao solo antes da floração para maximizar o aporte de nitrogênio. Aguardar 20 dias antes do próximo plantio.",
-      },
-      {
-        id_tecnica: "tec-3",
-        nome_tecnica: "Controle Biológico de Pragas",
-        descricao:
-          "Utilizar caldas de plantas repelentes (nim, alho, pimenta) em pulverizações semanais. Introduzir joaninhas e crisopídeos como predadores naturais de pulgões. Inspecionar as plantas nas primeiras horas da manhã para detectar infestações precocemente.",
       },
     ],
     species: [

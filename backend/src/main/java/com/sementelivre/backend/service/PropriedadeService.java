@@ -6,6 +6,9 @@ import com.sementelivre.backend.entity.Comunidade;
 import com.sementelivre.backend.entity.Logradouro;
 import com.sementelivre.backend.entity.Propriedade;
 import com.sementelivre.backend.entity.Proprietario;
+import com.sementelivre.backend.entity.repository.EstoqueRepository;
+import com.sementelivre.backend.entity.repository.PedidoRepository;
+import com.sementelivre.backend.exception.DependenciaVinculadaException;
 import com.sementelivre.backend.exception.ResourceNotFoundException;
 import com.sementelivre.backend.repository.ComunidadeRepository;
 import com.sementelivre.backend.repository.LogradouroRepository;
@@ -24,12 +27,16 @@ public class PropriedadeService implements CrudService<PropriedadeRequestDTO, Pr
     private final ComunidadeRepository comunidadeRepository;
     private final ProprietarioRepository proprietarioRepository;
     private final LogradouroRepository logradouroRepository;
+    private final EstoqueRepository estoqueRepository;
+    private final PedidoRepository pedidoRepository;
 
-    public PropriedadeService(PropriedadeRepository propriedadeRepository, ComunidadeRepository comunidadeRepository, ProprietarioRepository proprietarioRepository, LogradouroRepository logradouroRepository){
+    public PropriedadeService(PropriedadeRepository propriedadeRepository, ComunidadeRepository comunidadeRepository, ProprietarioRepository proprietarioRepository, LogradouroRepository logradouroRepository, EstoqueRepository estoqueRepository, PedidoRepository pedidoRepository){
         this.propriedadeRepository = propriedadeRepository;
         this.comunidadeRepository = comunidadeRepository;
         this.proprietarioRepository = proprietarioRepository;
         this.logradouroRepository = logradouroRepository;
+        this.estoqueRepository = estoqueRepository;
+        this.pedidoRepository = pedidoRepository;
     }
 
 
@@ -107,6 +114,13 @@ public class PropriedadeService implements CrudService<PropriedadeRequestDTO, Pr
     @Override
     public void deletar(UUID id) {
         Propriedade propriedade = buscaPropriedadePorId(id);
+        //Verificação se tem Estoque ou Pedido vinculado a Propriedade antes da Exclusão.
+        if(estoqueRepository.existsByProprietarioId(propriedade.getProprietario().getId())){
+            throw new DependenciaVinculadaException("Não é possível excluir esta Propriedade, pois o proprietário possui Estoque vinculado.");
+        }
+        if(pedidoRepository.existsByProprietarioRecebedorId(propriedade.getProprietario().getId())){
+            throw new DependenciaVinculadaException("Não é possível excluir esta Propriedade, pois o proprietário possui Pedido vinculado.");
+        }
         propriedadeRepository.delete(propriedade);
     }
 
