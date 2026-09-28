@@ -7,11 +7,14 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import static org.mockito.ArgumentMatchers.any;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -156,5 +159,85 @@ class RelatorioServiceTest {
                 () -> relatorioService.deletar(relatorioId));
 
         verify(relatorioRepository, never()).delete(any(Relatorio.class));
+    }
+
+    // ---- S4 (#70): casos que ainda nao estavam cobertos ----
+
+    @Test
+    void deveCriarRelatorioSemFiltros() {
+        RelatorioRequestDTO semFiltros = new RelatorioRequestDTO(
+                TipoRelatorio.PEDIDOS_REALIZADOS,
+                null,
+                proprietarioId
+        );
+
+        when(entityManager.find(Proprietario.class, proprietarioId)).thenReturn(proprietario);
+
+        ArgumentCaptor<Relatorio> captor = ArgumentCaptor.forClass(Relatorio.class);
+        when(relatorioRepository.saveAndFlush(captor.capture())).thenReturn(relatorio);
+
+        relatorioService.criar(semFiltros);
+
+        // Relatorio sem filtros significa "todos os dados" (CDU-25)
+        assertNull(captor.getValue().getFiltrosUtilizados());
+        assertEquals(TipoRelatorio.PEDIDOS_REALIZADOS, captor.getValue().getTipo());
+    }
+
+    @Test
+    void deveGuardarOsFiltrosInformadosNaCriacao() {
+        when(entityManager.find(Proprietario.class, proprietarioId)).thenReturn(proprietario);
+
+        ArgumentCaptor<Relatorio> captor = ArgumentCaptor.forClass(Relatorio.class);
+        when(relatorioRepository.saveAndFlush(captor.capture())).thenReturn(relatorio);
+
+        relatorioService.criar(dto);
+
+        assertEquals("FEIJAO", captor.getValue().getFiltrosUtilizados().get("especie"));
+    }
+
+    @Test
+    void naoDeveAtualizarRelatorioInexistente() {
+        when(relatorioRepository.findById(relatorioId)).thenReturn(Optional.empty());
+
+        assertThrows(RecursoNaoEncontradoException.class,
+                () -> relatorioService.atualizar(relatorioId, dto));
+
+        verify(relatorioRepository, never()).save(any(Relatorio.class));
+    }
+
+    @Test
+    void naoDeveAtualizarRelatorioSeProprietarioNaoExistir() {
+        when(relatorioRepository.findById(relatorioId)).thenReturn(Optional.of(relatorio));
+        when(entityManager.find(Proprietario.class, proprietarioId)).thenReturn(null);
+
+        assertThrows(RecursoNaoEncontradoException.class,
+                () -> relatorioService.atualizar(relatorioId, dto));
+
+        verify(relatorioRepository, never()).save(any(Relatorio.class));
+    }
+
+    @Test
+    void atualizarDeveTrocarOsFiltrosAntigosPelosNovos() {
+        RelatorioRequestDTO novosDados = new RelatorioRequestDTO(
+                TipoRelatorio.PEDIDOS_REALIZADOS,
+                Map.of("dataInicio", "2026-01-01"),
+                proprietarioId
+        );
+
+        when(relatorioRepository.findById(relatorioId)).thenReturn(Optional.of(relatorio));
+        when(entityManager.find(Proprietario.class, proprietarioId)).thenReturn(proprietario);
+        when(relatorioRepository.save(relatorio)).thenReturn(relatorio);
+
+        relatorioService.atualizar(relatorioId, novosDados);
+
+        assertEquals("2026-01-01", relatorio.getFiltrosUtilizados().get("dataInicio"));
+        assertNull(relatorio.getFiltrosUtilizados().get("especie"));
+    }
+
+    @Test
+    void listarDeveDevolverListaVaziaQuandoNaoExisteRelatorio() {
+        when(relatorioRepository.findAll()).thenReturn(List.of());
+
+        assertTrue(relatorioService.listar().isEmpty());
     }
 }

@@ -1,5 +1,6 @@
 package com.sementelivre.backend.service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -7,6 +8,7 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.BeforeEach;
@@ -258,5 +260,118 @@ class NotificacaoServiceTest {
         String mensagem = notificacaoSalva(pedido).getMensagem();
 
         assertEquals("Pedido de DOACAO confirmado.", mensagem);
+    }
+
+    // ---- S4 (#70): casos que ainda nao estavam cobertos ----
+
+    @Test
+    void deveCriarNotificacaoLigadaAUmPedido() {
+        UUID pedidoId = UUID.randomUUID();
+        Pedido pedido = Pedido.builder().id(pedidoId).build();
+
+        NotificacaoRequestDTO comPedido = new NotificacaoRequestDTO(
+                "Novo pedido recebido",
+                "Voce recebeu um pedido.",
+                proprietarioId,
+                pedidoId
+        );
+
+        when(entityManager.find(Proprietario.class, proprietarioId)).thenReturn(proprietario);
+        when(entityManager.find(Pedido.class, pedidoId)).thenReturn(pedido);
+
+        ArgumentCaptor<Notificacao> captor = ArgumentCaptor.forClass(Notificacao.class);
+        when(notificacaoRepository.saveAndFlush(captor.capture())).thenReturn(notificacao);
+
+        notificacaoService.criar(comPedido);
+
+        assertEquals(pedidoId, captor.getValue().getPedidoRelacionado().getId());
+    }
+
+    @Test
+    void naoDeveCriarNotificacaoSePedidoInformadoNaoExistir() {
+        UUID pedidoId = UUID.randomUUID();
+
+        NotificacaoRequestDTO comPedido = new NotificacaoRequestDTO(
+                "Novo pedido recebido",
+                "Voce recebeu um pedido.",
+                proprietarioId,
+                pedidoId
+        );
+
+        when(entityManager.find(Proprietario.class, proprietarioId)).thenReturn(proprietario);
+        when(entityManager.find(Pedido.class, pedidoId)).thenReturn(null);
+
+        assertThrows(RecursoNaoEncontradoException.class,
+                () -> notificacaoService.criar(comPedido));
+
+        verify(notificacaoRepository, never()).saveAndFlush(any(Notificacao.class));
+    }
+
+    @Test
+    void naoDeveAtualizarNotificacaoInexistente() {
+        when(notificacaoRepository.findById(notificacaoId)).thenReturn(Optional.empty());
+
+        assertThrows(RecursoNaoEncontradoException.class,
+                () -> notificacaoService.atualizar(notificacaoId, dto));
+
+        verify(notificacaoRepository, never()).save(any(Notificacao.class));
+    }
+
+    @Test
+    void naoDeveAtualizarNotificacaoSeProprietarioNaoExistir() {
+        when(notificacaoRepository.findById(notificacaoId)).thenReturn(Optional.of(notificacao));
+        when(entityManager.find(Proprietario.class, proprietarioId)).thenReturn(null);
+
+        assertThrows(RecursoNaoEncontradoException.class,
+                () -> notificacaoService.atualizar(notificacaoId, dto));
+
+        verify(notificacaoRepository, never()).save(any(Notificacao.class));
+    }
+
+    @Test
+    void marcarComoLidaDuasVezesNaoDeveTrocarADataDeLeitura() {
+        when(notificacaoRepository.findById(notificacaoId)).thenReturn(Optional.of(notificacao));
+        when(notificacaoRepository.save(notificacao)).thenReturn(notificacao);
+
+        LocalDateTime primeiraLeitura = notificacaoService.marcarComoLida(notificacaoId).dataLeitura();
+        LocalDateTime segundaLeitura = notificacaoService.marcarComoLida(notificacaoId).dataLeitura();
+
+        assertEquals(primeiraLeitura, segundaLeitura);
+    }
+
+    @Test
+    void naoDeveMarcarComoLidaNotificacaoInexistente() {
+        when(notificacaoRepository.findById(notificacaoId)).thenReturn(Optional.empty());
+
+        assertThrows(RecursoNaoEncontradoException.class,
+                () -> notificacaoService.marcarComoLida(notificacaoId));
+    }
+
+    @Test
+    void desvincularPedidoDeveLimparOPedidoDasNotificacoesDaquelePedido() {
+        UUID pedidoId = UUID.randomUUID();
+        notificacao.setPedidoRelacionado(Pedido.builder().id(pedidoId).build());
+
+        when(notificacaoRepository.findByPedidoRelacionadoId(pedidoId))
+                .thenReturn(List.of(notificacao));
+
+        notificacaoService.desvincularPedido(pedidoId);
+
+        assertNull(notificacao.getPedidoRelacionado());
+        verify(notificacaoRepository).flush();
+    }
+
+    @Test
+    void notificacaoDoPedidoConfirmadoDeveApontarParaOPedidoEParaOProprietarioRecebedor() {
+        Pedido pedido = pedidoConfirmado();
+
+        // getReference devolve a entidade "gerenciada" pelo JPA; no mock precisamos dizer o que retornar
+        when(entityManager.getReference(Pedido.class, pedido.getId())).thenReturn(pedido);
+        when(entityManager.getReference(Proprietario.class, proprietarioId)).thenReturn(proprietario);
+
+        Notificacao salva = notificacaoSalva(pedido);
+
+        assertEquals(pedido.getId(), salva.getPedidoRelacionado().getId());
+        assertEquals(proprietarioId, salva.getProprietario().getId());
     }
 }
