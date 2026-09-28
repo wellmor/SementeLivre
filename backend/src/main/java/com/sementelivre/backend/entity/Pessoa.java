@@ -1,6 +1,5 @@
 package com.sementelivre.backend.entity;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.sementelivre.backend.entity.enums.TipoDocumento;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
@@ -30,10 +29,6 @@ public abstract class Pessoa {
 
     @Column(nullable = false, unique = true)
     private String email;
-
-    @JsonIgnore
-    @Column(name = "senha_hash", nullable = false)
-    private String senhaHash;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = true)
     @JoinColumn(name = "logradouro_id")
@@ -104,14 +99,6 @@ public abstract class Pessoa {
 
     public void setEmail(String email) {
         this.email = email;
-    }
-
-    public String getSenhaHash() {
-        return senhaHash;
-    }
-
-    public void setSenhaHash(String senhaHash) {
-        this.senhaHash = senhaHash;
     }
 
     public Logradouro getLogradouro() {

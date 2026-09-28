@@ -13,7 +13,7 @@
 O banco de dados do Semente Livre é responsável por persistir todas as informações do sistema de gestão de bancos de sementes crioulas. O modelo foi projetado para:
 
 - Garantir integridade referencial em todas as operações
-- Suportar herança de entidades (Pessoa → Proprietario/Admin)
+- Suportar herança de entidades (Pessoa → Proprietario/Admin), com Usuario como conta de login 1:1 de Admin e Proprietario
 - Rastrear auditoria completa (criação e alteração)
 - Otimizar consultas comuns do sistema (listagens, filtros, relatórios)
 - Respeitar as regras de negócio definidas nos Casos de Uso
@@ -35,7 +35,6 @@ erDiagram
         varchar nome
         varchar telefone
         varchar email
-        varchar senha_hash
         uuid logradouro_id FK
         timestamp data_cadastro
         timestamp data_ultima_alteracao
@@ -43,6 +42,8 @@ erDiagram
 
     USUARIO_T {
         uuid pessoa_id PK, FK
+        varchar senha_hash
+        boolean ativo
     }
 
     COMPRADOR_T {
@@ -218,8 +219,7 @@ erDiagram
 | `documento` | VARCHAR(14) | NOT NULL, UNIQUE, CHECK (tamanho condicional) | Número do documento (CPF: 11 dígitos, CNPJ: 14 dígitos) |
 | `nome` | VARCHAR(150) | NOT NULL | Nome completo da pessoa |
 | `telefone` | VARCHAR(15) | | Telefone para contato (formato: (XX) XXXXX-XXXX) |
-| `email` | VARCHAR(255) | NOT NULL, UNIQUE | Endereço de e-mail (usado para login) |
-| `senha_hash` | VARCHAR(255) | NOT NULL | Senha com hash (BCrypt) |
+| `email` | VARCHAR(255) | NOT NULL, UNIQUE | Endereço de e-mail (usado como login da conta em `usuario_t`) |
 | `logradouro_id` | UUID | FK → logradouro_t.id | Endereço da pessoa |
 | `data_cadastro` | TIMESTAMP | NOT NULL, DEFAULT CURRENT_TIMESTAMP | Data e hora do cadastro |
 | `data_ultima_alteracao` | TIMESTAMP | NOT NULL, DEFAULT CURRENT_TIMESTAMP | Data e hora da última alteração |
@@ -235,13 +235,15 @@ erDiagram
 
 ---
 
-#### `usuario_t` — Usuários do sistema (herda de pessoa)
+#### `usuario_t` — Contas de login de Admin e Proprietário (não herda de pessoa)
 
 | Coluna | Tipo | Constraints | Descrição |
 |--------|------|-------------|-----------|
-| `pessoa_id` | UUID | PK, FK → pessoa_t.id, NOT NULL | Identificador único e referência à pessoa (1:1) |
+| `pessoa_id` | UUID | PK, FK → pessoa_t.id, NOT NULL | Mesmo id do admin/proprietário dono da conta (1:1) |
+| `senha_hash` | VARCHAR(255) | NOT NULL | Senha com hash (BCrypt) |
+| `ativo` | BOOLEAN | NOT NULL, DEFAULT true | Conta habilitada para login |
 
-**Regra de negócio:** Um usuário é uma pessoa que pode realizar pedidos no sistema.
+**Regra de negócio:** Usuário não é um tipo de pessoa: é a conta de login que um Admin ou um Proprietário tem (0..1 por pessoa). O e-mail de login é o `email` da pessoa; a senha fica aqui. Os perfis ficam em `usuario_role_t` (`ROLE_ADMIN` para admin, `ROLE_PROPRIETARIO` para proprietário). O proprietário é o único perfil com cadastro aberto (`POST /auth/cadastrar`), que cria a pessoa e a conta juntas.
 
 ---
 
@@ -578,7 +580,6 @@ CREATE TABLE pessoa_t (
     nome VARCHAR(150) NOT NULL,
     telefone VARCHAR(15),
     email VARCHAR(255) NOT NULL,
-    senha_hash VARCHAR(255) NOT NULL,
     logradouro_id UUID REFERENCES logradouro_t(id) ON DELETE SET NULL,
     data_cadastro TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     data_ultima_alteracao TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -595,12 +596,14 @@ COMMENT ON TABLE pessoa_t IS 'Tabela base de todas as pessoas do sistema';
 
 CREATE INDEX idx_pessoa_logradouro ON pessoa_t(logradouro_id);
 
--- Tabela de usuários (herda identidade de pessoa)
+-- Conta de login de admin/proprietário (1:1 com a pessoa, fora da herança)
 CREATE TABLE usuario_t (
-    pessoa_id UUID PRIMARY KEY REFERENCES pessoa_t(id) ON DELETE CASCADE
+    pessoa_id UUID PRIMARY KEY REFERENCES pessoa_t(id) ON DELETE CASCADE,
+    senha_hash VARCHAR(255) NOT NULL,
+    ativo BOOLEAN NOT NULL DEFAULT TRUE
 );
 
-COMMENT ON TABLE usuario_t IS 'Usuários que podem realizar pedidos no sistema';
+COMMENT ON TABLE usuario_t IS 'Contas de login de administradores e proprietários';
 
 -- Tabela de proprietários (herda identidade de pessoa)
 CREATE TABLE proprietario_t (
@@ -823,13 +826,16 @@ CREATE TRIGGER trg_estoque_atualizar_data
 INSERT INTO logradouro_t (logradouro, numero, bairro, municipio, uf, cep)
 VALUES ('Rua Principal', '100', 'Centro', 'Rio Pomba', 'MG', '36180-000');
 
-INSERT INTO pessoa_t (tipo_documento, documento, nome, email, senha_hash, logradouro_id)
+INSERT INTO pessoa_t (tipo_documento, documento, nome, email, logradouro_id)
 VALUES ('CPF', '00000000000', 'Administrador Geral', 'admin@sementelivre.com.br',
-        '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy',
         (SELECT id FROM logradouro_t WHERE municipio = 'Rio Pomba' LIMIT 1));
 
 INSERT INTO admin_t (pessoa_id, nivel_acesso)
 VALUES ((SELECT id FROM pessoa_t WHERE email = 'admin@sementelivre.com.br'), 'SUPER_ADMIN');
+
+INSERT INTO usuario_t (pessoa_id, senha_hash)
+VALUES ((SELECT id FROM pessoa_t WHERE email = 'admin@sementelivre.com.br'),
+        '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy');
 
 -- =====================================================
 -- FIM DO SCRIPT
@@ -878,7 +884,8 @@ flowchart TB
         SC[solicitacao_cadastro_t]
     end
 
-    PESS --> USU
+    ADM --> USU
+    PROP --> USU
     PESS --> PROP
     PESS --> ADM
     PESS --> LOG
@@ -929,7 +936,8 @@ flowchart TB
 O modelo utiliza **Table Per Type (TPT)** para herança, onde:
 
 - `pessoa_t` armazena os dados comuns (nome, email, documento, etc.)
-- `usuario_t`, `proprietario_t` e `admin_t` armazenam apenas os dados específicos
+- `proprietario_t` e `admin_t` armazenam apenas os dados específicos de cada tipo
+- `usuario_t` **não** faz parte da herança: é a conta de login (senha, status, perfis) que um admin ou proprietário tem, ligada 1:1 pela mesma chave `pessoa_id`
 - A relação 1:1 é implementada de forma combinada (PK/FK). O campo `pessoa_id` nas tabelas filhas atua simultaneamente como Chave Primária e Chave Estrangeira (equivalente a `@PrimaryKeyJoinColumn` no JPA).
 - ON DELETE CASCADE garante exclusão em cascata
 

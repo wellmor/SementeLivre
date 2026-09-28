@@ -6,11 +6,11 @@ import com.sementelivre.backend.exception.EmailJaCadastradoException;
 import com.sementelivre.backend.exception.RgJaCadastradoException;
 import com.sementelivre.backend.entity.Logradouro;
 import com.sementelivre.backend.entity.Proprietario;
+import com.sementelivre.backend.entity.enums.PerfilEnum;
 import com.sementelivre.backend.repository.LogradouroRepository;
 import com.sementelivre.backend.repository.PessoaRepository;
 import com.sementelivre.backend.repository.ProprietarioRepository;
 import com.sementelivre.backend.validation.DocumentoValidator;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,14 +20,14 @@ public class ProprietarioService {
     private final ProprietarioRepository proprietarioRepository;
     private final PessoaRepository pessoaRepository;
     private final LogradouroRepository logradouroRepository;
-    private final PasswordEncoder passwordEncoder;
+    private final UsuarioService usuarioService;
 
     public ProprietarioService(ProprietarioRepository proprietarioRepository, PessoaRepository pessoaRepository,
-                               LogradouroRepository logradouroRepository, PasswordEncoder passwordEncoder) {
+                               LogradouroRepository logradouroRepository, UsuarioService usuarioService) {
         this.proprietarioRepository = proprietarioRepository;
         this.pessoaRepository = pessoaRepository;
         this.logradouroRepository = logradouroRepository;
-        this.passwordEncoder = passwordEncoder;
+        this.usuarioService = usuarioService;
     }
 
     @Transactional
@@ -52,7 +52,6 @@ public class ProprietarioService {
         proprietario.setDocumento(dto.getDocumento());
         proprietario.setTelefone(dto.getTelefone());
         proprietario.setEmail(dto.getEmail());
-        proprietario.setSenhaHash(passwordEncoder.encode(dto.getSenha()));
 
         proprietario.setRg(dto.getRg());
         if (dto.getExibirNoSitePublico() != null) {
@@ -73,6 +72,8 @@ public class ProprietarioService {
             proprietario.setLogradouro(logradouro);
         }
 
-        return proprietarioRepository.save(proprietario);
+        Proprietario salvo = proprietarioRepository.save(proprietario);
+        usuarioService.criarConta(salvo, dto.getSenha(), PerfilEnum.ROLE_PROPRIETARIO);
+        return salvo;
     }
 }

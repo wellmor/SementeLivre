@@ -6,11 +6,12 @@ import com.sementelivre.backend.exception.EmailJaCadastradoException;
 import com.sementelivre.backend.exception.PessoaNaoEncontradaException;
 import com.sementelivre.backend.entity.Logradouro;
 import com.sementelivre.backend.entity.Pessoa;
-import com.sementelivre.backend.entity.Usuario;
+import com.sementelivre.backend.entity.Proprietario;
 import com.sementelivre.backend.repository.LogradouroRepository;
 import com.sementelivre.backend.repository.PessoaRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -21,6 +22,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -34,15 +36,31 @@ public class PessoaServiceTest {
     @Mock
     private LogradouroRepository logradouroRepository;
 
+    @Mock
+    private UsuarioService usuarioService;
+
     @InjectMocks
     private PessoaService pessoaService;
 
-    private Usuario pessoaExistente(UUID id, String email) {
-        Usuario pessoa = new Usuario();
+    private Proprietario pessoaExistente(UUID id, String email) {
+        Proprietario pessoa = new Proprietario();
         pessoa.setId(id);
         pessoa.setNome("Nome Antigo");
         pessoa.setEmail(email);
         return pessoa;
+    }
+
+    @Test
+    public void deveRemoverContaDeLoginAntesDeExcluirPessoa() {
+        UUID id = UUID.randomUUID();
+        Proprietario pessoa = pessoaExistente(id, "excluir@teste.com");
+        when(pessoaRepository.findById(id)).thenReturn(Optional.of(pessoa));
+
+        pessoaService.deletar(id);
+
+        InOrder ordem = inOrder(usuarioService, pessoaRepository);
+        ordem.verify(usuarioService).excluirContaDaPessoa(id);
+        ordem.verify(pessoaRepository).delete(pessoa);
     }
 
     @Test
@@ -71,7 +89,7 @@ public class PessoaServiceTest {
     @Test
     public void deveAtualizarComSucessoQuandoEmailMudaParaUmDisponivel() {
         UUID id = UUID.randomUUID();
-        Usuario pessoa = pessoaExistente(id, "antigo@teste.com");
+        Proprietario pessoa = pessoaExistente(id, "antigo@teste.com");
         when(pessoaRepository.findById(id)).thenReturn(Optional.of(pessoa));
         when(pessoaRepository.existsByEmail("novo@teste.com")).thenReturn(false);
         when(pessoaRepository.save(any(Pessoa.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -100,7 +118,7 @@ public class PessoaServiceTest {
     @Test
     public void deveLancarConflitoAoAtualizarParaEmailDeOutraPessoa() {
         UUID id = UUID.randomUUID();
-        Usuario pessoa = pessoaExistente(id, "antigo@teste.com");
+        Proprietario pessoa = pessoaExistente(id, "antigo@teste.com");
         when(pessoaRepository.findById(id)).thenReturn(Optional.of(pessoa));
         when(pessoaRepository.existsByEmail("jaexiste@teste.com")).thenReturn(true);
 
@@ -115,7 +133,7 @@ public class PessoaServiceTest {
     @Test
     public void deveAtualizarSemConflitoQuandoEmailPermaneceOMesmo() {
         UUID id = UUID.randomUUID();
-        Usuario pessoa = pessoaExistente(id, "mesmo@teste.com");
+        Proprietario pessoa = pessoaExistente(id, "mesmo@teste.com");
         when(pessoaRepository.findById(id)).thenReturn(Optional.of(pessoa));
         when(pessoaRepository.save(any(Pessoa.class))).thenAnswer(invocation -> invocation.getArgument(0));
 

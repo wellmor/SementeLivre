@@ -24,6 +24,9 @@ public class PessoaRepositoryTest extends AbstractPostgresIntegrationTest {
     private PessoaRepository pessoaRepository;
 
     @Autowired
+    private UsuarioRepository usuarioRepository;
+
+    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @Test
@@ -34,7 +37,6 @@ public class PessoaRepositoryTest extends AbstractPostgresIntegrationTest {
         proprietario.setDocumento("12345678901");
         proprietario.setNome("Proprietario Teste");
         proprietario.setEmail("proprietario@teste.com");
-        proprietario.setSenhaHash("hash123");
         proprietario.setRg("MG-123456");
         proprietario.setExibirNoSitePublico(true);
 
@@ -71,26 +73,32 @@ public class PessoaRepositoryTest extends AbstractPostgresIntegrationTest {
     }
 
     @Test
-    public void deveSalvarUsuarioComHerancaTpt() {
-        Usuario usuario = new Usuario();
-        usuario.setNome("Usuário Teste");
-        usuario.setDocumento("11122233344");
-        usuario.setTipoDocumento(TipoDocumento.CPF);
-        usuario.setEmail("usuario@teste.com");
-        usuario.setSenhaHash("hash123");
+    public void contaDeUsuarioDeveUsarOIdDaPessoaSemFazerParteDaHeranca() {
+        Admin admin = new Admin();
+        admin.setNome("Admin Com Conta");
+        admin.setDocumento("11122233344");
+        admin.setTipoDocumento(TipoDocumento.CPF);
+        admin.setEmail("admin.conta@teste.com");
+        Admin salvo = pessoaRepository.save(admin);
 
-        Usuario salvo = pessoaRepository.save(usuario);
+        Usuario usuario = new Usuario();
+        usuario.setPessoa(salvo);
+        usuario.setSenhaHash("hash123");
+        usuarioRepository.save(usuario);
         pessoaRepository.flush();
 
         UUID uuidGerado = salvo.getId();
 
-        Integer contagemPessoaT = jdbcTemplate.queryForObject(
-                "SELECT count(*) FROM pessoa_t WHERE id = ?", Integer.class, uuidGerado);
-        assertThat(contagemPessoaT).isEqualTo(1);
-
         Integer contagemUsuarioT = jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM usuario_t WHERE pessoa_id = ?", Integer.class, uuidGerado);
         assertThat(contagemUsuarioT).isEqualTo(1);
+
+        String senhaHash = jdbcTemplate.queryForObject(
+                "SELECT senha_hash FROM usuario_t WHERE pessoa_id = ?", String.class, uuidGerado);
+        assertThat(senhaHash).isEqualTo("hash123");
+
+        // A pessoa continua sendo um Admin; a conta nao muda o tipo dela
+        assertThat(pessoaRepository.findById(uuidGerado)).get().isInstanceOf(Admin.class);
     }
 
     @Test
@@ -100,7 +108,6 @@ public class PessoaRepositoryTest extends AbstractPostgresIntegrationTest {
         admin.setDocumento("99988877766");
         admin.setTipoDocumento(TipoDocumento.CPF);
         admin.setEmail("admin@teste.com");
-        admin.setSenhaHash("hash123");
         admin.setNivelAcesso(com.sementelivre.backend.entity.enums.NivelAcesso.SUPER_ADMIN);
 
         Admin salvo = pessoaRepository.save(admin);
