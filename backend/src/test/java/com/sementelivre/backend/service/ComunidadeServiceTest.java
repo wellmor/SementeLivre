@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import com.sementelivre.backend.exception.ResourceNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -137,5 +138,57 @@ class ComunidadeServiceTest {
         assertThrows(TransicaoStatusInvalidaException.class, () -> comunidadeService.aprovar(comunidadeId));
 
         verify(comunidadeRepository, never()).save(any());
+    }
+
+    @Test
+    void buscarPorIdInexistenteLancaResourceNotFound() {
+        when(comunidadeRepository.findById(comunidadeId)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () -> comunidadeService.buscarPorId(comunidadeId));
+    }
+
+    @Test
+    void buscarPorIdExistenteRetornaDTO() {
+        when(comunidadeRepository.findById(comunidadeId))
+                .thenReturn(Optional.of(comunidade("Vale Verde", StatusComunidade.ATIVA)));
+
+        ComunidadeResponseDTO resposta = comunidadeService.buscarPorId(comunidadeId);
+
+        assertEquals("Vale Verde", resposta.nome());
+    }
+
+    @Test
+    void listarRetornaTodasConvertidas() {
+        when(comunidadeRepository.findAll()).thenReturn(List.of(
+                comunidade("Vale Verde", StatusComunidade.ATIVA),
+                comunidade("Quilombo do Campinho", StatusComunidade.PENDENTE_APROVACAO)
+        ));
+
+        List<ComunidadeResponseDTO> resultado = comunidadeService.listar();
+
+        assertEquals(2, resultado.size());
+    }
+
+    @Test
+    void atualizarComNomeIgualNaoRevalidaSimilaridade() {
+        Comunidade existente = comunidade("Vale Verde", StatusComunidade.ATIVA);
+        when(comunidadeRepository.findById(comunidadeId)).thenReturn(Optional.of(existente));
+        when(comunidadeRepository.save(any(Comunidade.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        comunidadeService.atualizar(comunidadeId, new ComunidadeRequestDTO("Vale Verde", logradouroId));
+
+        verify(comunidadeRepository, never()).findAllNamesExceto(any());
+        verify(comunidadeRepository).save(any(Comunidade.class));
+    }
+
+    @Test
+    void rejeitarComunidadePendenteMudaStatus() {
+        when(comunidadeRepository.findById(comunidadeId))
+                .thenReturn(Optional.of(comunidade("Vale Verde", StatusComunidade.PENDENTE_APROVACAO)));
+        when(comunidadeRepository.save(any(Comunidade.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ComunidadeResponseDTO resposta = comunidadeService.rejeitar(comunidadeId);
+
+        assertEquals(StatusComunidade.REJEITADA, resposta.status());
     }
 }
