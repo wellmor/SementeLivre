@@ -22,20 +22,6 @@ export interface Plantio {
   status: "ativo" | "concluido" | "cancelado";
 }
 
-export interface Adubacao {
-  id_adubacao: string;
-  id_plantio: string;
-  data_adubacao: string;
-  tipo_adubo: string;
-  quantidade: number;
-}
-
-export interface Tecnica {
-  id_tecnica: string;
-  nome_tecnica: string;
-  descricao: string;
-}
-
 export type SpeciesStatus = "exchange" | "sale" | "donation" | "unavailable";
 
 export interface Species {

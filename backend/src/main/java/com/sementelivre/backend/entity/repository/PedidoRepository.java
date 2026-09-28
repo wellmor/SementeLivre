@@ -39,4 +39,17 @@ public interface PedidoRepository extends JpaRepository<Pedido, UUID> {
             where p.id = :id
             """)
     Optional<Pedido> findByIdComItens(@Param("id") UUID id);
+
+    /**
+     * Verifica se o Proprietario tem algum Pedido vinculado como recebedor,
+     * usado para bloquear exclusão de Propriedade com dependências (issue #63).
+     *
+     * Pedido tem dois vínculos com pessoa: usuarioSolicitante (quem fez o
+     * pedido) e proprietarioRecebedor (quem vai atender/entregar). Aqui
+     * verificamos proprietarioRecebedor, porque o contexto da exclusão é a
+     * posse da propriedade pelo Proprietario — o pedido que ele recebeu como
+     * dono é o que representa negócio ativo ligado a essa posse, não o pedido
+     * que ele eventualmente fez como comprador.
+     */
+    boolean existsByProprietarioRecebedorId(UUID proprietarioId);
 }
