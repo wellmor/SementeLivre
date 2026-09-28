@@ -30,10 +30,7 @@ public interface PropriedadeRepository extends BaseRepository<Propriedade, UUID>
             """)
     List<Comunidade> findComunidadesByProprietarioId(@Param("proprietarioId") UUID proprietarioId);
 
-    /**
-     * Verifica se existe alguma Propriedade vinculada a uma Comunidade,
-     * usado para bloquear exclusão de Comunidade com dependências (issue #63).
-     */
-    boolean existsByComunidadeId(UUID comunidadeId);
+    @Query("select p.nome from Propriedade p where p.comunidade.id = :comunidadeId order by p.nome")
+    List<String> findNomesByComunidadeId(@Param("comunidadeId") UUID comunidadeId);
 
 }

@@ -147,6 +147,21 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(status).body(err);
     }
 
+    @ExceptionHandler(TransicaoStatusInvalidaException.class)
+    public ResponseEntity<ErrorResponse> handleTransicaoStatusInvalida(TransicaoStatusInvalidaException e, HttpServletRequest request){
+        HttpStatus status = HttpStatus.CONFLICT;
+
+        ErrorResponse err = new ErrorResponse(
+                "Invalid Status Transition",
+                e.getMessage(),
+                Instant.now(),
+                status.value(),
+                request.getRequestURI(),
+                null
+        );
+        return ResponseEntity.status(status).body(err);
+    }
+
     private String mensagemParaViolacao(DataIntegrityViolationException ex) {
         String constraintName = extrairNomeConstraint(ex);
         if (constraintName != null && MENSAGENS_POR_CONSTRAINT.containsKey(constraintName)) {
