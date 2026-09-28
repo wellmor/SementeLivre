@@ -19,10 +19,13 @@ public class PessoaService {
 
     private final PessoaRepository pessoaRepository;
     private final LogradouroRepository logradouroRepository;
+    private final UsuarioService usuarioService;
 
-    public PessoaService(PessoaRepository pessoaRepository, LogradouroRepository logradouroRepository) {
+    public PessoaService(PessoaRepository pessoaRepository, LogradouroRepository logradouroRepository,
+                         UsuarioService usuarioService) {
         this.pessoaRepository = pessoaRepository;
         this.logradouroRepository = logradouroRepository;
+        this.usuarioService = usuarioService;
     }
 
     @Transactional(readOnly = true)
@@ -64,6 +67,7 @@ public class PessoaService {
     @Transactional
     public void deletar(UUID id) {
         Pessoa pessoa = buscarPorId(id);
+        usuarioService.excluirContaDaPessoa(id);
         pessoaRepository.delete(pessoa);
     }
 

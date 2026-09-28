@@ -1,4 +1,19 @@
-'use client';
+﻿'use client';
+
+/**
+ * dashboard/page.tsx
+ *
+ * ALTERAÇÕES em relação à versão anterior:
+ *   - `proprietario` removido do destructuring de `useAuth()` — o contexto não expõe mais
+ *     esse campo após a integração com backend
+ *   - `user.nome` (AuthSession) agora fornece o primeiro nome, em substituição a `proprietario?.nome`
+ *   - `firstName` usa `user?.nome?.split(' ')[0]` ao invés de `proprietario?.nome?.split(' ')[0]`
+ *
+ * LINHAS REMOVIDAS (comparado ao arquivo anterior):
+ *   - const { proprietario } = useAuth();    → substituído por const { user } = useAuth();
+ *   - const firstName = proprietario?.nome?.split(' ')[0] || 'Produtor';
+ *     → substituído por const firstName = user?.nome?.split(' ')[0] || user?.email?.split('@')[0] || 'Produtor';
+ */
 
 import React from 'react';
 import Link from 'next/link';
@@ -34,14 +49,14 @@ function StatCard({ icon, label, value, accent, accentBg }: StatCardProps) {
 }
 
 export default function DashboardPage() {
-  const { proprietario } = useAuth();
+  const { user } = useAuth();
   const { seeds, loading: loadingSeeds } = useSeeds();
   const { orders, loading: loadingOrders } = useOrders();
   const { properties } = useProperties();
   const { unreadCount } = useNotifications();
   const router = useRouter();
 
-  const firstName = proprietario?.nome?.split(' ')[0] || 'Produtor';
+  const firstName = user?.nome?.split(' ')[0] || user?.email?.split('@')[0] || 'Produtor';
 
   const now = new Date();
   const ordersThisMonth = orders.filter((o) => {

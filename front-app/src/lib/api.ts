@@ -1,0 +1,216 @@
+/**
+ * api.ts — Cliente HTTP centralizado para o backend REST (Spring Boot).
+ *
+ * Responsabilidades:
+ *  - Anexar o accessToken JWT em cada requisição autenticada.
+ *  - Tentar renovar o accessToken via /auth/refresh quando receber 401.
+ *  - Persistir / limpar tokens no localStorage de forma padronizada.
+ *  - Avisar por toast quando não há conexão ou quando a sessão expira.
+ *  - Exportar helpers tipados: apiGet, apiPost, apiPut, apiDelete.
+ */
+
+import { emitirToast } from './toast';
+
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
+
+// ── Chaves de armazenamento ────────────────────────────────────────────────────
+
+const TOKEN_KEY = 'sl_access_token';
+const REFRESH_KEY = 'sl_refresh_token';
+
+// ── Persistência de tokens ─────────────────────────────────────────────────────
+
+export function getAccessToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+export function getRefreshToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem(REFRESH_KEY);
+}
+
+export function saveTokens(accessToken: string, refreshToken: string): void {
+  localStorage.setItem(TOKEN_KEY, accessToken);
+  localStorage.setItem(REFRESH_KEY, refreshToken);
+}
+
+export function clearTokens(): void {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(REFRESH_KEY);
+}
+
+// ── Tipos auxiliares ───────────────────────────────────────────────────────────
+
+export interface ApiError {
+  /** Status HTTP; 0 quando não houve resposta (sem conexão). */
+  status: number;
+  message: string;
+  /** Código semântico de erro, ex: "auth/session-expired" */
+  code?: string;
+  /** Erros por campo do DTO (ex.: "email", "endereco.uf"), vindos de fieldErrors: ["campo: mensagem"]. */
+  fieldErrors: Record<string, string>;
+}
+
+export function isApiError(err: unknown): err is ApiError {
+  return !!err && typeof err === 'object' && typeof (err as ApiError).status === 'number';
+}
+
+export const MENSAGEM_SEM_CONEXAO = 'Sem conexão com o servidor. Verifique sua internet e tente novamente.';
+export const MENSAGEM_SESSAO_EXPIRADA = 'Sua sessão expirou. Faça login novamente.';
+
+function buildApiError(status: number, body: unknown): ApiError {
+  if (body && typeof body === 'object') {
+    const b = body as Record<string, unknown>;
+    const fieldErrors: Record<string, string> = {};
+    for (const item of (b.fieldErrors as string[] | null | undefined) ?? []) {
+      const separador = item.indexOf(': ');
+      if (separador > 0) {
+        fieldErrors[item.slice(0, separador)] ??= item.slice(separador + 2);
+      }
+    }
+    return {
+      status,
+      message: (b.mensagem ?? b.message ?? b.error ?? 'Erro desconhecido') as string,
+      code: b.code as string | undefined,
+      fieldErrors,
+    };
+  }
+  return { status, message: String(body || 'Erro desconhecido'), fieldErrors: {} };
+}
+
+// ── Refresh silencioso ─────────────────────────────────────────────────────────
+
+let _refreshPromise: Promise<string | null> | null = null;
+
+async function silentRefresh(): Promise<string | null> {
+  // Evitar múltiplas chamadas simultâneas de refresh
+  if (_refreshPromise) return _refreshPromise;
+
+  _refreshPromise = (async () => {
+    const refreshToken = getRefreshToken();
+    if (!refreshToken) return null;
+
+    try {
+      // fetch direto (e não request()) para um 401/400 do próprio refresh nunca disparar outro refresh
+      const res = await fetch(`${BASE_URL}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken }),
+      });
+
+      if (!res.ok) {
+        clearTokens();
+        return null;
+      }
+
+      const data = await res.json();
+      saveTokens(data.accessToken, data.refreshToken ?? refreshToken);
+      return data.accessToken as string;
+    } catch {
+      clearTokens();
+      return null;
+    } finally {
+      _refreshPromise = null;
+    }
+  })();
+
+  return _refreshPromise;
+}
+
+/** Renova o accessToken sem novo login. Usado quando o token atual deixou de valer (ex.: troca de e-mail). */
+export async function renovarToken(): Promise<boolean> {
+  return (await silentRefresh()) !== null;
+}
+
+// 401 nessas rotas é resposta do próprio fluxo de auth (credencial errada, refresh inválido), não token vencido.
+const ROTAS_SEM_REFRESH = ['/auth/login', '/auth/refresh', '/auth/cadastrar'];
+
+// ── Fetch base ─────────────────────────────────────────────────────────────────
+
+interface RequestOptions extends Omit<RequestInit, 'body'> {
+  body?: unknown;
+  /** Se true, não envia o header Authorization (para rotas públicas) */
+  public?: boolean;
+}
+
+async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const { body, public: isPublic, headers: extraHeaders, ...rest } = options;
+
+  const buildHeaders = (token: string | null): HeadersInit => {
+    const h: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(extraHeaders as Record<string, string>),
+    };
+    if (!isPublic && token) {
+      h['Authorization'] = `Bearer ${token}`;
+    }
+    return h;
+  };
+
+  const doFetch = async (token: string | null) => {
+    try {
+      return await fetch(`${BASE_URL}${path}`, {
+        ...rest,
+        headers: buildHeaders(token),
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+      });
+    } catch {
+      emitirToast(MENSAGEM_SEM_CONEXAO, 'error');
+      throw buildApiError(0, { message: MENSAGEM_SEM_CONEXAO, code: 'network/offline' });
+    }
+  };
+
+  let token = getAccessToken();
+  let res = await doFetch(token);
+
+  // ── Se 401, tenta refresh uma vez ──────────────────────────────────────────
+  const podeRenovar = !isPublic && !ROTAS_SEM_REFRESH.some((rota) => path.startsWith(rota));
+  if (res.status === 401 && podeRenovar) {
+    const newToken = await silentRefresh();
+    if (!newToken) {
+      clearTokens();
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('sl:session-expired'));
+      }
+      emitirToast(MENSAGEM_SESSAO_EXPIRADA, 'warning');
+      throw buildApiError(401, { message: MENSAGEM_SESSAO_EXPIRADA, code: 'auth/session-expired' });
+    }
+    token = newToken;
+    res = await doFetch(token);
+  }
+
+  // ── Tratar erros HTTP ──────────────────────────────────────────────────────
+  if (!res.ok) {
+    const texto = await res.text();
+    let errorBody: unknown = texto;
+    try {
+      errorBody = JSON.parse(texto);
+    } catch {
+      // corpo vazio ou não-JSON (ex.: 401 do login)
+    }
+    throw buildApiError(res.status, errorBody);
+  }
+
+  if (res.status === 204) return undefined as unknown as T;
+
+  return res.json() as Promise<T>;
+}
+
+// ── Helpers públicos ───────────────────────────────────────────────────────────
+
+export function apiGet<T>(path: string, options?: RequestOptions): Promise<T> {
+  return request<T>(path, { ...options, method: 'GET' });
+}
+
+export function apiPost<T>(path: string, body?: unknown, options?: RequestOptions): Promise<T> {
+  return request<T>(path, { ...options, method: 'POST', body });
+}
+
+export function apiPut<T>(path: string, body?: unknown, options?: RequestOptions): Promise<T> {
+  return request<T>(path, { ...options, method: 'PUT', body });
+}
+
+export function apiDelete<T>(path: string, options?: RequestOptions): Promise<T> {
+  return request<T>(path, { ...options, method: 'DELETE' });
+}

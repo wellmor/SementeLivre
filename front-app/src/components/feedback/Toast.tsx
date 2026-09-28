@@ -1,9 +1,8 @@
 'use client';
 
-import React, { createContext, useCallback, useContext, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { TOAST_EVENT, ToastEventDetail, ToastType } from '@/lib/toast';
 import styles from './Toast.module.css';
-
-type ToastType = 'success' | 'error' | 'warning' | 'info';
 
 interface Toast {
   id: string;
@@ -22,9 +21,20 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 
   const showToast = useCallback((message: string, type: ToastType = 'success') => {
     const id = Math.random().toString(36).slice(2);
-    setToasts((prev) => [...prev, { id, type, message }]);
+    // Várias requisições falhando juntas (ex.: sem conexão) não empilham a mesma mensagem.
+    setToasts((prev) => (prev.some((t) => t.message === message) ? prev : [...prev, { id, type, message }]));
     setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 4000);
   }, []);
+
+  // Toasts disparados fora do React (lib/toast.ts), ex.: pelo cliente HTTP.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { message, type } = (e as CustomEvent<ToastEventDetail>).detail;
+      showToast(message, type);
+    };
+    window.addEventListener(TOAST_EVENT, handler);
+    return () => window.removeEventListener(TOAST_EVENT, handler);
+  }, [showToast]);
 
   const icons: Record<ToastType, string> = {
     success: '✓',

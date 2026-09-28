@@ -26,6 +26,14 @@ public class GlobalExceptionHandler {
             "uk_proprietario_rg", "RG já cadastrado no sistema."
     );
 
+    // Campo do DTO que cada constraint de unicidade protege; vai em fieldErrors para o front
+    // mostrar o erro embaixo do campo certo.
+    private static final Map<String, String> CAMPOS_POR_CONSTRAINT = Map.of(
+            "uk_pessoa_email", "email",
+            "uk_pessoa_documento", "documento",
+            "uk_proprietario_rg", "rg"
+    );
+
     private static final String MENSAGEM_GENERICA_INTEGRIDADE = "Violação de integridade nos dados.";
 
     //trata erro 404 (recurso não encontrado)
@@ -44,7 +52,8 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(status).body(err);
     }
 
-    //trata os conflitos de negócio de pessoa (email/documento/RG duplicado), verificados no service antes de persistir
+    //trata os conflitos de negócio de pessoa (email/documento/RG duplicado), verificados no service antes de persistir.
+    //o campo que colidiu vai em fieldErrors, no mesmo formato "campo: mensagem" dos erros de validação
     @ExceptionHandler({EmailJaCadastradoException.class, DocumentoJaCadastradoException.class, RgJaCadastradoException.class})
     public ResponseEntity<ErrorResponse> handleConflitosDePessoa(RuntimeException e, HttpServletRequest request) {
         HttpStatus status = HttpStatus.CONFLICT;
@@ -55,7 +64,23 @@ public class GlobalExceptionHandler {
             Instant.now(),
             status.value(),
             request.getRequestURI(),
-            null
+            List.of(campoDoConflito(e) + ": " + e.getMessage())
+        );
+        return ResponseEntity.status(status).body(err);
+    }
+
+    //trata erro 400 na troca de senha: a senha atual informada não confere
+    @ExceptionHandler(SenhaAtualIncorretaException.class)
+    public ResponseEntity<ErrorResponse> handleSenhaAtualIncorreta(SenhaAtualIncorretaException e, HttpServletRequest request) {
+        HttpStatus status = HttpStatus.BAD_REQUEST;
+
+        ErrorResponse err = new ErrorResponse(
+            "Bad Request",
+            e.getMessage(),
+            Instant.now(),
+            status.value(),
+            request.getRequestURI(),
+            List.of("senhaAtual: " + e.getMessage())
         );
         return ResponseEntity.status(status).body(err);
     }
@@ -105,52 +130,38 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleDatabaseExceptions(DataIntegrityViolationException e, HttpServletRequest request) {
         HttpStatus status = HttpStatus.CONFLICT;
 
+        String constraint = constraintConhecida(e);
+        String mensagem = constraint != null ? MENSAGENS_POR_CONSTRAINT.get(constraint) : MENSAGEM_GENERICA_INTEGRIDADE;
+        List<String> fieldErrors = constraint != null
+                ? List.of(CAMPOS_POR_CONSTRAINT.get(constraint) + ": " + mensagem)
+                : null;
+
         ErrorResponse err = new ErrorResponse(
             "Database Conflict",
-            mensagemParaViolacao(e),
+            mensagem,
             Instant.now(),
             status.value(),
             request.getRequestURI(),
-            null
+            fieldErrors
         );
         return ResponseEntity.status(status).body(err);
     }
 
-    @ExceptionHandler(DependenciaVinculadaException.class)
-    public ResponseEntity<ErrorResponse> handleDependenciaVinculada(DependenciaVinculadaException e, HttpServletRequest request){
-        HttpStatus status = HttpStatus.CONFLICT;
-
-        ErrorResponse err = new ErrorResponse(
-                "Dependency Conflict",
-                e.getMessage(),
-                Instant.now(),
-                status.value(),
-                request.getRequestURI(),
-                null
-        );
-        return ResponseEntity.status(status).body(err);
+    private String campoDoConflito(RuntimeException e) {
+        if (e instanceof EmailJaCadastradoException) {
+            return "email";
+        }
+        if (e instanceof DocumentoJaCadastradoException) {
+            return "documento";
+        }
+        return "rg";
     }
 
-
-    @ExceptionHandler(NomeSimilarException.class)
-    public ResponseEntity<ErrorResponse> handleNomeSimilar(NomeSimilarException e, HttpServletRequest request){
-        HttpStatus status = HttpStatus.CONFLICT;
-
-        ErrorResponse err = new ErrorResponse(
-                "Name Conflict",
-                e.getMessage(),
-                Instant.now(),
-                status.value(),
-                request.getRequestURI(),
-                null
-        );
-        return ResponseEntity.status(status).body(err);
-    }
-
-    private String mensagemParaViolacao(DataIntegrityViolationException ex) {
+    //devolve o nome da constraint de unicidade que colidiu, se for uma das conhecidas; senão null
+    private String constraintConhecida(DataIntegrityViolationException ex) {
         String constraintName = extrairNomeConstraint(ex);
         if (constraintName != null && MENSAGENS_POR_CONSTRAINT.containsKey(constraintName)) {
-            return MENSAGENS_POR_CONSTRAINT.get(constraintName);
+            return constraintName;
         }
 
         // Fallback defensivo: getConstraintName() pode vir nulo dependendo do driver/dialect;
@@ -158,14 +169,14 @@ public class GlobalExceptionHandler {
         Throwable causaMaisEspecifica = ex.getMostSpecificCause();
         String mensagemCausa = causaMaisEspecifica != null ? causaMaisEspecifica.getMessage() : null;
         if (mensagemCausa != null) {
-            for (Map.Entry<String, String> entrada : MENSAGENS_POR_CONSTRAINT.entrySet()) {
-                if (mensagemCausa.contains(entrada.getKey())) {
-                    return entrada.getValue();
+            for (String constraint : MENSAGENS_POR_CONSTRAINT.keySet()) {
+                if (mensagemCausa.contains(constraint)) {
+                    return constraint;
                 }
             }
         }
 
-        return MENSAGEM_GENERICA_INTEGRIDADE;
+        return null;
     }
 
     private String extrairNomeConstraint(Throwable ex) {

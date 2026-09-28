@@ -27,7 +27,6 @@ public class AdminRepositoryTest extends AbstractPostgresIntegrationTest {
         admin.setDocumento("99988877766");
         admin.setTipoDocumento(TipoDocumento.CPF);
         admin.setEmail("adminrep@teste.com");
-        admin.setSenhaHash("hash123");
         admin.setNivelAcesso(NivelAcesso.SUPER_ADMIN);
 
         Admin salvo = adminRepository.save(admin);
