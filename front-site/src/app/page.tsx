@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
 import PublicHeader from "@/components/public-header";
+import BotaoLocalizacaoAproximada from "@/components/botao-localizacao-aproximada";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -23,6 +24,7 @@ import {
   ArrowRight,
   MessageCircle,
 } from "lucide-react";
+import { pontoDaEspecie } from "@/lib/mapa/pontos";
 import type { Species, SpeciesStatus, Comunidade, TipoSemente } from "@/lib/types";
 
 // ── Status config ─────────────────────────────────────────────────────────────
@@ -344,17 +346,25 @@ export default function MarketplacePage() {
                       )}
                     </div>
 
-                    {!unavailable && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="mt-3 w-full border-green-200 text-green-700 hover:bg-green-50 gap-1.5 text-xs h-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={() => router.push(`/produto/${sp.id_especie}`)}
-                      >
-                        <MessageCircle className="w-3.5 h-3.5" />
-                        Quero negociar
-                      </Button>
-                    )}
+                    <div>
+                      {/* Mapa da localizacao aproximada informada no app (RF-08) */}
+                      <BotaoLocalizacaoAproximada
+                        ponto={pontoDaEspecie(sp, comunidades)}
+                        nomeSemente={sp.nome_popular}
+                      />
+
+                      {!unavailable && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="mt-2 w-full border-green-200 text-green-700 hover:bg-green-50 gap-1.5 text-xs h-8"
+                          onClick={() => router.push(`/produto/${sp.id_especie}`)}
+                        >
+                          <MessageCircle className="w-3.5 h-3.5" />
+                          Quero negociar
+                        </Button>
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
               );

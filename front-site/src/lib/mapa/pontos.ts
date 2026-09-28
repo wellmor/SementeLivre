@@ -62,6 +62,45 @@ export function montarPontos(comunidades: Comunidade[], especies: Species[]): Po
   return pontos;
 }
 
+/**
+ * Ponto do mapa de UMA semente do catalogo, usado pelo botao de localizacao
+ * que aparece em cada card (RF-08).
+ *
+ * A localizacao vem, nesta ordem:
+ * 1. do proprio card, quando o produtor informou no app
+ *    (Species.localizacaoAproximada);
+ * 2. da comunidade dona da semente, como hoje.
+ *
+ * Devolve null quando nenhuma das duas e reconhecida; nesse caso o card nao
+ * mostra o botao, em vez de mostrar um pino errado.
+ */
+export function pontoDaEspecie(
+  especie: Species,
+  comunidades: Comunidade[]
+): PontoMapa | null {
+
+  const comunidade = comunidades.find(
+    (c) => c.id_comunidade === especie.id_comunidade
+  );
+
+  const localizacao = especie.localizacaoAproximada ?? comunidade?.localizacao ?? "";
+  const coordenada = coordenadaDe(localizacao);
+
+  if (!coordenada) {
+    return null;
+  }
+
+  return {
+    id: especie.id_especie,
+    nome: comunidade?.nome ?? especie.nome_popular,
+    localizacao,
+    latitude: coordenada.latitude,
+    longitude: coordenada.longitude,
+    quantidadeSementes: 1,
+    sementes: [especie.nome_popular],
+  };
+}
+
 /** Comunidades que ficaram de fora por falta de coordenada cadastrada. */
 export function localizacoesNaoReconhecidas(comunidades: Comunidade[]): string[] {
   return comunidades

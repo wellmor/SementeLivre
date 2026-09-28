@@ -25,6 +25,12 @@ export interface Plantio {
 export type SpeciesStatus = "exchange" | "sale" | "donation" | "unavailable";
 
 export interface Species {
+  /**
+   * Localizacao aproximada informada pelo produtor no app (RF-08).
+   * Formato: "Municipio - UF", por exemplo "Rio Pomba - MG".
+   * Opcional: quando vem vazia, o mapa usa a localizacao da comunidade.
+   */
+  localizacaoAproximada?: string;
   id_especie: string;
   nome_popular: string;
   nome_cientifico: string;
