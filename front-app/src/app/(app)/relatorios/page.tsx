@@ -3,6 +3,8 @@
 import React, { useState } from 'react';
 import { useSeeds } from '@/hooks/useSeeds';
 import { useOrders } from '@/hooks/useOrders';
+import { useRelatorios } from '@/hooks/useRelatorios';
+import { isApiError } from '@/lib/api';
 import { Toggle } from '@/components/ui/toggle';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,6 +20,7 @@ type ReportType = 'ESTOQUE' | 'PEDIDOS';
 export default function RelatoriosPage() {
   const { seeds } = useSeeds();
   const { orders } = useOrders();
+  const { relatorios, registrarEmissao } = useRelatorios();
   const { showToast } = useToast();
 
   const [tipo, setTipo] = useState<ReportType>('ESTOQUE');
@@ -26,6 +29,8 @@ export default function RelatoriosPage() {
   const [filtroDisp, setFiltroDisp] = useState('TODOS');
   const [filtroStatus, setFiltroStatus] = useState('TODOS');
   const [generated, setGenerated] = useState(false);
+  const [gerando, setGerando] = useState(false);
+  const [exportando, setExportando] = useState(false);
 
   const tipoOptions = [{ value: 'ESTOQUE', label: '📊 Estoque' }, { value: 'PEDIDOS', label: '📋 Pedidos' }];
   const dispOptions = [{ value: 'TODOS', label: 'Todas' }, ...Object.entries(DisponibilidadeLabels).map(([v, l]) => ({ value: v, label: l }))];
@@ -41,6 +46,61 @@ export default function RelatoriosPage() {
   });
 
   const data = tipo === 'ESTOQUE' ? filteredSeeds : filteredOrders;
+
+  // O histórico da tela mostra só os dois tipos que este formulário emite.
+  const historico = relatorios.filter(
+    (r) => r.tipo === (tipo === 'ESTOQUE' ? 'ESTOQUE_SEMENTES' : 'PEDIDOS_REALIZADOS')
+  );
+
+  /** Gera a prévia e registra a emissão em /relatorios (histórico no backend). */
+  const handleGenerate = async () => {
+    setGerando(true);
+    try {
+      await registrarEmissao(
+        tipo === 'ESTOQUE' ? 'ESTOQUE_SEMENTES' : 'PEDIDOS_REALIZADOS',
+        {
+          tipo,
+          filtroDisponibilidade: filtroDisp,
+          filtroStatus: filtroStatus,
+          dataInicio: dataInicio || null,
+          dataFim: dataFim || null,
+          totalRegistros: data.length,
+        }
+      );
+      setGenerated(true);
+      showToast('Relatório gerado e registrado!', 'success');
+    } catch (err) {
+      showToast(
+        isApiError(err) ? err.message : 'Não foi possível registrar o relatório.',
+        'error'
+      );
+    } finally {
+      setGerando(false);
+    }
+  };
+
+  /** Gera o PDF no cliente; a emissão já foi registrada em /relatorios por handleGenerate. */
+  const handleExportPDF = async () => {
+    if (!data.length) return;
+    setExportando(true);
+    try {
+      const { baixarRelatorioPdf } = await import('@/lib/pdf');
+      baixarRelatorioPdf({
+        tipo,
+        filtroDisponibilidade: filtroDisp,
+        filtroStatus,
+        dataInicio,
+        dataFim,
+        seeds: filteredSeeds,
+        orders: filteredOrders,
+      });
+      showToast('Relatório PDF exportado!', 'success');
+    } catch {
+      showToast('Não foi possível gerar o PDF.', 'error');
+    } finally {
+      setExportando(false);
+    }
+  };
 
   const handleExportCSV = () => {
     if (!data.length) return;
@@ -93,18 +153,29 @@ export default function RelatoriosPage() {
             </div>
           </>
         )}
-        <Button variant="primary" fullWidth onClick={() => setGenerated(true)}>Gerar Relatório</Button>
+        <Button variant="primary" fullWidth onClick={handleGenerate} loading={gerando}>
+          Gerar Relatório
+        </Button>
       </div>
 
-      {generated && (
-        <div className={styles.card}>
-          <div className={styles.previewHeader}>
-            <p className={styles.cardTitle}>Prévia — {data.length} registros</p>
+      <div className={styles.card}>
+        <div className={styles.previewHeader}>
+          <p className={styles.cardTitle}>{generated ? `Prévia — ${data.length} registros` : 'Exportar relatório'}</p>
+          <div className={styles.previewActions}>
+            <Button variant="secondary" size="sm" onClick={handleExportPDF} disabled={data.length === 0} loading={exportando}>⬇ PDF</Button>
             <Button variant="secondary" size="sm" onClick={handleExportCSV} disabled={data.length === 0}>⬇ CSV</Button>
           </div>
-          {data.length === 0 ? (
-            <EmptyState icon="📋" title="Sem dados" description="Nenhum registro para os filtros selecionados." />
-          ) : tipo === 'ESTOQUE' ? (
+        </div>
+
+        {!generated ? (
+          <EmptyState
+            icon="📋"
+            title="Nenhum relatório gerado"
+            description="Ajuste os filtros e clique em Gerar Relatório para ver a prévia e baixar em PDF ou CSV."
+          />
+        ) : data.length === 0 ? (
+          <EmptyState icon="📋" title="Sem dados" description="Nenhum registro para os filtros selecionados." />
+        ) : tipo === 'ESTOQUE' ? (
             <div className={styles.tableWrap}>
               <table className={styles.table} aria-label="Relatório de estoque">
                 <thead>
@@ -142,8 +213,31 @@ export default function RelatoriosPage() {
               </table>
             </div>
           )}
-        </div>
-      )}
+      </div>
+
+      <div className={styles.card}>
+        <p className={styles.cardTitle}>Relatórios emitidos</p>
+        {historico.length === 0 ? (
+          <EmptyState icon="🗂" title="Nenhum relatório emitido" description="Gere um relatório acima para registrar o histórico." />
+        ) : (
+          <div className={styles.tableWrap}>
+            <table className={styles.table} aria-label="Histórico de relatórios emitidos">
+              <thead>
+                <tr><th>Data</th><th>Tipo</th><th>Registros</th></tr>
+              </thead>
+              <tbody>
+                {historico.map((r) => (
+                  <tr key={r.idRelatorio}>
+                    <td>{r.dataGeracao.toLocaleString('pt-BR')}</td>
+                    <td>{r.tipo === 'ESTOQUE_SEMENTES' ? 'Estoque de sementes' : 'Pedidos realizados'}</td>
+                    <td>{String(r.filtros.totalRegistros ?? '—')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

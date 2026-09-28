@@ -15,10 +15,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.sementelivre.backend.dto.ContagemNaoLidasDTO;
 import com.sementelivre.backend.dto.NotificacaoRequestDTO;
 import com.sementelivre.backend.dto.NotificacaoResponseDTO;
 import com.sementelivre.backend.service.NotificacaoService;
-
 import jakarta.validation.Valid;
 
 @RestController
@@ -41,12 +41,26 @@ public class NotificacaoController {
         );
     }
 
-    // READ - todos
+    // READ - do usuário logado
     @GetMapping
     public ResponseEntity<List<NotificacaoResponseDTO>> listar() {
 
         return ResponseEntity.ok(
                 notificacaoService.listar()
+        );
+    }
+
+    /**
+     * Quantidade de não lidas, para o badge do cabeçalho.
+     *
+     * Contar no banco em vez de baixar a lista inteira evita tráfego desnecessário
+     * a cada navegação.
+     */
+    @GetMapping("/nao-lidas/contagem")
+    public ResponseEntity<ContagemNaoLidasDTO> contarNaoLidas() {
+
+        return ResponseEntity.ok(
+                new ContagemNaoLidasDTO(notificacaoService.contarNaoLidas())
         );
     }
 

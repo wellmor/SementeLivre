@@ -30,6 +30,11 @@ services:
       SPRING_DATASOURCE_PASSWORD: devpassword
     ports:
       - "8080:8080"
+    volumes:
+      # As fotos de produto ficam em disco dentro do container; sem este volume
+      # elas se perdem a cada `docker compose up --build` e o banco continua
+      # apontando para arquivos que não existem mais.
+      - uploads_data:/app/uploads
     depends_on:
       db:
         condition: service_healthy
@@ -38,6 +43,7 @@ services:
 
 volumes:
   postgres_data:
+  uploads_data:
 
 networks:
   app-network:

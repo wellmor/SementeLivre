@@ -5,6 +5,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -52,4 +53,12 @@ public interface PedidoRepository extends JpaRepository<Pedido, UUID> {
      * que ele eventualmente fez como comprador.
      */
     boolean existsByProprietarioRecebedorId(UUID proprietarioId);
+
+    /**
+     * Exclui os pedidos em que a pessoa é solicitante ou recebedora. Os itens
+     * caem por ON DELETE CASCADE na migration, então não precisam sair antes.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("delete from Pedido p where p.usuarioSolicitante.id = :id or p.proprietarioRecebedor.id = :id")
+    void deleteAllEnvolvendoPessoa(@Param("id") UUID id);
 }

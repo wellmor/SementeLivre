@@ -6,7 +6,7 @@ import { useOrders } from '@/hooks/useOrders';
 import { useSeeds } from '@/hooks/useSeeds';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/feedback/Toast';
-import { TipoPedido } from '@/types/order';
+import { StatusPedido, TipoPedido } from '@/types/order';
 import { Estoque, DisponibilidadeProduto } from '@/types/stock';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -71,7 +71,8 @@ export default function NovoPedidoPage() {
       await createOrder({
         idProprietario: user.uid,
         tipoPedido: tipo,
-        status: 'PENDENTE' as any,
+        // O status nasce PENDENTE no backend (/pedidos); não é enviado no cadastro.
+        status: StatusPedido.PENDENTE,
         nomeRecebedor,
         contatoRecebedor: contato,
         mensagemOpcional: mensagem,

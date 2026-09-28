@@ -29,6 +29,7 @@ import com.sementelivre.backend.entity.enums.TipoMovimentacao;
 import com.sementelivre.backend.entity.repository.EstoqueRepository;
 import com.sementelivre.backend.entity.repository.ProdutoRepository;
 import com.sementelivre.backend.exception.RecursoNaoEncontradoException;
+import com.sementelivre.backend.repository.MovimentacaoRepository;
 
 @ExtendWith(MockitoExtension.class)
 class EstoqueServiceTest {
@@ -38,6 +39,9 @@ class EstoqueServiceTest {
 
     @Mock
     private ProdutoRepository produtoRepository;
+
+    @Mock
+    private MovimentacaoRepository movimentacaoRepository;
 
     private EstoqueService estoqueService;
 
@@ -54,7 +58,8 @@ class EstoqueServiceTest {
     void setUp() {
         estoqueService = new EstoqueService(
                 estoqueRepository,
-                produtoRepository
+                produtoRepository,
+                movimentacaoRepository
         );
 
         estoqueId = UUID.randomUUID();

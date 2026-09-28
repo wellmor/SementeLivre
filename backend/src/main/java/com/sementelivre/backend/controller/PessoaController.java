@@ -57,6 +57,18 @@ public class PessoaController {
         return ResponseEntity.noContent().build();
     }
 
+    /**
+     * Exclusão de conta pelo proprio titular (LGPD, direito ao esquecimento).
+     * Diferente de {@link #deletar}, apaga antes os dados operacionais da
+     * pessoa, porque as chaves estrangeiras usam ON DELETE RESTRICT.
+     */
+    @DeleteMapping("/{id}/conta")
+    @PreAuthorize("hasRole('ADMIN') or #id == principal.id")
+    public ResponseEntity<Void> excluirConta(@PathVariable UUID id) {
+        pessoaService.excluirConta(id);
+        return ResponseEntity.noContent().build();
+    }
+
     protected PessoaResponseDTO mapToResponse(Pessoa p) {
         PessoaResponseDTO dto = new PessoaResponseDTO();
         dto.setId(p.getId());

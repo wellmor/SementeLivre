@@ -54,6 +54,14 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/health/**").permitAll()
                         .requestMatchers("/actuator/**").hasRole("ADMIN")
 
+                        // Fotos de produto: liberadas porque sao carregadas por <img src>,
+                        // que nao envia o header Authorization. Sem isso toda imagem
+                        // devolvia 401 e nao aparecia no app.
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/uploads/**"
+                        ).permitAll()
+
                         // Perfil publico do produtor - issue #91
                         .requestMatchers(
                                 HttpMethod.GET,

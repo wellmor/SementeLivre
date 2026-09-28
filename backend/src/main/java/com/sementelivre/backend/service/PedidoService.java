@@ -80,7 +80,14 @@ public class PedidoService {
         reservarEstoque(pedido);
 
         // Os itens sao persistidos junto pelo cascade configurado em Pedido.itens
-        return mapToResponse(pedidoRepository.save(pedido));
+        Pedido salvo = pedidoRepository.save(pedido);
+
+        // Avisa o dono do estoque assim que o pedido existe. Antes isso era feito
+        // pelo navegador de quem pediu: se a aba caísse entre os dois POST, o
+        // produtor nunca ficaria sabendo que há pedido esperando.
+        notificacaoService.criarParaPedidoRecebido(salvo);
+
+        return mapToResponse(salvo);
     }
 
     // READ - listar pedidos do proprietario
@@ -173,7 +180,13 @@ public class PedidoService {
 
         pedido.setStatus(StatusPedido.CANCELADO);
 
-        return mapToResponse(pedidoRepository.save(pedido));
+        Pedido cancelado = pedidoRepository.save(pedido);
+
+        // O solicitante não acompanha a tela do receptor, então é o único jeito
+        // dele descobrir que o pedido foi recusado ou cancelado.
+        notificacaoService.criarParaPedidoCancelado(cancelado, pedido.getMensagemOpcional());
+
+        return mapToResponse(cancelado);
     }
 
     // REGRAS DE ESTOQUE

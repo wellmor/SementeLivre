@@ -6,8 +6,13 @@ import com.sementelivre.backend.exception.EmailJaCadastradoException;
 import com.sementelivre.backend.exception.PessoaNaoEncontradaException;
 import com.sementelivre.backend.entity.Logradouro;
 import com.sementelivre.backend.entity.Pessoa;
+import com.sementelivre.backend.entity.repository.EstoqueRepository;
+import com.sementelivre.backend.entity.repository.PedidoRepository;
 import com.sementelivre.backend.repository.LogradouroRepository;
+import com.sementelivre.backend.repository.NotificacaoRepository;
 import com.sementelivre.backend.repository.PessoaRepository;
+import com.sementelivre.backend.repository.PropriedadeRepository;
+import com.sementelivre.backend.repository.RelatorioRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,12 +25,24 @@ public class PessoaService {
     private final PessoaRepository pessoaRepository;
     private final LogradouroRepository logradouroRepository;
     private final UsuarioService usuarioService;
+    private final EstoqueRepository estoqueRepository;
+    private final PedidoRepository pedidoRepository;
+    private final NotificacaoRepository notificacaoRepository;
+    private final RelatorioRepository relatorioRepository;
+    private final PropriedadeRepository propriedadeRepository;
 
     public PessoaService(PessoaRepository pessoaRepository, LogradouroRepository logradouroRepository,
-                         UsuarioService usuarioService) {
+                         UsuarioService usuarioService, EstoqueRepository estoqueRepository,
+                         PedidoRepository pedidoRepository, NotificacaoRepository notificacaoRepository,
+                         RelatorioRepository relatorioRepository, PropriedadeRepository propriedadeRepository) {
         this.pessoaRepository = pessoaRepository;
         this.logradouroRepository = logradouroRepository;
         this.usuarioService = usuarioService;
+        this.estoqueRepository = estoqueRepository;
+        this.pedidoRepository = pedidoRepository;
+        this.notificacaoRepository = notificacaoRepository;
+        this.relatorioRepository = relatorioRepository;
+        this.propriedadeRepository = propriedadeRepository;
     }
 
     @Transactional(readOnly = true)
@@ -69,6 +86,31 @@ public class PessoaService {
         Pessoa pessoa = buscarPorId(id);
         usuarioService.excluirContaDaPessoa(id);
         pessoaRepository.delete(pessoa);
+    }
+
+    /**
+     * Exclusão de conta a pedido do titular (direito ao esquecimento, LGPD).
+     *
+     * <p>Todas as tabelas filhas usam ON DELETE RESTRICT, então a conta só sai
+     * depois que os dados operacionais da pessoa são removidos. A ordem importa:
+     * pedidos primeiro (os itens caem por cascade), depois o que o proprietário
+     * possui, e por fim login e cadastro.</p>
+     *
+     * <p>Os produtos em si não são apagados: são catálogo compartilhado entre
+     * produtores e não pertencem à pessoa. O que sai é o estoque dela.</p>
+     */
+    @Transactional
+    public void excluirConta(UUID id) {
+        buscarPorId(id);
+
+        pedidoRepository.deleteAllEnvolvendoPessoa(id);
+        notificacaoRepository.deleteAllByProprietarioId(id);
+        relatorioRepository.deleteAllByProprietarioId(id);
+        propriedadeRepository.deleteAllByProprietarioId(id);
+        estoqueRepository.deleteAllByProprietarioId(id);
+
+        usuarioService.excluirContaDaPessoa(id);
+        pessoaRepository.deleteById(id);
     }
 
     private void mapLogradouro(LogradouroDTO dto, Logradouro logradouro) {
