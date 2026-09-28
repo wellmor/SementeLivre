@@ -8,6 +8,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -27,6 +28,9 @@ import com.sementelivre.backend.util.RelatorioPdf;
  *
  * <p>Fica separado do RelatorioController, que cuida do CRUD do historico de
  * relatorios, para cada arquivo tratar de um assunto so.</p>
+ *
+ * <p>Cada proprietario so baixa o proprio relatorio; o admin baixa de qualquer
+ * um. E a mesma regra ja usada em PessoaController e ProprietarioController.</p>
  */
 @RestController
 @RequestMapping("/relatorios")
@@ -46,6 +50,7 @@ public class RelatorioExportacaoController {
     // ---- Relatorio de estoque ----
 
     @GetMapping("/estoque/pdf")
+    @PreAuthorize("hasRole('ADMIN') or #proprietarioId == principal.id")
     public ResponseEntity<byte[]> estoqueEmPdf(
             @RequestParam UUID proprietarioId,
             @RequestParam(required = false) EspecieGeral especie,
@@ -60,6 +65,7 @@ public class RelatorioExportacaoController {
     }
 
     @GetMapping("/estoque/csv")
+    @PreAuthorize("hasRole('ADMIN') or #proprietarioId == principal.id")
     public ResponseEntity<byte[]> estoqueEmCsv(
             @RequestParam UUID proprietarioId,
             @RequestParam(required = false) EspecieGeral especie,
@@ -75,6 +81,7 @@ public class RelatorioExportacaoController {
     // ---- Relatorio de pedidos ----
 
     @GetMapping("/pedidos/pdf")
+    @PreAuthorize("hasRole('ADMIN') or #proprietarioId == principal.id")
     public ResponseEntity<byte[]> pedidosEmPdf(
             @RequestParam UUID proprietarioId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dataInicio,
@@ -92,6 +99,7 @@ public class RelatorioExportacaoController {
     }
 
     @GetMapping("/pedidos/csv")
+    @PreAuthorize("hasRole('ADMIN') or #proprietarioId == principal.id")
     public ResponseEntity<byte[]> pedidosEmCsv(
             @RequestParam UUID proprietarioId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dataInicio,
