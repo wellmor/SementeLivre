@@ -8,6 +8,7 @@ import com.sementelivre.backend.entity.enums.StatusComunidade;
 import com.sementelivre.backend.exception.DependenciaVinculadaException;
 import com.sementelivre.backend.exception.NomeSimilarException;
 import com.sementelivre.backend.exception.ResourceNotFoundException;
+import com.sementelivre.backend.exception.TransicaoStatusInvalidaException;
 import com.sementelivre.backend.repository.ComunidadeRepository;
 import com.sementelivre.backend.repository.LogradouroRepository;
 import com.sementelivre.backend.repository.PropriedadeRepository;
@@ -16,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.CacheEvict;
 
+import java.text.Normalizer;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
@@ -28,6 +30,8 @@ public class ComunidadeService implements CrudService<ComunidadeRequestDTO, Comu
     private final ComunidadeRepository comunidadeRepository;
     private final LogradouroRepository logradouroRepository;
     private final PropriedadeRepository propriedadeRepository;
+    private static final LevenshteinDistance LEVENSHTEIN = new LevenshteinDistance();
+    private static final double LIMITE_SIMILARIDADE = 0.2; // 20% do maior nome
 
     public ComunidadeService(ComunidadeRepository comunidadeRepository, LogradouroRepository logradouroRepository, PropriedadeRepository propriedadeRepository) {
         this.comunidadeRepository = comunidadeRepository;
@@ -42,24 +46,11 @@ public class ComunidadeService implements CrudService<ComunidadeRequestDTO, Comu
         Logradouro logradouro = logradouroRepository.findById(dto.logradouroId())
                 .orElseThrow(() -> new ResourceNotFoundException("Logradouro não encontrado com o id: " + dto.logradouroId()));
 
-        LevenshteinDistance levenshtein = new LevenshteinDistance();
         List<String> listaNomes = comunidadeRepository.findAllNames();
         String novoNome = dto.nome().toLowerCase(Locale.ROOT);
 
-        Optional<String> nomeConflitante = listaNomes.stream()
-                .filter(nomeExistente -> {
-                    String nomeExistenteNormalizado = nomeExistente.toLowerCase(Locale.ROOT);
-                    int distancia = levenshtein.apply(novoNome, nomeExistenteNormalizado);
-                    float limite = (float) (0.2 * Math.max(novoNome.length(), nomeExistenteNormalizado.length()));
-                    return distancia <= limite;
-                })
-                .findFirst();
+        validarNomeNaoSimilar(dto.nome(), logradouro, comunidadeRepository.findAllNames());
 
-        if (nomeConflitante.isPresent()) {
-            throw new NomeSimilarException(
-                    "O nome \"" + dto.nome() + "\" é muito similar ao nome já existente \"" + nomeConflitante.get() + "\"."
-            );
-        }
         Comunidade comunidade = Comunidade.builder()
                 .nome(dto.nome())
                 .logradouro(logradouro)
@@ -102,6 +93,10 @@ public class ComunidadeService implements CrudService<ComunidadeRequestDTO, Comu
                     .orElseThrow(() -> new ResourceNotFoundException("Logradouro não encontrado: " + dto.logradouroId()));
         }
 
+        if (!comunidade.getNome().equalsIgnoreCase(dto.nome())) {
+            validarNomeNaoSimilar(dto.nome(), logradouro, comunidadeRepository.findAllNamesExceto(id));
+        }
+
         //Preenchendo comunidade:
         comunidade.setNome(dto.nome());
         comunidade.setLogradouro(logradouro);
@@ -116,8 +111,11 @@ public class ComunidadeService implements CrudService<ComunidadeRequestDTO, Comu
 
         Comunidade comunidade = buscarEntidadePorId(id);
 
-        if(propriedadeRepository.existsByComunidadeId(id)){
-            throw new DependenciaVinculadaException("Não é possível excluir a Comunidade, pois existem propriedades vinculada a ela.");
+        List<String> propriedades = propriedadeRepository.findNomesByComunidadeId(id);
+        if (!propriedades.isEmpty()) {
+            throw new DependenciaVinculadaException(
+                    "Não é possível excluir a Comunidade \"" + comunidade.getNome() + "\", pois existem "
+                            + propriedades.size() + " propriedade(s) vinculada(s): " + String.join(", ", propriedades) + ".");
         }
         comunidadeRepository.delete(comunidade);
     }
@@ -139,7 +137,7 @@ public class ComunidadeService implements CrudService<ComunidadeRequestDTO, Comu
     //Metodos de Aprovação e Rejeição de Comunidades
     @CacheEvict(value = "comunidades", allEntries = true)
     public ComunidadeResponseDTO aprovar(UUID id){
-        Comunidade comunidade = buscarEntidadePorId(id);
+        Comunidade comunidade = buscarPendente(id, "aprovadas");
         comunidade.setStatus(StatusComunidade.ATIVA);
         comunidade.setDataAprovacao(LocalDateTime.now());
 
@@ -149,7 +147,7 @@ public class ComunidadeService implements CrudService<ComunidadeRequestDTO, Comu
     
     @CacheEvict(value = "comunidades", allEntries = true)
     public ComunidadeResponseDTO rejeitar(UUID id){
-        Comunidade comunidade = buscarEntidadePorId(id);
+        Comunidade comunidade = buscarPendente(id, "rejeitadas");
         comunidade.setStatus(StatusComunidade.REJEITADA);
 
         Comunidade comunidadeRejeitada = comunidadeRepository.save(comunidade);
@@ -162,4 +160,42 @@ public class ComunidadeService implements CrudService<ComunidadeRequestDTO, Comu
                 .orElseThrow(() -> new ResourceNotFoundException("Comunidade não encontrada, com id: " + id));
     }
 
+
+    // Só comunidades pendentes podem ser aprovadas/rejeitadas
+    private Comunidade buscarPendente(UUID id, String acao) {
+        Comunidade comunidade = buscarEntidadePorId(id);
+        if (comunidade.getStatus() != StatusComunidade.PENDENTE_APROVACAO) {
+            throw new TransicaoStatusInvalidaException(
+                    "Somente comunidades com status PENDENTE_APROVACAO podem ser " + acao
+                            + ". Status atual: " + comunidade.getStatus() + ".");
+        }
+        return comunidade;
+    }
+
+    private void validarNomeNaoSimilar(String nome, Logradouro logradouro, List<String> nomesExistentes) {
+        String novoNome = normalizar(nome);
+        nomesExistentes.stream()
+                .filter(existente -> saoSimilares(novoNome, normalizar(existente)))
+                .findFirst()
+                .ifPresent(existente -> {
+                    throw new NomeSimilarException(
+                            "O nome \"" + nome + "\" é muito similar ao nome já existente \"" + existente
+                                    + "\". Sugestão: \"" + nome + " - " + logradouro.getMunicipio() + "\".");
+                });
+    }
+
+    private boolean saoSimilares(String a, String b) {
+        int distancia = LEVENSHTEIN.apply(a, b);
+        double limite = LIMITE_SIMILARIDADE * Math.max(a.length(), b.length());
+        return distancia <= limite;
+    }
+
+    // minúsculas, sem acentos e sem espaços repetidos
+    private String normalizar(String texto) {
+        return Normalizer.normalize(texto, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "")
+                .trim()
+                .replaceAll("\\s+", " ")
+                .toLowerCase(Locale.ROOT);
+    }
 }
