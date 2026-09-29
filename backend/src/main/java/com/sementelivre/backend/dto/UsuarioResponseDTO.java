@@ -3,7 +3,10 @@ package com.sementelivre.backend.dto;
 import java.util.UUID;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import com.sementelivre.backend.entity.Admin;
 import com.sementelivre.backend.entity.Logradouro;
+import com.sementelivre.backend.entity.Pessoa;
+import com.sementelivre.backend.entity.Proprietario;
 import com.sementelivre.backend.entity.Usuario;
 import com.sementelivre.backend.entity.enums.TipoDocumento;
 import lombok.AllArgsConstructor;
@@ -41,6 +44,12 @@ public class UsuarioResponseDTO {
     private LocalDateTime dataUltimaAlteracao;
     private String tipoPessoa;
     private Set<String> roles;
+
+    @Schema(description = "RG do proprietário (nulo para admin)", example = "MG-12.345.678", accessMode = Schema.AccessMode.READ_ONLY)
+    private String rg;
+
+    @Schema(description = "Se o proprietário aparece no site público (nulo para admin)", accessMode = Schema.AccessMode.READ_ONLY)
+    private Boolean exibirNoSitePublico;
 
     public UUID getId() {
         return id;
@@ -130,22 +139,46 @@ public class UsuarioResponseDTO {
         this.roles = roles;
     }
 
+    public String getRg() {
+        return rg;
+    }
+
+    public void setRg(String rg) {
+        this.rg = rg;
+    }
+
+    public Boolean getExibirNoSitePublico() {
+        return exibirNoSitePublico;
+    }
+
+    public void setExibirNoSitePublico(Boolean exibirNoSitePublico) {
+        this.exibirNoSitePublico = exibirNoSitePublico;
+    }
+
     public static UsuarioResponseDTO fromEntity(Usuario usuario) {
+        Pessoa pessoa = usuario.getPessoa();
+
         UsuarioResponseDTO dto = new UsuarioResponseDTO();
         dto.setId(usuario.getId());
-        dto.setTipoDocumento(usuario.getTipoDocumento());
-        dto.setDocumento(usuario.getDocumento());
-        dto.setNome(usuario.getNome());
-        dto.setTelefone(usuario.getTelefone());
-        dto.setEmail(usuario.getEmail());
-        dto.setDataCadastro(usuario.getDataCadastro());
-        dto.setDataUltimaAlteracao(usuario.getDataUltimaAlteracao());
-        dto.setTipoPessoa("USUARIO");
+        dto.setTipoDocumento(pessoa.getTipoDocumento());
+        dto.setDocumento(pessoa.getDocumento());
+        dto.setNome(pessoa.getNome());
+        dto.setTelefone(pessoa.getTelefone());
+        dto.setEmail(pessoa.getEmail());
+        dto.setDataCadastro(pessoa.getDataCadastro());
+        dto.setDataUltimaAlteracao(pessoa.getDataUltimaAlteracao());
+        if (pessoa instanceof Admin) {
+            dto.setTipoPessoa("ADMIN");
+        } else if (pessoa instanceof Proprietario proprietario) {
+            dto.setTipoPessoa("PROPRIETARIO");
+            dto.setRg(proprietario.getRg());
+            dto.setExibirNoSitePublico(proprietario.isExibirNoSitePublico());
+        }
         dto.setRoles(usuario.getRoles().stream()
                 .map(role -> role.getNome().name())
                 .collect(Collectors.toSet()));
 
-        Logradouro l = usuario.getLogradouro();
+        Logradouro l = pessoa.getLogradouro();
         if (l != null) {
             LogradouroDTO endereco = new LogradouroDTO();
             endereco.setLogradouro(l.getLogradouro());

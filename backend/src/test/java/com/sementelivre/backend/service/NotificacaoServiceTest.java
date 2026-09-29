@@ -13,7 +13,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import static org.mockito.ArgumentMatchers.any;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -21,8 +23,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.sementelivre.backend.dto.NotificacaoRequestDTO;
 import com.sementelivre.backend.dto.NotificacaoResponseDTO;
+import com.sementelivre.backend.entity.Itens;
 import com.sementelivre.backend.entity.Notificacao;
+import com.sementelivre.backend.entity.Pedido;
+import com.sementelivre.backend.entity.Produto;
 import com.sementelivre.backend.entity.Proprietario;
+import com.sementelivre.backend.entity.Usuario;
+import com.sementelivre.backend.entity.enums.TipoPedido;
 import com.sementelivre.backend.exception.RecursoNaoEncontradoException;
 import com.sementelivre.backend.repository.NotificacaoRepository;
 
@@ -170,5 +177,86 @@ class NotificacaoServiceTest {
                 () -> notificacaoService.deletar(notificacaoId));
 
         verify(notificacaoRepository, never()).delete(any(Notificacao.class));
+    }
+
+    // ---- CDU-26: notificacao automatica quando o pedido e confirmado (#69) ----
+
+    /** Monta um pedido confirmado com 1 solicitante e 2 itens. */
+    private Pedido pedidoConfirmado() {
+
+        Usuario solicitante = mock(Usuario.class);
+        when(solicitante.getNome()).thenReturn("Maria Silva");
+
+        Produto feijao = Produto.builder().nomePopular("Feijao Crioulo").build();
+        Produto milho = Produto.builder().nomePopular("Milho").build();
+
+        return Pedido.builder()
+                .id(UUID.randomUUID())
+                .tipoPedido(TipoPedido.TROCA)
+                .usuarioSolicitante(solicitante)
+                .proprietarioRecebedor(proprietario)
+                .itens(List.of(
+                        Itens.builder().produto(feijao).quantidade(2.0).build(),
+                        Itens.builder().produto(milho).quantidade(1.5).build()))
+                .build();
+    }
+
+    /** Captura a notificacao que o service mandou salvar. */
+    private Notificacao notificacaoSalva(Pedido pedido) {
+
+        ArgumentCaptor<Notificacao> captor = ArgumentCaptor.forClass(Notificacao.class);
+
+        when(notificacaoRepository.saveAndFlush(captor.capture())).thenReturn(notificacao);
+
+        notificacaoService.criarParaPedidoConfirmado(pedido);
+
+        return captor.getValue();
+    }
+
+    @Test
+    void mensagemDoPedidoConfirmadoDeveTerTipoSolicitanteEItens() {
+        Pedido pedido = pedidoConfirmado();
+
+        String mensagem = notificacaoSalva(pedido).getMensagem();
+
+        assertTrue(mensagem.contains("Pedido de TROCA confirmado"), mensagem);
+        assertTrue(mensagem.contains("Solicitante: Maria Silva"), mensagem);
+        assertTrue(mensagem.contains("Feijao Crioulo"), mensagem);
+        assertTrue(mensagem.contains("Milho"), mensagem);
+    }
+
+    @Test
+    void mensagemDeveMostrarQuantidadeSemCasaDecimalDesnecessaria() {
+        Pedido pedido = pedidoConfirmado();
+
+        String mensagem = notificacaoSalva(pedido).getMensagem();
+
+        assertTrue(mensagem.contains("2 x Feijao Crioulo"), mensagem);
+        assertTrue(mensagem.contains("1.5 x Milho"), mensagem);
+    }
+
+    @Test
+    void notificacaoDoPedidoConfirmadoDeveManterTituloEDestinatario() {
+        Pedido pedido = pedidoConfirmado();
+
+        Notificacao salva = notificacaoSalva(pedido);
+
+        // O titulo e usado pelo teste de integracao do Dev 8: nao pode mudar.
+        assertEquals("Pedido confirmado", salva.getTitulo());
+        assertFalse(salva.isLida());
+    }
+
+    @Test
+    void mensagemDeveFuncionarQuandoPedidoNaoTemItens() {
+        Pedido pedido = Pedido.builder()
+                .id(UUID.randomUUID())
+                .tipoPedido(TipoPedido.DOACAO)
+                .proprietarioRecebedor(proprietario)
+                .itens(List.of())
+                .build();
+
+        String mensagem = notificacaoSalva(pedido).getMensagem();
+
+        assertEquals("Pedido de DOACAO confirmado.", mensagem);
     }
 }
