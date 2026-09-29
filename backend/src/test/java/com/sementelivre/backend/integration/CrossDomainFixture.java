@@ -15,7 +15,6 @@ import com.sementelivre.backend.entity.enums.Disponibilidade;
 import com.sementelivre.backend.entity.enums.EspecieGeral;
 import com.sementelivre.backend.entity.enums.FormatoProduto;
 import com.sementelivre.backend.entity.enums.Pesagem;
-import com.sementelivre.backend.entity.enums.TipoDocumento;
 import com.sementelivre.backend.entity.enums.TipoMovimentacao;
 import com.sementelivre.backend.entity.enums.TipoPedido;
 import com.sementelivre.backend.entity.enums.TipoProduto;
@@ -39,14 +38,10 @@ final class CrossDomainFixture {
 
         Proprietario proprietario = DatabaseFixture.persistProprietario(entityManager, sufixo);
 
-        Usuario usuario = new Usuario();
-        usuario.setTipoDocumento(TipoDocumento.CPF);
-        usuario.setDocumento("529" + UUID.randomUUID().toString().replace("-", "").substring(0, 8));
-        usuario.setNome("Usuario Cross Domain " + sufixo);
-        usuario.setEmail("usuario.cross." + sufixo + "@teste.com");
-        usuario.setSenhaHash("hash123");
-        entityManager.persist(usuario);
-        entityManager.flush();
+        // Pedido ainda referencia usuario_t: o solicitante e a conta de outro proprietario.
+        String sufixoSolicitante = UUID.randomUUID().toString().replace("-", "").substring(0, 8);
+        Proprietario solicitante = DatabaseFixture.persistProprietario(entityManager, sufixoSolicitante);
+        Usuario usuario = DatabaseFixture.persistUsuario(entityManager, solicitante);
 
         Produto produto = produtoRepository.saveAndFlush(Produto.builder()
                 .nomePopular("Produto Cross Domain " + sufixo)

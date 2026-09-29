@@ -109,7 +109,8 @@ public class ProprietarioControllerTest {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.status").value(409))
                 .andExpect(jsonPath("$.error").value("Conflict"))
-                .andExpect(jsonPath("$.message").value("RG já cadastrado no sistema."));
+                .andExpect(jsonPath("$.message").value("RG já cadastrado no sistema."))
+                .andExpect(jsonPath("$.fieldErrors[0]").value("rg: RG já cadastrado no sistema."));
     }
 
     @Test

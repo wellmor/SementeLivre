@@ -1,5 +1,6 @@
 package com.sementelivre.backend.service;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -7,6 +8,7 @@ import org.springframework.stereotype.Service;
 
 import com.sementelivre.backend.dto.NotificacaoRequestDTO;
 import com.sementelivre.backend.dto.NotificacaoResponseDTO;
+import com.sementelivre.backend.entity.Itens;
 import com.sementelivre.backend.entity.Notificacao;
 import com.sementelivre.backend.entity.Pedido;
 import com.sementelivre.backend.entity.Proprietario;
@@ -55,12 +57,73 @@ public class NotificacaoService
 
         Notificacao notificacao = Notificacao.builder()
             .titulo("Pedido confirmado")
-            .mensagem("O pedido " + pedido.getId() + " foi confirmado.")
+            .mensagem(montarMensagemDoPedido(pedido))
             .proprietario(proprietarioGerenciado)
             .pedidoRelacionado(pedidoGerenciado)
             .build();
 
         return toResponseDTO(notificacaoRepository.saveAndFlush(notificacao));
+    }
+
+    // Monta o texto da notificacao com os detalhes do pedido, como pede o CDU-26.
+    // Exemplo: "Pedido de TROCA confirmado. Solicitante: Maria. Itens: 2 x Feijao Crioulo."
+    private String montarMensagemDoPedido(Pedido pedido) {
+
+        StringBuilder mensagem = new StringBuilder();
+
+        if (pedido.getTipoPedido() != null) {
+            mensagem.append("Pedido de ").append(pedido.getTipoPedido()).append(" confirmado.");
+        } else {
+            mensagem.append("Pedido confirmado.");
+        }
+
+        if (pedido.getUsuarioSolicitante() != null) {
+            mensagem.append(" Solicitante: ").append(pedido.getUsuarioSolicitante().getNome()).append(".");
+        }
+
+        String itens = montarListaDeItens(pedido);
+
+        if (!itens.isEmpty()) {
+            mensagem.append(" Itens: ").append(itens).append(".");
+        }
+
+        return mensagem.toString();
+    }
+
+    // Junta os itens em um texto so: "2 x Feijao Crioulo, 1 x Milho"
+    private String montarListaDeItens(Pedido pedido) {
+
+        if (pedido.getItens() == null) {
+            return "";
+        }
+
+        List<String> itens = new ArrayList<>();
+
+        for (Itens item : pedido.getItens()) {
+            String nomeProduto = "produto";
+
+            if (item.getProduto() != null && item.getProduto().getNomePopular() != null) {
+                nomeProduto = item.getProduto().getNomePopular();
+            }
+
+            itens.add(formatarQuantidade(item.getQuantidade()) + " x " + nomeProduto);
+        }
+
+        return String.join(", ", itens);
+    }
+
+    // A quantidade e Double: mostra 2 em vez de 2.0 quando nao tem casa decimal
+    private String formatarQuantidade(Double quantidade) {
+
+        if (quantidade == null) {
+            return "0";
+        }
+
+        if (quantidade == Math.floor(quantidade)) {
+            return String.valueOf(quantidade.longValue());
+        }
+
+        return String.valueOf(quantidade);
     }
 
     public void desvincularPedido(UUID pedidoId) {

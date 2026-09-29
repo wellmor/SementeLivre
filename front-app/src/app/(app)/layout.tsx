@@ -1,12 +1,12 @@
 'use client';
 
-import React from 'react';
-import { AuthProvider } from '@/context/AuthContext';
+import React, { useEffect } from 'react';
+import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { NotificationProvider } from '@/context/NotificationContext';
 import { Header } from '@/components/layout/Header';
 import { BottomNavigation } from '@/components/layout/BottomNavigation';
-import { ToastProvider } from '@/components/feedback/Toast';
-import { usePathname } from 'next/navigation';
+import { Button } from '@/components/ui/button';
+import { usePathname, useRouter } from 'next/navigation';
 import styles from './app.module.css';
 
 const headerConfig: Record<string, { title: string; showBack?: boolean; showNotifications?: boolean }> = {
@@ -23,7 +23,37 @@ const headerConfig: Record<string, { title: string; showBack?: boolean; showNoti
 };
 
 function AppLayoutInner({ children }: { children: React.ReactNode }) {
+  const { user, loading, semConexao } = useAuth();
+  const router = useRouter();
   const pathname = usePathname();
+
+  useEffect(() => {
+    if (!loading && !user && !semConexao) {
+      router.replace('/entrar');
+    }
+  }, [loading, user, semConexao, router]);
+
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', minHeight: '100vh', alignItems: 'center', justifyContent: 'center' }}>
+        <p style={{ color: 'var(--color-text-muted)', fontFamily: 'sans-serif' }}>Carregando sessão...</p>
+      </div>
+    );
+  }
+
+  // Sessão salva, mas o backend não respondeu: não desloga, oferece tentar de novo.
+  if (!user && semConexao) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', minHeight: '100vh', alignItems: 'center', justifyContent: 'center', padding: 'var(--content-padding)' }}>
+        <p style={{ color: 'var(--color-text-muted)', textAlign: 'center' }}>Não foi possível falar com o servidor.</p>
+        <Button variant="primary" onClick={() => window.location.reload()}>Tentar novamente</Button>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
 
   const config = Object.entries(headerConfig).find(([key]) =>
     pathname === key || (key !== '/sementes' && key !== '/pedidos' && key !== '/propriedades' && pathname.startsWith(key + '/'))
@@ -48,9 +78,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <AuthProvider>
       <NotificationProvider>
-        <ToastProvider>
-          <AppLayoutInner>{children}</AppLayoutInner>
-        </ToastProvider>
+        <AppLayoutInner>{children}</AppLayoutInner>
       </NotificationProvider>
     </AuthProvider>
   );

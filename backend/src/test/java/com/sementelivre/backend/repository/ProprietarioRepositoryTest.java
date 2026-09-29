@@ -25,7 +25,6 @@ public class ProprietarioRepositoryTest extends AbstractPostgresIntegrationTest 
         proprietario.setDocumento("12345678901");
         proprietario.setNome("Proprietario Rep Test");
         proprietario.setEmail("proprep@teste.com");
-        proprietario.setSenhaHash("hash123");
         proprietario.setRg("MG-999999");
         proprietario.setExibirNoSitePublico(true);
 

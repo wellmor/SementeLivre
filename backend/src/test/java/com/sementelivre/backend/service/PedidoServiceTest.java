@@ -93,10 +93,14 @@ class PedidoServiceTest {
         proprietario = new Proprietario();
         proprietario.setId(proprietarioId);
 
+        Proprietario solicitante = new Proprietario();
+        solicitante.setId(usuarioId);
+        solicitante.setNome("João");
+        solicitante.setEmail("joao@exemplo.com");
+
         usuario = new Usuario();
         usuario.setId(usuarioId);
-        usuario.setNome("João");
-        usuario.setEmail("joao@exemplo.com");
+        usuario.setPessoa(solicitante);
 
         estoque = Estoque.builder()
                 .id(UUID.randomUUID())

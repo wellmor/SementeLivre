@@ -72,18 +72,14 @@ class NotificacaoRelatorioPersistenciaTest extends AbstractPostgresIntegrationTe
         proprietario.setDocumento("529" + sufixo);
         proprietario.setNome("Proprietario " + sufixo);
         proprietario.setEmail("proprietario." + sufixo + "@teste.com");
-        proprietario.setSenhaHash("hash123");
         proprietario.setRg("MG-" + sufixo);
         return proprietario;
     }
 
+        /** Conta de login de outro proprietario, usada como solicitante do pedido. */
         private Usuario novoUsuario() {
-                String sufixo = UUID.randomUUID().toString().substring(0, 8);
                 Usuario usuario = new Usuario();
-                usuario.setTipoDocumento(TipoDocumento.CPF);
-                usuario.setDocumento("529" + sufixo);
-                usuario.setNome("Usuario " + sufixo);
-                usuario.setEmail("usuario." + sufixo + "@teste.com");
+                usuario.setPessoa(novoProprietario());
                 usuario.setSenhaHash("hash123");
                 return usuario;
         }
@@ -108,6 +104,7 @@ class NotificacaoRelatorioPersistenciaTest extends AbstractPostgresIntegrationTe
 
         // Act
         entityManager.persist(proprietario);
+        entityManager.persist(usuario.getPessoa());
         entityManager.persist(usuario);
         entityManager.persist(pedido);
         entityManager.persist(notificacao);
