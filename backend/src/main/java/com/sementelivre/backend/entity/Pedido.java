@@ -69,6 +69,12 @@ public class Pedido {
     @JoinColumn(name = "proprietario_recebedor_id", nullable = false)
     private Proprietario proprietarioRecebedor;
 
+    // Opcional: pedidos anteriores a V6 nao tem comprador. O comprador nasce
+    // junto com o pedido, por isso o PERSIST em cascata.
+    @ManyToOne(fetch = FetchType.LAZY, cascade = CascadeType.PERSIST)
+    @JoinColumn(name = "comprador_id")
+    private Comprador comprador;
+
     // Composicao: os itens nao existem fora do pedido (cascade + orphanRemoval)
     @Builder.Default
     @OneToMany(mappedBy = "pedido", cascade = CascadeType.ALL, orphanRemoval = true)

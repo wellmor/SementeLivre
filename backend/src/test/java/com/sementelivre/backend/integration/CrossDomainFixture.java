@@ -73,7 +73,8 @@ final class CrossDomainFixture {
                 "Pedido Cross Domain",
                 scenario.usuario().getId(),
                 scenario.proprietario().getId(),
-                List.of(new ItemPedidoRequestDTO(scenario.produto().getId(), quantidade, 10.0)));
+                List.of(new ItemPedidoRequestDTO(scenario.produto().getId(), quantidade, 10.0)),
+                null);
     }
 
     record Scenario(Proprietario proprietario, Usuario usuario, Produto produto) {

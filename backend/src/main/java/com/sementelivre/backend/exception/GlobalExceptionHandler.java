@@ -37,7 +37,7 @@ public class GlobalExceptionHandler {
     private static final String MENSAGEM_GENERICA_INTEGRIDADE = "Violação de integridade nos dados.";
 
     //trata erro 404 (recurso não encontrado)
-    @ExceptionHandler({ResourceNotFoundException.class, NoSuchElementException.class})
+    @ExceptionHandler({ResourceNotFoundException.class, RecursoNaoEncontradoException.class, NoSuchElementException.class})
     public ResponseEntity<ErrorResponse> handleResourceNotFound(RuntimeException e, HttpServletRequest request){
         HttpStatus status = HttpStatus.NOT_FOUND;
 
@@ -81,6 +81,22 @@ public class GlobalExceptionHandler {
             status.value(),
             request.getRequestURI(),
             List.of("senhaAtual: " + e.getMessage())
+        );
+        return ResponseEntity.status(status).body(err);
+    }
+
+    //trata erro 422 - pedido com quantidade maior que o estoque disponível
+    @ExceptionHandler(EstoqueInsuficienteException.class)
+    public ResponseEntity<ErrorResponse> handleEstoqueInsuficiente(EstoqueInsuficienteException e, HttpServletRequest request) {
+        HttpStatus status = HttpStatus.UNPROCESSABLE_ENTITY;
+
+        ErrorResponse err = new ErrorResponse(
+            "Insufficient Stock",
+            e.getMessage(),
+            Instant.now(),
+            status.value(),
+            request.getRequestURI(),
+            null
         );
         return ResponseEntity.status(status).body(err);
     }
@@ -172,7 +188,7 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(status).body(err);
     }
 
-    private String mensagemParaViolacao(DataIntegrityViolationException ex) {
+    private String constraintConhecida(DataIntegrityViolationException ex) {
         String constraintName = extrairNomeConstraint(ex);
         if (constraintName != null && MENSAGENS_POR_CONSTRAINT.containsKey(constraintName)) {
             return constraintName;

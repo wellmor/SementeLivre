@@ -49,15 +49,39 @@ public class NotificacaoService
         return toResponseDTO(salva);
     }
 
+    // ---- CDU-26: notificacoes automaticas do ciclo de vida do pedido ----
+    // Cada evento que mexe no estoque (registro reserva, cancelamento devolve)
+    // ou no status gera um aviso para o proprietario que recebeu o pedido.
+
+    public NotificacaoResponseDTO criarParaPedidoRegistrado(Pedido pedido) {
+        return criarParaPedido(pedido, "Novo pedido recebido", "registrado", null);
+    }
+
     public NotificacaoResponseDTO criarParaPedidoConfirmado(Pedido pedido) {
+        return criarParaPedido(pedido, "Pedido confirmado", "confirmado", null);
+    }
+
+    public NotificacaoResponseDTO criarParaPedidoCancelado(Pedido pedido) {
+        return criarParaPedido(pedido, "Pedido cancelado", "cancelado",
+                "O estoque reservado foi devolvido.");
+    }
+
+    private NotificacaoResponseDTO criarParaPedido(
+            Pedido pedido, String titulo, String evento, String complemento) {
+
         entityManager.flush();
         Pedido pedidoGerenciado = entityManager.getReference(Pedido.class, pedido.getId());
         Proprietario proprietarioGerenciado = entityManager.getReference(
             Proprietario.class, pedido.getProprietarioRecebedor().getId());
 
+        String mensagem = montarMensagemDoPedido(pedido, evento);
+        if (complemento != null) {
+            mensagem += " " + complemento;
+        }
+
         Notificacao notificacao = Notificacao.builder()
-            .titulo("Pedido confirmado")
-            .mensagem(montarMensagemDoPedido(pedido))
+            .titulo(titulo)
+            .mensagem(mensagem)
             .proprietario(proprietarioGerenciado)
             .pedidoRelacionado(pedidoGerenciado)
             .build();
@@ -67,18 +91,22 @@ public class NotificacaoService
 
     // Monta o texto da notificacao com os detalhes do pedido, como pede o CDU-26.
     // Exemplo: "Pedido de TROCA confirmado. Solicitante: Maria. Itens: 2 x Feijao Crioulo."
-    private String montarMensagemDoPedido(Pedido pedido) {
+    private String montarMensagemDoPedido(Pedido pedido, String evento) {
 
         StringBuilder mensagem = new StringBuilder();
 
         if (pedido.getTipoPedido() != null) {
-            mensagem.append("Pedido de ").append(pedido.getTipoPedido()).append(" confirmado.");
+            mensagem.append("Pedido de ").append(pedido.getTipoPedido()).append(" ").append(evento).append(".");
         } else {
-            mensagem.append("Pedido confirmado.");
+            mensagem.append("Pedido ").append(evento).append(".");
         }
 
         if (pedido.getUsuarioSolicitante() != null) {
             mensagem.append(" Solicitante: ").append(pedido.getUsuarioSolicitante().getNome()).append(".");
+        }
+
+        if (pedido.getComprador() != null) {
+            mensagem.append(" Comprador: ").append(pedido.getComprador().getNome()).append(".");
         }
 
         String itens = montarListaDeItens(pedido);
@@ -144,6 +172,14 @@ public class NotificacaoService
     @Override
     public List<NotificacaoResponseDTO> listar() {
         return notificacaoRepository.findAll()
+                .stream()
+                .map(this::toResponseDTO)
+                .toList();
+    }
+
+    // READ - historico de um proprietario
+    public List<NotificacaoResponseDTO> listarPorProprietario(UUID proprietarioId) {
+        return notificacaoRepository.findByProprietarioIdOrderByDataGeracaoDesc(proprietarioId)
                 .stream()
                 .map(this::toResponseDTO)
                 .toList();
