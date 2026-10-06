@@ -6,7 +6,7 @@
  *  - Tentar renovar o accessToken via /auth/refresh quando receber 401.
  *  - Persistir / limpar tokens no localStorage de forma padronizada.
  *  - Avisar por toast quando não há conexão ou quando a sessão expira.
- *  - Exportar helpers tipados: apiGet, apiPost, apiPut, apiDelete.
+ *  - Exportar helpers tipados: apiGet, apiPost, apiPut, apiPatch, apiDelete.
  */
 
 import { emitirToast } from './toast';
@@ -211,6 +211,27 @@ export function apiPut<T>(path: string, body?: unknown, options?: RequestOptions
   return request<T>(path, { ...options, method: 'PUT', body });
 }
 
+export function apiPatch<T>(path: string, body?: unknown, options?: RequestOptions): Promise<T> {
+  return request<T>(path, { ...options, method: 'PATCH', body });
+}
+
 export function apiDelete<T>(path: string, options?: RequestOptions): Promise<T> {
   return request<T>(path, { ...options, method: 'DELETE' });
+}
+
+/** Anexa os parâmetros preenchidos à rota: comQuery('/pedidos', { status: 'PENDENTE', tipo: undefined }). */
+export function comQuery(path: string, query: Record<string, string | number | null | undefined>): string {
+  const params = new URLSearchParams();
+  Object.entries(query).forEach(([chave, valor]) => {
+    if (valor !== undefined && valor !== null && valor !== '') params.set(chave, String(valor));
+  });
+  const qs = params.toString();
+  return qs ? `${path}?${qs}` : path;
+}
+
+/** Mensagem para a tela: a do backend quando houver, senão o texto padrão. */
+export function errorMessage(err: unknown, fallback: string): string {
+  if (isApiError(err) && err.message) return err.message;
+  if (err instanceof Error && err.message) return err.message;
+  return fallback;
 }
