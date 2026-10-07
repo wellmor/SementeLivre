@@ -53,7 +53,26 @@ public class NotificacaoService
         return toResponseDTO(salva);
     }
 
+    // ---- CDU-26: notificacoes automaticas do ciclo de vida do pedido ----
+    // Cada evento que mexe no estoque (registro reserva, cancelamento devolve)
+    // ou no status gera um aviso para o proprietario que recebeu o pedido.
+
+    public NotificacaoResponseDTO criarParaPedidoRegistrado(Pedido pedido) {
+        return criarParaPedido(pedido, "Novo pedido recebido", "registrado", null);
+    }
+
     public NotificacaoResponseDTO criarParaPedidoConfirmado(Pedido pedido) {
+        return criarParaPedido(pedido, "Pedido confirmado", "confirmado", null);
+    }
+
+    public NotificacaoResponseDTO criarParaPedidoCancelado(Pedido pedido) {
+        return criarParaPedido(pedido, "Pedido cancelado", "cancelado",
+                "O estoque reservado foi devolvido.");
+    }
+
+    private NotificacaoResponseDTO criarParaPedido(
+            Pedido pedido, String titulo, String evento, String complemento) {
+
         entityManager.flush();
 
         // Destinatário é quem PEDIU, não quem confirmou: quem confirma é o dono
@@ -115,30 +134,39 @@ public class NotificacaoService
 
         Pedido pedidoGerenciado = entityManager.getReference(Pedido.class, pedido.getId());
 
+        String mensagem = montarMensagemDoPedido(pedido, evento);
+        if (complemento != null) {
+            mensagem += " " + complemento;
+        }
+
         Notificacao notificacao = Notificacao.builder()
-                .titulo(titulo)
-                .mensagem(mensagem)
-                .proprietario(destinatario)
-                .pedidoRelacionado(pedidoGerenciado)
-                .build();
+            .titulo(titulo)
+            .mensagem(mensagem)
+            .proprietario(proprietarioGerenciado)
+            .pedidoRelacionado(pedidoGerenciado)
+            .build();
 
         return toResponseDTO(notificacaoRepository.saveAndFlush(notificacao));
     }
 
     // Monta o texto da notificacao com os detalhes do pedido, como pede o CDU-26.
     // Exemplo: "Pedido de TROCA confirmado. Solicitante: Maria. Itens: 2 x Feijao Crioulo."
-    private String montarMensagemDoPedido(Pedido pedido, String situacao) {
+    private String montarMensagemDoPedido(Pedido pedido, String evento) {
 
         StringBuilder mensagem = new StringBuilder();
 
         if (pedido.getTipoPedido() != null) {
-            mensagem.append("Pedido de ").append(pedido.getTipoPedido()).append(" ").append(situacao).append(".");
+            mensagem.append("Pedido de ").append(pedido.getTipoPedido()).append(" ").append(evento).append(".");
         } else {
-            mensagem.append("Pedido ").append(situacao).append(".");
+            mensagem.append("Pedido ").append(evento).append(".");
         }
 
         if (pedido.getUsuarioSolicitante() != null) {
             mensagem.append(" Solicitante: ").append(pedido.getUsuarioSolicitante().getNome()).append(".");
+        }
+
+        if (pedido.getComprador() != null) {
+            mensagem.append(" Comprador: ").append(pedido.getComprador().getNome()).append(".");
         }
 
         String itens = montarListaDeItens(pedido);
@@ -213,9 +241,12 @@ public class NotificacaoService
                 .toList();
     }
 
-    // Quantas ainda não foram lidas, para o badge do cabeçalho.
-    public long contarNaoLidas() {
-        return notificacaoRepository.countByProprietarioIdAndLidaFalse(usuarioAtualId());
+    // READ - historico de um proprietario
+    public List<NotificacaoResponseDTO> listarPorProprietario(UUID proprietarioId) {
+        return notificacaoRepository.findByProprietarioIdOrderByDataGeracaoDesc(proprietarioId)
+                .stream()
+                .map(this::toResponseDTO)
+                .toList();
     }
 
     // UPDATE

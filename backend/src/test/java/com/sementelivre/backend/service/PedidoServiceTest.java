@@ -1,11 +1,14 @@
 package com.sementelivre.backend.service;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -17,7 +20,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.sementelivre.backend.dto.CompradorDTO;
 import com.sementelivre.backend.dto.ItemPedidoRequestDTO;
+import com.sementelivre.backend.dto.PedidoFiltroDTO;
 import com.sementelivre.backend.dto.PedidoRequestDTO;
 import com.sementelivre.backend.dto.PedidoResponseDTO;
 import com.sementelivre.backend.dto.PedidoUpdateDTO;
@@ -27,6 +32,7 @@ import com.sementelivre.backend.entity.Pedido;
 import com.sementelivre.backend.entity.Produto;
 import com.sementelivre.backend.entity.Proprietario;
 import com.sementelivre.backend.entity.Usuario;
+import com.sementelivre.backend.entity.enums.Disponibilidade;
 import com.sementelivre.backend.entity.enums.StatusPedido;
 import com.sementelivre.backend.entity.enums.TipoPedido;
 import com.sementelivre.backend.entity.repository.EstoqueRepository;
@@ -108,6 +114,7 @@ class PedidoServiceTest {
                 .proprietario(proprietario)
                 .quantidade(ESTOQUE_INICIAL)
                 .preco(15.0)
+                .disponibilidade(Disponibilidade.PARA_VENDA)
                 .build();
     }
 
@@ -128,6 +135,40 @@ class PedidoServiceTest {
 
         assertEquals(ESTOQUE_INICIAL - QUANTIDADE_PEDIDA, estoque.getQuantidade());
         verify(estoqueRepository).save(estoque);
+        verify(notificacaoService).criarParaPedidoRegistrado(any(Pedido.class));
+    }
+
+    @Test
+    void deveCriarPedidoComCompradorERetornarNomeDoProduto() {
+        mockUsuarioEProdutoExistentes();
+        mockEstoqueDisponivel();
+        mockSalvarPedido();
+
+        PedidoRequestDTO dto = new PedidoRequestDTO(
+                TipoPedido.DOACAO,
+                null,
+                usuarioId,
+                proprietarioId,
+                List.of(new ItemPedidoRequestDTO(produtoId, QUANTIDADE_PEDIDA, null)),
+                new CompradorDTO("  Maria Silva ", "32999990000")
+        );
+
+        PedidoResponseDTO resposta = pedidoService.criar(dto);
+
+        assertEquals("Maria Silva", resposta.comprador().nome());
+        assertEquals("32999990000", resposta.comprador().telefone());
+        assertEquals("Milho crioulo", resposta.itens().get(0).nomeProduto());
+    }
+
+    @Test
+    void deveCriarPedidoSemComprador() {
+        mockUsuarioEProdutoExistentes();
+        mockEstoqueDisponivel();
+        mockSalvarPedido();
+
+        PedidoResponseDTO resposta = pedidoService.criar(requestComQuantidade(QUANTIDADE_PEDIDA));
+
+        assertNull(resposta.comprador());
     }
 
     @Test
@@ -140,8 +181,10 @@ class PedidoServiceTest {
                 () -> pedidoService.criar(requestComQuantidade(ESTOQUE_INICIAL + 1))
         );
 
-        assertTrueContem(erro.getMessage(), "Estoque insuficiente");
+        assertEquals("Estoque insuficiente para o produto Milho crioulo: disponível 10, solicitado 11.",
+                erro.getMessage());
         verify(pedidoRepository, never()).save(any(Pedido.class));
+        verify(notificacaoService, never()).criarParaPedidoRegistrado(any(Pedido.class));
     }
 
     @Test
@@ -151,11 +194,79 @@ class PedidoServiceTest {
         when(estoqueRepository.findParaAtualizacao(proprietarioId, produtoId))
                 .thenReturn(Optional.empty());
 
-        assertThrows(
+        EstoqueInsuficienteException erro = assertThrows(
                 EstoqueInsuficienteException.class,
                 () -> pedidoService.criar(requestComQuantidade(QUANTIDADE_PEDIDA))
         );
 
+        assertEquals("O produto Milho crioulo não está disponível no estoque deste proprietário.",
+                erro.getMessage());
+        verify(pedidoRepository, never()).save(any(Pedido.class));
+    }
+
+    @Test
+    void naoDeveCriarPedidoQuandoEstoqueEstaIndisponivel() {
+        estoque.setDisponibilidade(Disponibilidade.INDISPONIVEL);
+        mockUsuarioEProdutoExistentes();
+        mockEstoqueDisponivel();
+
+        EstoqueInsuficienteException erro = assertThrows(
+                EstoqueInsuficienteException.class,
+                () -> pedidoService.criar(requestComQuantidade(QUANTIDADE_PEDIDA))
+        );
+
+        assertEquals("O produto Milho crioulo está marcado como indisponível no estoque deste proprietário.",
+                erro.getMessage());
+        assertEquals(ESTOQUE_INICIAL, estoque.getQuantidade());
+        verify(estoqueRepository, never()).save(any(Estoque.class));
+        verify(pedidoRepository, never()).save(any(Pedido.class));
+    }
+
+    @Test
+    void deveConsolidarProdutoRepetidoEmUmUnicoItem() {
+        mockUsuarioEProdutoExistentes();
+        mockEstoqueDisponivel();
+        mockSalvarPedido();
+
+        PedidoRequestDTO dto = new PedidoRequestDTO(
+                TipoPedido.VENDA,
+                null,
+                usuarioId,
+                proprietarioId,
+                List.of(
+                        new ItemPedidoRequestDTO(produtoId, 3.0, null),
+                        new ItemPedidoRequestDTO(produtoId, 2.0, 15.0)
+                ),
+                null
+        );
+
+        PedidoResponseDTO resposta = pedidoService.criar(dto);
+
+        assertEquals(1, resposta.itens().size());
+        assertEquals(5.0, resposta.itens().get(0).quantidade());
+        assertEquals(15.0, resposta.itens().get(0).precoUnitario());
+        assertEquals(ESTOQUE_INICIAL - 5.0, estoque.getQuantidade());
+    }
+
+    @Test
+    void naoDeveCriarPedidoComMesmoProdutoEPrecosDiferentes() {
+        mockUsuarioEProdutoExistentes();
+
+        PedidoRequestDTO dto = new PedidoRequestDTO(
+                TipoPedido.VENDA,
+                null,
+                usuarioId,
+                proprietarioId,
+                List.of(
+                        new ItemPedidoRequestDTO(produtoId, 3.0, 15.0),
+                        new ItemPedidoRequestDTO(produtoId, 2.0, 12.0)
+                ),
+                null
+        );
+
+        assertThrows(IllegalArgumentException.class, () -> pedidoService.criar(dto));
+
+        verify(estoqueRepository, never()).save(any(Estoque.class));
         verify(pedidoRepository, never()).save(any(Pedido.class));
     }
 
@@ -173,7 +284,8 @@ class PedidoServiceTest {
                 List.of(
                         new ItemPedidoRequestDTO(produtoId, 6.0, 15.0),
                         new ItemPedidoRequestDTO(produtoId, 5.0, 15.0)
-                )
+                ),
+                null
         );
 
         assertThrows(
@@ -282,6 +394,7 @@ class PedidoServiceTest {
         assertEquals(ESTOQUE_INICIAL, estoque.getQuantidade());
 
         verify(estoqueRepository).save(estoque);
+        verify(notificacaoService).criarParaPedidoCancelado(any(Pedido.class));
     }
 
     @Test
@@ -295,6 +408,43 @@ class PedidoServiceTest {
 
         // Cancelar duas vezes devolveria o estoque em dobro
         verify(estoqueRepository, never()).save(any(Estoque.class));
+        verify(notificacaoService, never()).criarParaPedidoCancelado(any(Pedido.class));
+    }
+
+    @Test
+    void deveCancelarPedidoBuscandoComLock() {
+        estoque.setQuantidade(ESTOQUE_INICIAL - QUANTIDADE_PEDIDA);
+        mockBuscaPedido(pedidoPendente());
+        mockEstoqueParaAtualizacao();
+        mockSalvarPedido();
+
+        pedidoService.cancelar(pedidoId);
+
+        // A busca sem lock deixaria dois cancelamentos simultaneos restaurarem em dobro
+        verify(pedidoRepository).findParaAtualizacao(pedidoId);
+        verify(pedidoRepository, never()).findByIdComItens(any(UUID.class));
+    }
+
+    @Test
+    void deveExcluirPedidoCanceladoSemRestaurarEstoqueNovamente() {
+        Pedido pedido = pedidoComStatus(StatusPedido.CANCELADO);
+        mockBuscaPedido(pedido);
+
+        pedidoService.excluir(pedidoId);
+
+        verify(estoqueRepository, never()).findParaAtualizacao(any(UUID.class), any(UUID.class));
+        verify(estoqueRepository, never()).save(any(Estoque.class));
+        verify(pedidoRepository).delete(pedido);
+    }
+
+    @Test
+    void deveLancarExcecaoAoCancelarPedidoInexistente() {
+        when(pedidoRepository.findParaAtualizacao(pedidoId)).thenReturn(Optional.empty());
+
+        assertThrows(
+                RecursoNaoEncontradoException.class,
+                () -> pedidoService.cancelar(pedidoId)
+        );
     }
 
     // EXCLUIR (CDU-14)
@@ -404,6 +554,38 @@ class PedidoServiceTest {
     }
 
     @Test
+    void deveFiltrarHistoricoPorPeriodoTipoStatusEProduto() {
+        Pedido antigo = pedidoComStatus(StatusPedido.CONFIRMADO);
+        antigo.setId(UUID.randomUUID());
+        antigo.setDataPedido(LocalDateTime.of(2026, 8, 10, 9, 0));
+
+        Pedido recente = pedidoComStatus(StatusPedido.PENDENTE);
+        recente.setId(UUID.randomUUID());
+        recente.setTipoPedido(TipoPedido.TROCA);
+        recente.setDataPedido(LocalDateTime.of(2026, 9, 20, 23, 59));
+
+        when(pedidoRepository.findAllByProprietarioRecebedorId(proprietarioId))
+                .thenReturn(List.of(antigo, recente));
+
+        // sem filtro: os dois, mais recente primeiro
+        List<PedidoResponseDTO> todos = pedidoService.listarTodos(proprietarioId, PedidoFiltroDTO.vazio());
+        assertEquals(List.of(recente.getId(), antigo.getId()), todos.stream().map(PedidoResponseDTO::id).toList());
+
+        // periodo inclusivo: o pedido das 23:59 do ultimo dia entra
+        assertEquals(List.of(recente.getId()), ids(new PedidoFiltroDTO(
+                LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 20), null, null, null)));
+
+        assertEquals(List.of(recente.getId()), ids(new PedidoFiltroDTO(
+                null, null, TipoPedido.TROCA, null, null)));
+
+        assertEquals(List.of(antigo.getId()), ids(new PedidoFiltroDTO(
+                null, null, null, null, StatusPedido.CONFIRMADO)));
+
+        assertEquals(2, ids(new PedidoFiltroDTO(null, null, null, produtoId, null)).size());
+        assertEquals(0, ids(new PedidoFiltroDTO(null, null, null, UUID.randomUUID(), null)).size());
+    }
+
+    @Test
     void deveLancarExcecaoAoBuscarPedidoInexistente() {
         when(pedidoRepository.findByIdComItens(pedidoId)).thenReturn(Optional.empty());
 
@@ -415,13 +597,20 @@ class PedidoServiceTest {
 
     // AUXILIARES
 
+    private List<UUID> ids(PedidoFiltroDTO filtro) {
+        return pedidoService.listarTodos(proprietarioId, filtro).stream()
+                .map(PedidoResponseDTO::id)
+                .toList();
+    }
+
     private PedidoRequestDTO requestComQuantidade(double quantidade) {
         return new PedidoRequestDTO(
                 TipoPedido.VENDA,
                 "Pedido de teste",
                 usuarioId,
                 proprietarioId,
-                List.of(new ItemPedidoRequestDTO(produtoId, quantidade, 15.0))
+                List.of(new ItemPedidoRequestDTO(produtoId, quantidade, 15.0)),
+                null
         );
     }
 
@@ -466,8 +655,9 @@ class PedidoServiceTest {
                 .thenReturn(Optional.of(estoque));
     }
 
+    // Operacoes que mudam o pedido buscam com lock pessimista
     private void mockBuscaPedido(Pedido pedido) {
-        when(pedidoRepository.findByIdComItens(pedidoId)).thenReturn(Optional.of(pedido));
+        when(pedidoRepository.findParaAtualizacao(pedidoId)).thenReturn(Optional.of(pedido));
     }
 
     private void mockSalvarPedido() {
@@ -479,11 +669,5 @@ class PedidoServiceTest {
                     }
                     return salvo;
                 });
-    }
-
-    private void assertTrueContem(String texto, String trecho) {
-        org.junit.jupiter.api.Assertions.assertTrue(
-                texto != null && texto.contains(trecho),
-                "Esperava que a mensagem contivesse \"" + trecho + "\", mas foi: " + texto);
     }
 }

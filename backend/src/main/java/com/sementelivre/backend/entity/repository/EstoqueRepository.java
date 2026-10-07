@@ -101,6 +101,7 @@ public interface EstoqueRepository extends JpaRepository<Estoque, UUID> {
             @Param("disponibilidadesPublicas")
             List<Disponibilidade> disponibilidadesPublicas);
 
+    long countByProprietarioId(UUID proprietarioId);
     /**
      * Verifica se o Proprietario tem algum Estoque vinculado, usado para
      * bloquear exclusão de Propriedade com dependências (issue #63).

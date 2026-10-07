@@ -17,6 +17,7 @@ import com.sementelivre.backend.repository.ProprietarioRepository;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -114,12 +115,18 @@ public class PropriedadeService implements CrudService<PropriedadeRequestDTO, Pr
     @Override
     public void deletar(UUID id) {
         Propriedade propriedade = buscaPropriedadePorId(id);
-        //Verificação se tem Estoque ou Pedido vinculado a Propriedade antes da Exclusão.
-        if(estoqueRepository.existsByProprietarioId(propriedade.getProprietario().getId())){
-            throw new DependenciaVinculadaException("Não é possível excluir esta Propriedade, pois o proprietário possui Estoque vinculado.");
-        }
-        if(pedidoRepository.existsByProprietarioRecebedorId(propriedade.getProprietario().getId())){
-            throw new DependenciaVinculadaException("Não é possível excluir esta Propriedade, pois o proprietário possui Pedido vinculado.");
+        UUID proprietarioId = propriedade.getProprietario().getId();
+
+        List<String> dependencias = new ArrayList<>();
+        long estoques = estoqueRepository.countByProprietarioId(proprietarioId);
+        if (estoques > 0) dependencias.add(estoques + " estoque(s)");
+        long pedidos = pedidoRepository.countByProprietarioRecebedorId(proprietarioId);
+        if (pedidos > 0) dependencias.add(pedidos + " pedido(s)");
+
+        if (!dependencias.isEmpty()) {
+            throw new DependenciaVinculadaException(
+                    "Não é possível excluir a Propriedade \"" + propriedade.getNome()
+                            + "\", pois o proprietário possui: " + String.join(" e ", dependencias) + " vinculado(s).");
         }
         propriedadeRepository.delete(propriedade);
     }

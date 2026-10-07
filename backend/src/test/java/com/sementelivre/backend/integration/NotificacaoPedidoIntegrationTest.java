@@ -72,11 +72,59 @@ class NotificacaoPedidoIntegrationTest extends AbstractPostgresIntegrationTest {
 
         assertEquals(StatusPedido.CONFIRMADO, pedido.getStatus());
         assertEquals(ESTOQUE_INICIAL - QUANTIDADE_PEDIDA, estoque.getQuantidade());
+        // Uma do registro e uma da confirmacao
+        assertEquals(2, notificacoes.size());
+        Notificacao confirmacao = comTitulo(notificacoes, "Pedido confirmado");
+        assertFalse(confirmacao.isLida());
+        assertEquals(pedido.getId(), confirmacao.getPedidoRelacionado().getId());
+        assertEquals(scenario.proprietario().getId(), confirmacao.getProprietario().getId());
+    }
+
+    @Test
+    @Transactional
+    void registrarPedido_deveCriarNotificacaoNaoLidaParaOProprietario() {
+        CrossDomainFixture.Scenario scenario = CrossDomainFixture.create(
+                entityManager, produtoRepository, estoqueService, ESTOQUE_INICIAL);
+
+        PedidoResponseDTO criado = pedidoService.criar(
+                CrossDomainFixture.pedido(scenario, QUANTIDADE_PEDIDA));
+        entityManager.flush();
+        entityManager.clear();
+
+        List<Notificacao> notificacoes = notificacaoRepository
+                .findByProprietarioIdOrderByDataGeracaoDesc(scenario.proprietario().getId());
+
         assertEquals(1, notificacoes.size());
-        assertFalse(notificacoes.get(0).isLida());
-        assertEquals(pedido.getId(), notificacoes.get(0).getPedidoRelacionado().getId());
-        assertEquals(scenario.proprietario().getId(), notificacoes.get(0).getProprietario().getId());
-        assertEquals("Pedido confirmado", notificacoes.get(0).getTitulo());
+        Notificacao registro = comTitulo(notificacoes, "Novo pedido recebido");
+        assertFalse(registro.isLida());
+        assertEquals(criado.id(), registro.getPedidoRelacionado().getId());
+    }
+
+    @Test
+    @Transactional
+    void cancelarPedido_deveCriarNotificacaoDeCancelamento() {
+        CrossDomainFixture.Scenario scenario = CrossDomainFixture.create(
+                entityManager, produtoRepository, estoqueService, ESTOQUE_INICIAL);
+        PedidoResponseDTO criado = pedidoService.criar(
+                CrossDomainFixture.pedido(scenario, QUANTIDADE_PEDIDA));
+
+        pedidoService.cancelar(criado.id());
+        entityManager.flush();
+        entityManager.clear();
+
+        List<Notificacao> notificacoes = notificacaoRepository
+                .findByProprietarioIdOrderByDataGeracaoDesc(scenario.proprietario().getId());
+
+        assertEquals(2, notificacoes.size());
+        Notificacao cancelamento = comTitulo(notificacoes, "Pedido cancelado");
+        assertEquals(criado.id(), cancelamento.getPedidoRelacionado().getId());
+    }
+
+    private static Notificacao comTitulo(List<Notificacao> notificacoes, String titulo) {
+        return notificacoes.stream()
+                .filter(n -> titulo.equals(n.getTitulo()))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("Sem notificacao com titulo " + titulo));
     }
 
     @Test
@@ -93,9 +141,9 @@ class NotificacaoPedidoIntegrationTest extends AbstractPostgresIntegrationTest {
         entityManager.flush();
         entityManager.clear();
 
-        Notificacao notificacao = notificacaoRepository
+        // Todas as notificacoes do pedido (registro e confirmacao) ficam, desvinculadas
+        notificacaoRepository
                 .findByProprietarioIdOrderByDataGeracaoDesc(scenario.proprietario().getId())
-                .get(0);
-        assertEquals(null, notificacao.getPedidoRelacionado());
+                .forEach(notificacao -> assertEquals(null, notificacao.getPedidoRelacionado()));
     }
 }

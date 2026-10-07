@@ -23,9 +23,10 @@ export default function NotificacoesPage() {
   const { notifications, markAsRead, markAllAsRead } = useNotifications();
   const router = useRouter();
 
-  const handleNotif = async (idNotificacao: string, idPedido: string, lida: boolean) => {
-    if (!lida) await markAsRead(idNotificacao);
-    router.push(`/pedidos/${idPedido}`);
+  const handleNotif = async (idNotificacao: string, idPedido: string | undefined, lida: boolean) => {
+    if (!lida) await markAsRead(idNotificacao).catch(() => {});
+    // Notificacao de pedido excluido perde o vinculo (pedidoRelacionadoId nulo)
+    if (idPedido) router.push(`/pedidos/${idPedido}`);
   };
 
   return (

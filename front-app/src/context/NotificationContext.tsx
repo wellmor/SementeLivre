@@ -1,11 +1,7 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import {
-  listarNotificacoes,
-  marcarNotificacaoLida,
-  type NotificacaoDTO,
-} from '@/lib/pedidoApi';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { apiGet, apiPatch, comQuery } from '@/lib/api';
 import { Notificacao } from '@/types/notification';
 import { useAuth } from './AuthContext';
 
@@ -14,8 +10,7 @@ interface NotificationContextType {
   unreadCount: number;
   markAsRead: (id: string) => Promise<void>;
   markAllAsRead: () => Promise<void>;
-  loading: boolean;
-  recarregar: () => Promise<void>;
+  refresh: () => Promise<void>;
 }
 
 const NotificationContext = createContext<NotificationContextType>({
@@ -23,92 +18,82 @@ const NotificationContext = createContext<NotificationContextType>({
   unreadCount: 0,
   markAsRead: async () => {},
   markAllAsRead: async () => {},
-  loading: false,
-  recarregar: async () => {},
+  refresh: async () => {},
 });
 
-function paraNotificacao(dto: NotificacaoDTO): Notificacao {
+// Formato de NotificacaoResponseDTO no backend
+interface NotificacaoApi {
+  id: string;
+  titulo: string;
+  mensagem: string;
+  lida: boolean;
+  dataGeracao: string;
+  dataLeitura: string | null;
+  proprietarioId: string;
+  pedidoRelacionadoId: string | null;
+}
+
+function toNotificacao(api: NotificacaoApi): Notificacao {
   return {
-    idNotificacao: dto.id,
-    idProprietario: dto.proprietarioId,
-    idPedido: dto.pedidoRelacionadoId ?? '',
-    titulo: dto.titulo,
-    mensagem: dto.mensagem,
-    lida: dto.lida,
-    dataGeracao: new Date(dto.dataGeracao),
-    dataLeitura: dto.dataLeitura ? new Date(dto.dataLeitura) : undefined,
+    idNotificacao: api.id,
+    idProprietario: api.proprietarioId,
+    idPedido: api.pedidoRelacionadoId ?? undefined,
+    titulo: api.titulo,
+    mensagem: api.mensagem,
+    lida: api.lida,
+    dataGeracao: new Date(api.dataGeracao),
+    dataLeitura: api.dataLeitura ? new Date(api.dataLeitura) : undefined,
   };
 }
 
+// Notificacoes de pedido sao geradas no backend (CDU-26); sem push, a PWA consulta periodicamente
+const POLL_INTERVAL_MS = 30_000;
+
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
+  // O login so aceita conta de proprietario; o id da sessao e o do proprietario
   const { user } = useAuth();
+  const proprietarioId = user?.uid;
   const [notifications, setNotifications] = useState<Notificacao[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const recarregar = useCallback(async () => {
-    if (!user) {
-      setNotifications([]);
-      return;
-    }
-    setLoading(true);
+  const refresh = useCallback(async () => {
+    if (!proprietarioId) return;
     try {
-      // O endpoint devolve todas; filtramos pelas do dono logado.
-      const todas = await listarNotificacoes();
-      setNotifications(
-        todas
-          .filter((n) => n.proprietarioId === user.uid)
-          .map(paraNotificacao)
-          .sort((a, b) => b.dataGeracao.getTime() - a.dataGeracao.getTime())
-      );
+      const data = await apiGet<NotificacaoApi[]>(comQuery('/notificacoes', { proprietarioId }));
+      setNotifications(data.map(toNotificacao));
     } catch {
-      setNotifications([]);
-    } finally {
-      setLoading(false);
+      // Mantem a lista anterior; a proxima consulta tenta de novo
     }
-  }, [user]);
+  }, [proprietarioId]);
 
   useEffect(() => {
-    void (async () => {
-      await recarregar();
-    })();
-  }, [recarregar]);
+    if (!proprietarioId) return;
+    const first = setTimeout(refresh, 0);
+    const interval = setInterval(refresh, POLL_INTERVAL_MS);
+    return () => {
+      clearTimeout(first);
+      clearInterval(interval);
+      // Troca de proprietario/logout nao pode exibir notificacoes do anterior
+      setNotifications([]);
+    };
+  }, [proprietarioId, refresh]);
 
-  const markAsRead = useCallback(
-    async (id: string) => {
-      // Atualiza na hora e confirma com o servidor: sem isso o badge não reage.
-      setNotifications((atuais) =>
-        atuais.map((n) =>
-          n.idNotificacao === id && !n.lida
-            ? { ...n, lida: true, dataLeitura: new Date() }
-            : n
-        )
-      );
-      try {
-        await marcarNotificacaoLida(id);
-      } catch {
-        await recarregar();
-      }
-    },
-    [recarregar]
-  );
+  const markAsRead = useCallback(async (id: string) => {
+    const atualizada = toNotificacao(
+      await apiPatch<NotificacaoApi>(`/notificacoes/${id}/lida`)
+    );
+    setNotifications((prev) => prev.map((n) => (n.idNotificacao === id ? atualizada : n)));
+  }, []);
 
   const markAllAsRead = useCallback(async () => {
-    const naoLidas = notifications.filter((n) => !n.lida);
-    if (naoLidas.length === 0) return;
-
-    setNotifications((atuais) =>
-      atuais.map((n) => (n.lida ? n : { ...n, lida: true, dataLeitura: new Date() }))
-    );
-    await Promise.allSettled(naoLidas.map((n) => marcarNotificacaoLida(n.idNotificacao)));
-    await recarregar();
-  }, [notifications, recarregar]);
+    const unread = notifications.filter((n) => !n.lida);
+    await Promise.all(unread.map((n) => markAsRead(n.idNotificacao)));
+  }, [notifications, markAsRead]);
 
   const unreadCount = notifications.filter((n) => !n.lida).length;
 
   return (
-    <NotificationContext.Provider
-      value={{ notifications, unreadCount, markAsRead, markAllAsRead, loading, recarregar }}
-    >
+    <NotificationContext.Provider value={{ notifications, unreadCount, markAsRead, markAllAsRead, refresh }}>
       {children}
     </NotificationContext.Provider>
   );

@@ -38,7 +38,7 @@ public class GlobalExceptionHandler {
     private static final String MENSAGEM_GENERICA_INTEGRIDADE = "Violação de integridade nos dados.";
 
     //trata erro 404 (recurso não encontrado)
-    @ExceptionHandler({ResourceNotFoundException.class, NoSuchElementException.class})
+    @ExceptionHandler({ResourceNotFoundException.class, RecursoNaoEncontradoException.class, NoSuchElementException.class})
     public ResponseEntity<ErrorResponse> handleResourceNotFound(RuntimeException e, HttpServletRequest request){
         HttpStatus status = HttpStatus.NOT_FOUND;
 
@@ -82,6 +82,22 @@ public class GlobalExceptionHandler {
             status.value(),
             request.getRequestURI(),
             List.of("senhaAtual: " + e.getMessage())
+        );
+        return ResponseEntity.status(status).body(err);
+    }
+
+    //trata erro 422 - pedido com quantidade maior que o estoque disponível
+    @ExceptionHandler(EstoqueInsuficienteException.class)
+    public ResponseEntity<ErrorResponse> handleEstoqueInsuficiente(EstoqueInsuficienteException e, HttpServletRequest request) {
+        HttpStatus status = HttpStatus.UNPROCESSABLE_ENTITY;
+
+        ErrorResponse err = new ErrorResponse(
+            "Insufficient Stock",
+            e.getMessage(),
+            Instant.now(),
+            status.value(),
+            request.getRequestURI(),
+            null
         );
         return ResponseEntity.status(status).body(err);
     }
@@ -154,7 +170,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleDatabaseExceptions(DataIntegrityViolationException e, HttpServletRequest request) {
         HttpStatus status = HttpStatus.CONFLICT;
 
-        String constraint = constraintConhecida(e);
+        String constraint = mensagemParaViolacao(e);
         String mensagem = constraint != null ? MENSAGENS_POR_CONSTRAINT.get(constraint) : MENSAGEM_GENERICA_INTEGRIDADE;
         List<String> fieldErrors = constraint != null
                 ? List.of(CAMPOS_POR_CONSTRAINT.get(constraint) + ": " + mensagem)
@@ -181,7 +197,21 @@ public class GlobalExceptionHandler {
         return "rg";
     }
 
-    //devolve o nome da constraint de unicidade que colidiu, se for uma das conhecidas; senão null
+    @ExceptionHandler(TransicaoStatusInvalidaException.class)
+    public ResponseEntity<ErrorResponse> handleTransicaoStatusInvalida(TransicaoStatusInvalidaException e, HttpServletRequest request){
+        HttpStatus status = HttpStatus.CONFLICT;
+
+        ErrorResponse err = new ErrorResponse(
+                "Invalid Status Transition",
+                e.getMessage(),
+                Instant.now(),
+                status.value(),
+                request.getRequestURI(),
+                null
+        );
+        return ResponseEntity.status(status).body(err);
+    }
+
     private String constraintConhecida(DataIntegrityViolationException ex) {
         String constraintName = extrairNomeConstraint(ex);
         if (constraintName != null && MENSAGENS_POR_CONSTRAINT.containsKey(constraintName)) {

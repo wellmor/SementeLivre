@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.sementelivre.backend.dto.ContagemNaoLidasDTO;
@@ -41,9 +42,16 @@ public class NotificacaoController {
         );
     }
 
-    // READ - do usuário logado
+    // READ - todas, ou so as de um proprietario (mais recentes primeiro)
     @GetMapping
-    public ResponseEntity<List<NotificacaoResponseDTO>> listar() {
+    public ResponseEntity<List<NotificacaoResponseDTO>> listar(
+            @RequestParam(required = false) UUID proprietarioId) {
+
+        if (proprietarioId != null) {
+            return ResponseEntity.ok(
+                    notificacaoService.listarPorProprietario(proprietarioId)
+            );
+        }
 
         return ResponseEntity.ok(
                 notificacaoService.listar()
