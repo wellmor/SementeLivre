@@ -14,6 +14,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import jakarta.servlet.http.HttpServletRequest;
 
@@ -137,6 +138,29 @@ public class GlobalExceptionHandler {
             null
         );
         return ResponseEntity.status(status).body(err);
+    }
+
+    // Erros de upload chegavam como 500 sem mensagem legível no app.
+    @ExceptionHandler(UploadFotoException.class)
+    public ResponseEntity<ErrorResponse> handleUploadFoto(UploadFotoException e, HttpServletRequest request) {
+        return uploadError(e.getMessage(), HttpStatus.BAD_REQUEST, request);
+    }
+
+    // Foto acima de spring.servlet.multipart.max-file-size.
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ErrorResponse> handleMaxUpload(MaxUploadSizeExceededException e, HttpServletRequest request) {
+        return uploadError("A foto excede o tamanho máximo de 5 MB.", HttpStatus.PAYLOAD_TOO_LARGE, request);
+    }
+
+    private ResponseEntity<ErrorResponse> uploadError(String message, HttpStatus status, HttpServletRequest request) {
+        return ResponseEntity.status(status).body(new ErrorResponse(
+                status.getReasonPhrase(),
+                message,
+                Instant.now(),
+                status.value(),
+                request.getRequestURI(),
+                null
+        ));
     }
 
     //trata erro 409 - conflito no bd (ex: corrida entre o check de unicidade do service e o insert;

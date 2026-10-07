@@ -1,3 +1,5 @@
+import { EspecieGeral, TipoProduto, FormatoProduto } from './seed';
+
 export enum Pesagem {
   SACA = 'SACA',
   KG = 'KG',
@@ -63,6 +65,15 @@ export interface Estoque {
   tipo: TipoMovimentacao;
   dataMovimentacao: Date;
   dataUltimaAtualizacaoEstoque: Date;
+  // Campos do /produtos que acompanha este estoque. O formulário de cadastro já
+  // os coletava, mas createSeed os descartava porque o tipo não os carregava —
+  // e o backend exige `especie` e `formato`.
+  // `tipo` acima é o TipoMovimentacao; o tipo do produto vem em `tipoProduto`.
+  tipoProduto?: TipoProduto;
+  especie?: EspecieGeral;
+  formato?: FormatoProduto;
+  nomeCientifico?: string;
+  historico?: string;
 }
 
 export interface MovimentacaoEstoque {
@@ -75,3 +86,23 @@ export interface MovimentacaoEstoque {
   motivo?: string;
   dataMovimentacao: Date;
 }
+
+/**
+ * De onde veio a movimentação. O backend grava isso para o relatório de
+ * auditoria separar o que o produtor fez na mão do que o sistema gerou.
+ */
+export enum OrigemMovimentacao {
+  CADASTRO = 'CADASTRO',
+  AJUSTE_MANUAL = 'AJUSTE_MANUAL',
+  PEDIDO = 'PEDIDO',
+  DEVOLUCAO = 'DEVOLUCAO',
+  EXCLUSAO_PRODUTO = 'EXCLUSAO_PRODUTO',
+}
+
+export const OrigemMovimentacaoLabels: Record<OrigemMovimentacao, string> = {
+  [OrigemMovimentacao.CADASTRO]: 'Cadastro do estoque',
+  [OrigemMovimentacao.AJUSTE_MANUAL]: 'Ajuste manual',
+  [OrigemMovimentacao.PEDIDO]: 'Pedido',
+  [OrigemMovimentacao.DEVOLUCAO]: 'Devolução',
+  [OrigemMovimentacao.EXCLUSAO_PRODUTO]: 'Exclusão do produto',
+};

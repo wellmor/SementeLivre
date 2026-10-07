@@ -2,6 +2,7 @@ package com.sementelivre.backend.repository;
 
 import com.sementelivre.backend.entity.Comunidade;
 import com.sementelivre.backend.entity.Propriedade;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -32,5 +33,10 @@ public interface PropriedadeRepository extends BaseRepository<Propriedade, UUID>
 
     @Query("select p.nome from Propriedade p where p.comunidade.id = :comunidadeId order by p.nome")
     List<String> findNomesByComunidadeId(@Param("comunidadeId") UUID comunidadeId);
+
+    /** Remove as propriedades do produtor na exclusão da conta (LGPD). */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("delete from Propriedade p where p.proprietario.id = :proprietarioId")
+    void deleteAllByProprietarioId(@Param("proprietarioId") UUID proprietarioId);
 
 }

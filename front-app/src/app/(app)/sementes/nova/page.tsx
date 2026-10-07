@@ -4,6 +4,7 @@ import React, { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSeeds } from '@/hooks/useSeeds';
 import { useAuth } from '@/context/AuthContext';
+import { isApiError } from '@/lib/api';
 import { useToast } from '@/components/feedback/Toast';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -73,6 +74,13 @@ export default function NovaSementePage() {
         idProduto: tempId,
         nomePopular: form.nomePopular,
         urlFoto,
+        // Campos de /produtos: o backend exige especie e formato, e o formulário
+        // já os coletava — antes eram descartados aqui.
+        tipoProduto: form.tipo,
+        especie: form.especie,
+        formato: form.formato,
+        nomeCientifico: form.nomeCientifico,
+        historico: form.historico,
         descricao: form.descricao,
         preco: form.preco ? Number(form.preco) : undefined,
         formaPrecificacao: form.formaPrecificacao,
@@ -85,8 +93,13 @@ export default function NovaSementePage() {
       });
       showToast('Produto cadastrado com sucesso!', 'success');
       router.push('/sementes');
-    } catch {
-      showToast('Erro ao cadastrar produto. Tente novamente.', 'error');
+    } catch (err) {
+      showToast(
+        isApiError(err)
+          ? Object.values(err.fieldErrors)[0] ?? err.message
+          : 'Erro ao cadastrar produto. Tente novamente.',
+        'error'
+      );
     } finally {
       setLoading(false);
     }

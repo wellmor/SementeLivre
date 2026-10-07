@@ -54,6 +54,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const { user } = useAuth();
   const proprietarioId = user?.uid;
   const [notifications, setNotifications] = useState<Notificacao[]>([]);
+  const [loading, setLoading] = useState(false);
 
   const refresh = useCallback(async () => {
     if (!proprietarioId) return;

@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
-import { ZoomControl } from '@/components/shared/ZoomControl';
 import { ToastProvider } from '@/components/feedback/Toast';
 
 export const metadata: Metadata = {
@@ -33,7 +32,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <ToastProvider>{children}</ToastProvider>
-        <ZoomControl />
       </body>
     </html>
   );

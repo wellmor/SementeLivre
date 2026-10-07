@@ -13,6 +13,19 @@ import { emitirToast } from './toast';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
 
+export { BASE_URL };
+
+/**
+ * Converte um caminho relativo devolvido pelo backend em URL absoluta.
+ * O /produtos/upload-foto responde "/uploads/produtos/abc.png"; gravamos esse
+ * caminho relativo no banco (para não amarrar a origem) e resolvemos na leitura.
+ */
+export function apiUrl(caminho: string | null | undefined): string {
+  if (!caminho) return '';
+  if (/^https?:\/\//i.test(caminho) || caminho.startsWith('data:')) return caminho;
+  return `${BASE_URL}${caminho.startsWith('/') ? '' : '/'}${caminho}`;
+}
+
 // ── Chaves de armazenamento ────────────────────────────────────────────────────
 
 const TOKEN_KEY = 'sl_access_token';

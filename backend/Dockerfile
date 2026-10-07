@@ -11,5 +11,8 @@ RUN addgroup -S spring && adduser -S spring -G spring
 USER spring:spring
 WORKDIR /app
 COPY --from=build /app/target/*.jar app.jar
+# O FotoProdutoService grava em uploads/produtos; a pasta precisa existir antes
+# do start, senão o primeiro upload depende do createDirectories.
+RUN mkdir -p /app/uploads/produtos
 EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "app.jar"]

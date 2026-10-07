@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import com.sementelivre.backend.dto.NotificacaoRequestDTO;
@@ -12,6 +14,7 @@ import com.sementelivre.backend.entity.Itens;
 import com.sementelivre.backend.entity.Notificacao;
 import com.sementelivre.backend.entity.Pedido;
 import com.sementelivre.backend.entity.Proprietario;
+import com.sementelivre.backend.entity.Usuario;
 import com.sementelivre.backend.exception.RecursoNaoEncontradoException;
 import com.sementelivre.backend.repository.NotificacaoRepository;
 
@@ -32,7 +35,8 @@ public class NotificacaoService
         this.entityManager = entityManager;
     }
 
-    // CREATE
+    // Só o dono pode trocar o dono: um POST autenticado comum não cria
+    // notificação arbitrária em nome de outra pessoa.
     @Override
     public NotificacaoResponseDTO criar(NotificacaoRequestDTO dto) {
 
@@ -70,9 +74,65 @@ public class NotificacaoService
             Pedido pedido, String titulo, String evento, String complemento) {
 
         entityManager.flush();
+
+        // Destinatário é quem PEDIU, não quem confirmou: quem confirma é o dono
+        // do estoque e já está na tela vendo o resultado da própria ação.
+        // Notificar essa pessoa do seu próprio clique não informa nada.
+        Proprietario solicitante = buscarProprietario(pedido.getUsuarioSolicitante().getId());
+
+        return gravarParaPedido(
+                pedido,
+                solicitante,
+                "Pedido confirmado",
+                montarMensagemDoPedido(pedido, "confirmado")
+        );
+    }
+
+    /**
+     * Avisa o dono do estoque de que chegou um pedido novo.
+     *
+     * Fica no backend de propósito: se dependesse do navegador do solicitante,
+     * uma queda entre gravar o pedido e criar a notificação deixaria o
+     * produtor sem saber que alguém pediu.
+     */
+    public NotificacaoResponseDTO criarParaPedidoRecebido(Pedido pedido) {
+        entityManager.flush();
+
+        Proprietario recebedor = buscarProprietario(pedido.getProprietarioRecebedor().getId());
+
+        return gravarParaPedido(
+                pedido,
+                recebedor,
+                "Novo pedido recebido",
+                montarMensagemDoPedido(pedido, "recebido")
+        );
+    }
+
+    /**
+     * Avisa o solicitante de que o pedido saiu de PENDENTE — cancelado,
+     * recusado ou concluído. Sem isso ele nunca descobre o desfecho.
+     */
+    public NotificacaoResponseDTO criarParaPedidoCancelado(Pedido pedido, String motivo) {
+        entityManager.flush();
+
+        Proprietario solicitante = buscarProprietario(pedido.getUsuarioSolicitante().getId());
+
+        StringBuilder texto = new StringBuilder(montarMensagemDoPedido(pedido, "cancelado"));
+
+        if (motivo != null && !motivo.isBlank()) {
+            texto.append(" Motivo: ").append(motivo).append(".");
+        }
+
+        return gravarParaPedido(pedido, solicitante, "Pedido cancelado", texto.toString());
+    }
+
+    private NotificacaoResponseDTO gravarParaPedido(
+            Pedido pedido,
+            Proprietario destinatario,
+            String titulo,
+            String mensagem) {
+
         Pedido pedidoGerenciado = entityManager.getReference(Pedido.class, pedido.getId());
-        Proprietario proprietarioGerenciado = entityManager.getReference(
-            Proprietario.class, pedido.getProprietarioRecebedor().getId());
 
         String mensagem = montarMensagemDoPedido(pedido, evento);
         if (complemento != null) {
@@ -163,15 +223,19 @@ public class NotificacaoService
     // READ - por ID
     @Override
     public NotificacaoResponseDTO buscarPorId(UUID id) {
-        Notificacao notificacao = buscarEntidadePorId(id);
+        Notificacao notificacao = buscarEntidadeDoDono(id);
 
         return toResponseDTO(notificacao);
     }
 
-    // READ - todos
+    // READ - do usuário logado
+    //
+    // Antes devolvia findAll(), ou seja, as notificações de todos osCadastros
+    // para qualquer pessoa autenticada. Agora só o dono vê o próprio.
     @Override
     public List<NotificacaoResponseDTO> listar() {
-        return notificacaoRepository.findAll()
+        return notificacaoRepository
+                .findByProprietarioIdOrderByDataGeracaoDesc(usuarioAtualId())
                 .stream()
                 .map(this::toResponseDTO)
                 .toList();
@@ -186,14 +250,17 @@ public class NotificacaoService
     }
 
     // UPDATE
+    //
+    // Só o conteúdo pode ser corrigido. Trocar o dono (proprietarioId) permitiria
+    //.AUTHenticated sequestrar a notificação de outra pessoa, então o campo é
+    // ignorado de propósito.
     @Override
     public NotificacaoResponseDTO atualizar(UUID id, NotificacaoRequestDTO dto) {
 
-        Notificacao notificacao = buscarEntidadePorId(id);
+        Notificacao notificacao = buscarEntidadeDoDono(id);
 
         notificacao.setTitulo(dto.titulo());
         notificacao.setMensagem(dto.mensagem());
-        notificacao.setProprietario(buscarProprietario(dto.proprietarioId()));
         notificacao.setPedidoRelacionado(buscarPedido(dto.pedidoRelacionadoId()));
 
         Notificacao atualizada = notificacaoRepository.save(notificacao);
@@ -204,7 +271,7 @@ public class NotificacaoService
     // UPDATE - marcar como lida
     public NotificacaoResponseDTO marcarComoLida(UUID id) {
 
-        Notificacao notificacao = buscarEntidadePorId(id);
+        Notificacao notificacao = buscarEntidadeDoDono(id);
 
         notificacao.marcarComoLida();
 
@@ -216,7 +283,7 @@ public class NotificacaoService
     // DELETE
     @Override
     public void deletar(UUID id) {
-        Notificacao notificacao = buscarEntidadePorId(id);
+        Notificacao notificacao = buscarEntidadeDoDono(id);
 
         notificacaoRepository.delete(notificacao);
     }
@@ -226,6 +293,36 @@ public class NotificacaoService
                 .orElseThrow(() -> new RecursoNaoEncontradoException(
                         "Notificação não encontrada: " + id
                 ));
+    }
+
+    /**
+     * Carrega a notificação só se ela for do usuário logado.
+     *
+     * Devolve 404 (e não 403) de propósito: um 403 confirmaria que o id existe,
+     * o que já permitiria sondar a base de outra pessoa.
+     */
+    private Notificacao buscarEntidadeDoDono(UUID id) {
+        Notificacao notificacao = buscarEntidadePorId(id);
+
+        if (!notificacao.getProprietario().getId().equals(usuarioAtualId())) {
+            throw new RecursoNaoEncontradoException(
+                    "Notificação não encontrada: " + id
+            );
+        }
+
+        return notificacao;
+    }
+
+    private UUID usuarioAtualId() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+
+        if (auth == null || !(auth.getPrincipal() instanceof Usuario usuario)) {
+            throw new RecursoNaoEncontradoException(
+                    "Nenhuma sessão autenticada para ler notificações."
+            );
+        }
+
+        return usuario.getId();
     }
 
     // Proprietario e Pedido ainda nao tem repository (sao placeholders),

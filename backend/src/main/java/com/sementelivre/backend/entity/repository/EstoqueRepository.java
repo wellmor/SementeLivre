@@ -8,6 +8,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -101,4 +102,17 @@ public interface EstoqueRepository extends JpaRepository<Estoque, UUID> {
             List<Disponibilidade> disponibilidadesPublicas);
 
     long countByProprietarioId(UUID proprietarioId);
+    /**
+     * Verifica se o Proprietario tem algum Estoque vinculado, usado para
+     * bloquear exclusão de Propriedade com dependências (issue #63).
+     */
+    boolean existsByProprietarioId(UUID proprietarioId);
+
+    /**
+     * Remove os estoques do proprietário na exclusão da conta (LGPD). O product
+     * em si é catálogo compartilhado e continua existindo.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("delete from Estoque e where e.proprietario.id = :proprietarioId")
+    void deleteAllByProprietarioId(@Param("proprietarioId") UUID proprietarioId);
 }
