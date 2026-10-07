@@ -5,10 +5,13 @@ import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import com.sementelivre.backend.entity.Pedido;
+
+import jakarta.persistence.LockModeType;
 
 public interface PedidoRepository extends JpaRepository<Pedido, UUID> {
 
@@ -19,6 +22,7 @@ public interface PedidoRepository extends JpaRepository<Pedido, UUID> {
             select distinct p from Pedido p
             left join fetch p.itens i
             left join fetch i.produto
+            left join fetch p.comprador
             where p.proprietarioRecebedor.id = :proprietarioId
             """)
     List<Pedido> findAllByProprietarioRecebedorId(@Param("proprietarioId") UUID proprietarioId);
@@ -36,9 +40,23 @@ public interface PedidoRepository extends JpaRepository<Pedido, UUID> {
             select p from Pedido p
             left join fetch p.itens i
             left join fetch i.produto
+            left join fetch p.comprador
             where p.id = :id
             """)
     Optional<Pedido> findByIdComItens(@Param("id") UUID id);
 
     long countByProprietarioRecebedorId(UUID proprietarioId);
+
+    /**
+     * Busca o pedido travando a linha (select ... for update) para as operacoes
+     * que mudam status ou mexem no estoque. Sem o lock, dois cancelamentos
+     * simultaneos leem o mesmo status PENDENTE, ambos passam pela validacao de
+     * transicao e o estoque e restaurado duas vezes.
+     *
+     * Sem join fetch de proposito: o PostgreSQL nao aceita FOR UPDATE no lado
+     * anulavel de um left join. Os itens carregam sob demanda na mesma transacao.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select p from Pedido p where p.id = :id")
+    Optional<Pedido> findParaAtualizacao(@Param("id") UUID id);
 }

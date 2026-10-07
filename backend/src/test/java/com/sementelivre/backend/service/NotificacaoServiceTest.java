@@ -23,6 +23,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.sementelivre.backend.dto.NotificacaoRequestDTO;
 import com.sementelivre.backend.dto.NotificacaoResponseDTO;
+import com.sementelivre.backend.entity.Comprador;
 import com.sementelivre.backend.entity.Itens;
 import com.sementelivre.backend.entity.Notificacao;
 import com.sementelivre.backend.entity.Pedido;
@@ -203,12 +204,16 @@ class NotificacaoServiceTest {
 
     /** Captura a notificacao que o service mandou salvar. */
     private Notificacao notificacaoSalva(Pedido pedido) {
+        return notificacaoSalva(() -> notificacaoService.criarParaPedidoConfirmado(pedido));
+    }
+
+    private Notificacao notificacaoSalva(Runnable gerarNotificacao) {
 
         ArgumentCaptor<Notificacao> captor = ArgumentCaptor.forClass(Notificacao.class);
 
         when(notificacaoRepository.saveAndFlush(captor.capture())).thenReturn(notificacao);
 
-        notificacaoService.criarParaPedidoConfirmado(pedido);
+        gerarNotificacao.run();
 
         return captor.getValue();
     }
@@ -258,5 +263,40 @@ class NotificacaoServiceTest {
         String mensagem = notificacaoSalva(pedido).getMensagem();
 
         assertEquals("Pedido de DOACAO confirmado.", mensagem);
+    }
+
+    // ---- CDU-26: registro e cancelamento tambem avisam o proprietario (#94, #102) ----
+
+    @Test
+    void notificacaoDoPedidoRegistradoDeveTerTituloEDetalhes() {
+        Pedido pedido = pedidoConfirmado();
+
+        Notificacao salva = notificacaoSalva(() -> notificacaoService.criarParaPedidoRegistrado(pedido));
+
+        assertEquals("Novo pedido recebido", salva.getTitulo());
+        assertEquals("Pedido de TROCA registrado. Solicitante: Maria Silva."
+                + " Itens: 2 x Feijao Crioulo, 1.5 x Milho.", salva.getMensagem());
+        assertFalse(salva.isLida());
+    }
+
+    @Test
+    void notificacaoDoPedidoCanceladoDeveAvisarDevolucaoDoEstoque() {
+        Pedido pedido = pedidoConfirmado();
+
+        Notificacao salva = notificacaoSalva(() -> notificacaoService.criarParaPedidoCancelado(pedido));
+
+        assertEquals("Pedido cancelado", salva.getTitulo());
+        assertTrue(salva.getMensagem().startsWith("Pedido de TROCA cancelado."), salva.getMensagem());
+        assertTrue(salva.getMensagem().endsWith("O estoque reservado foi devolvido."), salva.getMensagem());
+    }
+
+    @Test
+    void mensagemDeveMostrarCompradorQuandoInformado() {
+        Pedido pedido = pedidoConfirmado();
+        pedido.setComprador(Comprador.builder().nome("Associação Rural").build());
+
+        String mensagem = notificacaoSalva(pedido).getMensagem();
+
+        assertTrue(mensagem.contains("Comprador: Associação Rural."), mensagem);
     }
 }
