@@ -15,8 +15,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyDouble;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -31,6 +36,7 @@ import com.sementelivre.backend.dto.PedidoPublicoResponseDTO;
 import com.sementelivre.backend.dto.PedidoRequestDTO;
 import com.sementelivre.backend.dto.PedidoResponseDTO;
 import com.sementelivre.backend.dto.PedidoUpdateDTO;
+import com.sementelivre.backend.entity.Comprador;
 import com.sementelivre.backend.entity.Estoque;
 import com.sementelivre.backend.entity.Itens;
 import com.sementelivre.backend.entity.Pedido;
@@ -38,7 +44,9 @@ import com.sementelivre.backend.entity.Produto;
 import com.sementelivre.backend.entity.Proprietario;
 import com.sementelivre.backend.entity.Usuario;
 import com.sementelivre.backend.entity.enums.Disponibilidade;
+import com.sementelivre.backend.entity.enums.OrigemMovimentacao;
 import com.sementelivre.backend.entity.enums.StatusPedido;
+import com.sementelivre.backend.entity.enums.TipoMovimentacao;
 import com.sementelivre.backend.entity.enums.TipoPedido;
 import com.sementelivre.backend.repository.EstoqueRepository;
 import com.sementelivre.backend.repository.PedidoRepository;
@@ -60,6 +68,9 @@ class PedidoServiceTest {
 
     @Mock
     private EstoqueRepository estoqueRepository;
+
+    @Mock
+    private EstoqueService estoqueService;
 
     @Mock
     private UsuarioRepository usuarioRepository;
@@ -91,6 +102,7 @@ class PedidoServiceTest {
                 pedidoRepository,
                 produtoRepository,
                 estoqueRepository,
+                estoqueService,
                 usuarioRepository,
                 notificacaoService,
                 eventos
@@ -131,7 +143,7 @@ class PedidoServiceTest {
     // CRIAR
 
     @Test
-    void deveCriarPedidoComStatusPendenteEReservarEstoque() {
+    void deveCriarPedidoPendenteNaFilaSemMexerNoEstoque() {
         mockUsuarioEProdutoExistentes();
         mockEstoqueDisponivel();
         mockSalvarPedido();
@@ -143,9 +155,24 @@ class PedidoServiceTest {
         assertEquals(1, resposta.itens().size());
         assertEquals(produtoId, resposta.itens().get(0).produtoId());
 
-        assertEquals(ESTOQUE_INICIAL - QUANTIDADE_PEDIDA, estoque.getQuantidade());
-        verify(estoqueRepository).save(estoque);
+        // Fila (#183): o estoque so baixa quando o produtor confirma
+        assertEquals(ESTOQUE_INICIAL, estoque.getQuantidade());
+        verify(estoqueRepository, never()).save(any(Estoque.class));
+        verify(estoqueRepository, never()).findParaAtualizacao(any(UUID.class), any(UUID.class));
         verify(notificacaoService).criarParaPedidoRegistrado(any(Pedido.class));
+    }
+
+    @Test
+    void pedidosNaFilaPodemSomarMaisQueOEstoque() {
+        mockUsuarioEProdutoExistentes();
+        mockEstoqueDisponivel();
+        mockSalvarPedido();
+
+        // Dois pedidos de 8 com 10 em estoque: os dois entram, o produtor escolhe
+        pedidoService.criar(requestComQuantidade(8.0));
+        pedidoService.criar(requestComQuantidade(8.0));
+
+        assertEquals(ESTOQUE_INICIAL, estoque.getQuantidade());
     }
 
     @Test
@@ -196,7 +223,7 @@ class PedidoServiceTest {
 
     @Test
     void deveCriarPedidoPublicoComDadosDaOfertaESemSolicitante() {
-        when(estoqueRepository.findPorIdParaAtualizacao(estoque.getId())).thenReturn(Optional.of(estoque));
+        when(estoqueRepository.findById(estoque.getId())).thenReturn(Optional.of(estoque));
         mockEstoqueDisponivel();
         mockSalvarPedido();
 
@@ -218,13 +245,13 @@ class PedidoServiceTest {
 
         assertEquals(StatusPedido.PENDENTE, resposta.status());
         assertEquals("Milho crioulo", resposta.produto());
-        assertEquals(ESTOQUE_INICIAL - QUANTIDADE_PEDIDA, estoque.getQuantidade());
+        assertEquals(ESTOQUE_INICIAL, estoque.getQuantidade());
         verify(notificacaoService).criarParaPedidoRegistrado(pedido);
     }
 
     @Test
     void devePublicarCopiaDoPedidoPublicoParaOEmailInformado() {
-        when(estoqueRepository.findPorIdParaAtualizacao(estoque.getId())).thenReturn(Optional.of(estoque));
+        when(estoqueRepository.findById(estoque.getId())).thenReturn(Optional.of(estoque));
         mockEstoqueDisponivel();
         mockSalvarPedido();
 
@@ -240,7 +267,7 @@ class PedidoServiceTest {
 
     @Test
     void ofertaQueAceitaNegociarDeixaProporOutroTipoSemPreco() {
-        when(estoqueRepository.findPorIdParaAtualizacao(estoque.getId())).thenReturn(Optional.of(estoque));
+        when(estoqueRepository.findById(estoque.getId())).thenReturn(Optional.of(estoque));
         mockEstoqueDisponivel();
         mockSalvarPedido();
 
@@ -256,7 +283,7 @@ class PedidoServiceTest {
     @Test
     void ofertaQueNaoAceitaNegociarRecusaOutroTipo() {
         estoque.setAceitaNegociacao(false);
-        when(estoqueRepository.findPorIdParaAtualizacao(estoque.getId())).thenReturn(Optional.of(estoque));
+        when(estoqueRepository.findById(estoque.getId())).thenReturn(Optional.of(estoque));
 
         NegociacaoNaoPermitidaException erro = assertThrows(NegociacaoNaoPermitidaException.class,
                 () -> pedidoService.criarPublico(requestPublicoComTipo(TipoPedido.DOACAO)));
@@ -269,7 +296,7 @@ class PedidoServiceTest {
     @Test
     void ofertaQueNaoAceitaNegociarAceitaOProprioTipo() {
         estoque.setAceitaNegociacao(false);
-        when(estoqueRepository.findPorIdParaAtualizacao(estoque.getId())).thenReturn(Optional.of(estoque));
+        when(estoqueRepository.findById(estoque.getId())).thenReturn(Optional.of(estoque));
         mockEstoqueDisponivel();
         mockSalvarPedido();
 
@@ -283,7 +310,7 @@ class PedidoServiceTest {
     void semTipoInformadoValeODaOfertaMesmoSemNegociacao() {
         estoque.setAceitaNegociacao(false);
         estoque.setDisponibilidade(Disponibilidade.PARA_DOACAO);
-        when(estoqueRepository.findPorIdParaAtualizacao(estoque.getId())).thenReturn(Optional.of(estoque));
+        when(estoqueRepository.findById(estoque.getId())).thenReturn(Optional.of(estoque));
         mockEstoqueDisponivel();
         mockSalvarPedido();
 
@@ -296,7 +323,7 @@ class PedidoServiceTest {
     @Test
     void naoDeveCriarPedidoPublicoParaOfertaForaDoCatalogo() {
         estoque.setDisponibilidade(Disponibilidade.A_NEGOCIAR);
-        when(estoqueRepository.findPorIdParaAtualizacao(estoque.getId())).thenReturn(Optional.of(estoque));
+        when(estoqueRepository.findById(estoque.getId())).thenReturn(Optional.of(estoque));
 
         assertThrows(RecursoNaoEncontradoException.class,
                 () -> pedidoService.criarPublico(requestPublico()));
@@ -307,7 +334,7 @@ class PedidoServiceTest {
 
     @Test
     void naoDeveCriarPedidoPublicoParaOfertaInexistente() {
-        when(estoqueRepository.findPorIdParaAtualizacao(estoque.getId())).thenReturn(Optional.empty());
+        when(estoqueRepository.findById(estoque.getId())).thenReturn(Optional.empty());
 
         assertThrows(RecursoNaoEncontradoException.class,
                 () -> pedidoService.criarPublico(requestPublico()));
@@ -315,7 +342,7 @@ class PedidoServiceTest {
 
     @Test
     void naoDeveCriarPedidoPublicoQuandoQuantidadeMaiorQueEstoque() {
-        when(estoqueRepository.findPorIdParaAtualizacao(estoque.getId())).thenReturn(Optional.of(estoque));
+        when(estoqueRepository.findById(estoque.getId())).thenReturn(Optional.of(estoque));
         mockEstoqueDisponivel();
 
         PedidoPublicoRequestDTO dto = new PedidoPublicoRequestDTO(
@@ -347,7 +374,7 @@ class PedidoServiceTest {
     void naoDeveCriarPedidoQuandoProprietarioNaoTemEstoqueDoProduto() {
         mockUsuarioEProdutoExistentes();
 
-        when(estoqueRepository.findParaAtualizacao(proprietarioId, produtoId))
+        when(estoqueRepository.findByProprietarioIdAndProdutoId(proprietarioId, produtoId))
                 .thenReturn(Optional.empty());
 
         EstoqueInsuficienteException erro = assertThrows(
@@ -401,7 +428,7 @@ class PedidoServiceTest {
         assertEquals(1, resposta.itens().size());
         assertEquals(5.0, resposta.itens().get(0).quantidade());
         assertEquals(15.0, resposta.itens().get(0).precoUnitario());
-        assertEquals(ESTOQUE_INICIAL - 5.0, estoque.getQuantidade());
+        assertEquals(ESTOQUE_INICIAL, estoque.getQuantidade());
     }
 
     @Test
@@ -481,19 +508,179 @@ class PedidoServiceTest {
     // CONFIRMAR
 
     @Test
-    void deveConfirmarPedidoSemBaixarEstoqueNovamente() {
+    void deveConfirmarPedidoEBaixarEstoque() {
+        mockConfirmacao();
         mockBuscaPedido(pedidoPendente());
         mockSalvarPedido();
 
         PedidoResponseDTO resposta = pedidoService.confirmar(pedidoId);
 
         assertEquals(StatusPedido.CONFIRMADO, resposta.status());
-        verify(estoqueRepository, never()).save(any(Estoque.class));
+        assertEquals(ESTOQUE_INICIAL - QUANTIDADE_PEDIDA, estoque.getQuantidade());
+        verify(estoqueRepository).save(estoque);
         verify(notificacaoService).criarParaPedidoConfirmado(any(Pedido.class));
     }
 
     @Test
+    void confirmacaoViraSaidaNoHistoricoDoEstoque() {
+        mockConfirmacao();
+        mockBuscaPedido(pedidoPendente());
+        mockSalvarPedido();
+
+        pedidoService.confirmar(pedidoId);
+
+        // Sem este lançamento o histórico continuava no saldo antigo (#185)
+        verify(estoqueService).registrarLancamentoDePedido(estoque, TipoMovimentacao.SAIDA_VENDA,
+                OrigemMovimentacao.PEDIDO, ESTOQUE_INICIAL, "Pedido de João");
+    }
+
+    @Test
+    void saidaNoHistoricoSegueOTipoDoPedido() {
+        Pedido doacao = pedidoPendente();
+        doacao.setTipoPedido(TipoPedido.DOACAO);
+        doacao.setComprador(Comprador.builder().nome("Maria Silva").build());
+        mockConfirmacao();
+        mockBuscaPedido(doacao);
+        mockSalvarPedido();
+
+        pedidoService.confirmar(pedidoId);
+
+        verify(estoqueService).registrarLancamentoDePedido(estoque, TipoMovimentacao.SAIDA_DOACAO,
+                OrigemMovimentacao.PEDIDO, ESTOQUE_INICIAL, "Pedido de Maria Silva");
+    }
+
+    @Test
+    void confirmacaoMandaEmailComOWhatsAppDoProdutor() {
+        proprietario.setNome("Dona Rosa");
+        proprietario.setTelefone("(32) 99999-0000");
+        Pedido pedido = pedidoPendente();
+        pedido.setComprador(Comprador.builder().nome("Bia").email("bia@exemplo.com").build());
+        mockConfirmacao();
+        mockBuscaPedido(pedido);
+        mockSalvarPedido();
+
+        pedidoService.confirmar(pedidoId);
+
+        CopiaDoPedidoEmail aviso = emailComAssunto("Semente Livre - Seu pedido foi confirmado");
+        assertEquals("bia@exemplo.com", aviso.para());
+        assertTrue(aviso.texto().contains("https://wa.me/5532999990000?text="), aviso.texto());
+    }
+
+    @Test
+    void confirmacaoQueFalhaNaoMandaEmail() {
+        mockConfirmacao();
+        mockBuscaPedido(pedidoComStatus(StatusPedido.CONFIRMADO));
+
+        assertThrows(TransicaoStatusInvalidaException.class, () -> pedidoService.confirmar(pedidoId));
+
+        verify(eventos, never()).publishEvent(any(Object.class));
+    }
+
+    @Test
+    void naoDeveConfirmarQuandoOEstoqueNaoCobreMais() {
+        // O produtor tirou do estoque depois que o pedido entrou na fila
+        estoque.setQuantidade(3.0);
+        Pedido pedido = pedidoPendente();
+        mockConfirmacao();
+        mockBuscaPedido(pedido);
+
+        EstoqueInsuficienteException erro = assertThrows(EstoqueInsuficienteException.class,
+                () -> pedidoService.confirmar(pedidoId));
+
+        assertEquals("Estoque insuficiente para o produto Milho crioulo: disponível 3, solicitado 4.",
+                erro.getMessage());
+        assertEquals(StatusPedido.PENDENTE, pedido.getStatus());
+        assertEquals(3.0, estoque.getQuantidade());
+        verify(pedidoRepository, never()).save(any(Pedido.class));
+    }
+
+    @Test
+    void confirmacaoTravaOEstoqueAntesDoPedido() {
+        mockConfirmacao();
+        mockBuscaPedido(pedidoPendente());
+        mockSalvarPedido();
+
+        pedidoService.confirmar(pedidoId);
+
+        // Duas confirmacoes do mesmo produto esperam no estoque, sem deadlock
+        org.mockito.InOrder ordem = org.mockito.Mockito.inOrder(estoqueRepository, pedidoRepository);
+        ordem.verify(estoqueRepository).findParaAtualizacao(proprietarioId, produtoId);
+        ordem.verify(pedidoRepository).findParaAtualizacao(pedidoId);
+    }
+
+    @Test
+    void confirmarRecusaQuemNaoCabeMaisNoEstoque() {
+        // 50 kg; pedidos de 49 e 10. Confirmado o de 49, sobra 1 e o de 10 sai da fila.
+        estoque.setQuantidade(50.0);
+        Pedido grande = pedidoPendenteDe(pedidoId, 49.0);
+        UUID pequenoId = UUID.randomUUID();
+        Pedido pequeno = pedidoPendenteDe(pequenoId, 10.0);
+        pequeno.setComprador(Comprador.builder().nome("Bia").email("bia@exemplo.com").build());
+
+        mockConfirmacao();
+        mockBuscaPedido(grande);
+        when(pedidoRepository.findParaAtualizacao(pequenoId)).thenReturn(Optional.of(pequeno));
+        when(pedidoRepository.findIdsNaFila(eq(proprietarioId), any(), eq(pedidoId))).thenReturn(List.of(pequenoId));
+        mockSalvarPedido();
+
+        pedidoService.confirmar(pedidoId);
+
+        assertEquals(1.0, estoque.getQuantidade());
+        assertEquals(StatusPedido.CONFIRMADO, grande.getStatus());
+        assertEquals(StatusPedido.CANCELADO, pequeno.getStatus());
+        verify(notificacaoService).criarParaPedidoRecusado(pequeno);
+
+        CopiaDoPedidoEmail aviso = emailComAssunto("Semente Livre - Seu pedido foi recusado");
+        assertEquals("bia@exemplo.com", aviso.para());
+        assertTrue(aviso.texto().contains("10 x Milho crioulo (disponível agora: 1)"), aviso.texto());
+    }
+
+    @Test
+    void confirmarMantemNaFilaQuemAindaCabe() {
+        // 50 kg; pedidos de 40 e 10. Confirmado o de 40, sobram 10: o de 10 continua na fila.
+        estoque.setQuantidade(50.0);
+        Pedido grande = pedidoPendenteDe(pedidoId, 40.0);
+        UUID pequenoId = UUID.randomUUID();
+        Pedido pequeno = pedidoPendenteDe(pequenoId, 10.0);
+
+        mockConfirmacao();
+        mockBuscaPedido(grande);
+        when(pedidoRepository.findParaAtualizacao(pequenoId)).thenReturn(Optional.of(pequeno));
+        when(pedidoRepository.findIdsNaFila(eq(proprietarioId), any(), eq(pedidoId))).thenReturn(List.of(pequenoId));
+        mockSalvarPedido();
+
+        pedidoService.confirmar(pedidoId);
+
+        assertEquals(10.0, estoque.getQuantidade());
+        assertEquals(StatusPedido.PENDENTE, pequeno.getStatus());
+        verify(notificacaoService, never()).criarParaPedidoRecusado(any(Pedido.class));
+        assertTrue(emailsPublicados().stream()
+                .noneMatch(email -> email.assunto().contains("recusado")));
+    }
+
+    @Test
+    void recusaIgnoraPedidoQueJaSaiuDaFila() {
+        // Cancelado por outra requisicao entre a consulta da fila e o lock
+        estoque.setQuantidade(50.0);
+        Pedido grande = pedidoPendenteDe(pedidoId, 49.0);
+        UUID outroId = UUID.randomUUID();
+        Pedido jaCancelado = pedidoPendenteDe(outroId, 10.0);
+        jaCancelado.setStatus(StatusPedido.CANCELADO);
+
+        mockConfirmacao();
+        mockBuscaPedido(grande);
+        when(pedidoRepository.findParaAtualizacao(outroId)).thenReturn(Optional.of(jaCancelado));
+        when(pedidoRepository.findIdsNaFila(eq(proprietarioId), any(), eq(pedidoId))).thenReturn(List.of(outroId));
+        mockSalvarPedido();
+
+        pedidoService.confirmar(pedidoId);
+
+        verify(notificacaoService, never()).criarParaPedidoRecusado(any(Pedido.class));
+    }
+
+    @Test
     void naoDeveConfirmarPedidoJaConfirmado() {
+        mockConfirmacao();
         mockBuscaPedido(pedidoComStatus(StatusPedido.CONFIRMADO));
 
         assertThrows(
@@ -501,13 +688,14 @@ class PedidoServiceTest {
                 () -> pedidoService.confirmar(pedidoId)
         );
 
-        // Falha antes de encostar no estoque: nada de baixa dupla
-        verify(estoqueRepository, never()).findParaAtualizacao(any(UUID.class), any(UUID.class));
+        // Falha antes de baixar: nada de baixa dupla
         verify(estoqueRepository, never()).save(any(Estoque.class));
+        assertEquals(ESTOQUE_INICIAL, estoque.getQuantidade());
     }
 
     @Test
     void naoDeveConfirmarPedidoCancelado() {
+        mockConfirmacao();
         mockBuscaPedido(pedidoComStatus(StatusPedido.CANCELADO));
 
         assertThrows(
@@ -535,22 +723,23 @@ class PedidoServiceTest {
         assertEquals(ESTOQUE_INICIAL, estoque.getQuantidade());
 
         verify(estoqueRepository).save(estoque);
+        verify(notificacaoService).criarParaPedidoCancelado(any(Pedido.class), eq(true));
+        verify(estoqueService).registrarLancamentoDePedido(estoque, TipoMovimentacao.ENTRADA,
+                OrigemMovimentacao.DEVOLUCAO, ESTOQUE_INICIAL - QUANTIDADE_PEDIDA, "Devolução do pedido de João");
     }
 
     @Test
-    void deveCancelarPedidoPendenteERestaurarEstoque() {
-        estoque.setQuantidade(ESTOQUE_INICIAL - QUANTIDADE_PEDIDA);
+    void deveCancelarPedidoPendenteSemMexerNoEstoque() {
         mockBuscaPedido(pedidoPendente());
-        mockEstoqueParaAtualizacao();
         mockSalvarPedido();
 
         PedidoResponseDTO resposta = pedidoService.cancelar(pedidoId);
 
+        // Ainda estava na fila: nada foi baixado, nada a devolver
         assertEquals(StatusPedido.CANCELADO, resposta.status());
         assertEquals(ESTOQUE_INICIAL, estoque.getQuantidade());
-
-        verify(estoqueRepository).save(estoque);
-        verify(notificacaoService).criarParaPedidoCancelado(any(Pedido.class));
+        verify(estoqueRepository, never()).save(any(Estoque.class));
+        verify(notificacaoService).criarParaPedidoCancelado(any(Pedido.class), eq(false));
     }
 
     @Test
@@ -564,14 +753,14 @@ class PedidoServiceTest {
 
         // Cancelar duas vezes devolveria o estoque em dobro
         verify(estoqueRepository, never()).save(any(Estoque.class));
-        verify(notificacaoService, never()).criarParaPedidoCancelado(any(Pedido.class));
+        verify(estoqueService, never()).registrarLancamentoDePedido(
+                any(Estoque.class), any(TipoMovimentacao.class), any(OrigemMovimentacao.class), anyDouble(), anyString());
+        verify(notificacaoService, never()).criarParaPedidoCancelado(any(Pedido.class), anyBoolean());
     }
 
     @Test
     void deveCancelarPedidoBuscandoComLock() {
-        estoque.setQuantidade(ESTOQUE_INICIAL - QUANTIDADE_PEDIDA);
         mockBuscaPedido(pedidoPendente());
-        mockEstoqueParaAtualizacao();
         mockSalvarPedido();
 
         pedidoService.cancelar(pedidoId);
@@ -618,19 +807,19 @@ class PedidoServiceTest {
         assertEquals(ESTOQUE_INICIAL, estoque.getQuantidade());
         verify(estoqueRepository).save(estoque);
         verify(pedidoRepository).delete(pedido);
+        verify(estoqueService).registrarLancamentoDePedido(eq(estoque), eq(TipoMovimentacao.ENTRADA),
+                eq(OrigemMovimentacao.DEVOLUCAO), eq(ESTOQUE_INICIAL - QUANTIDADE_PEDIDA), anyString());
     }
 
     @Test
-    void deveExcluirPedidoPendenteERestaurarEstoque() {
-        estoque.setQuantidade(ESTOQUE_INICIAL - QUANTIDADE_PEDIDA);
+    void deveExcluirPedidoPendenteSemMexerNoEstoque() {
         Pedido pedido = pedidoPendente();
         mockBuscaPedido(pedido);
-        mockEstoqueParaAtualizacao();
 
         pedidoService.excluir(pedidoId);
 
         assertEquals(ESTOQUE_INICIAL, estoque.getQuantidade());
-        verify(estoqueRepository).save(estoque);
+        verify(estoqueRepository, never()).save(any(Estoque.class));
         verify(pedidoRepository).delete(pedido);
     }
 
@@ -786,6 +975,19 @@ class PedidoServiceTest {
                 estoque.getId(), QUANTIDADE_PEDIDA, " Ana Souza ", "ana@exemplo.com", "  ", "");
     }
 
+    private List<CopiaDoPedidoEmail> emailsPublicados() {
+        ArgumentCaptor<Object> evento = ArgumentCaptor.forClass(Object.class);
+        verify(eventos, org.mockito.Mockito.atLeast(0)).publishEvent(evento.capture());
+        return evento.getAllValues().stream().map(CopiaDoPedidoEmail.class::cast).toList();
+    }
+
+    private CopiaDoPedidoEmail emailComAssunto(String assunto) {
+        return emailsPublicados().stream()
+                .filter(email -> email.assunto().equals(assunto))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("Nenhum e-mail \"" + assunto + "\": " + emailsPublicados()));
+    }
+
     private CopiaDoPedidoEmail copiaPublicada() {
         ArgumentCaptor<Object> evento = ArgumentCaptor.forClass(Object.class);
         verify(eventos).publishEvent(evento.capture());
@@ -794,6 +996,21 @@ class PedidoServiceTest {
 
     private Pedido pedidoPendente() {
         return pedidoComStatus(StatusPedido.PENDENTE);
+    }
+
+    private Pedido pedidoPendenteDe(UUID id, double quantidade) {
+        Pedido pedido = pedidoPendente();
+        pedido.setId(id);
+        pedido.getItens().get(0).setQuantidade(quantidade);
+        pedido.prePersist();
+        return pedido;
+    }
+
+    // Confirmacao trava o estoque antes do pedido, a partir de consultas escalares
+    private void mockConfirmacao() {
+        lenient().when(pedidoRepository.findProprietarioRecebedorId(pedidoId)).thenReturn(Optional.of(proprietarioId));
+        lenient().when(pedidoRepository.findProdutoIdsDoPedido(pedidoId)).thenReturn(List.of(produtoId));
+        lenient().when(estoqueRepository.findParaAtualizacao(proprietarioId, produtoId)).thenReturn(Optional.of(estoque));
     }
 
     private Pedido pedidoComStatus(StatusPedido status) {
@@ -824,7 +1041,7 @@ class PedidoServiceTest {
     }
 
     private void mockEstoqueDisponivel() {
-        when(estoqueRepository.findParaAtualizacao(proprietarioId, produtoId))
+        when(estoqueRepository.findByProprietarioIdAndProdutoId(proprietarioId, produtoId))
                 .thenReturn(Optional.of(estoque));
     }
 

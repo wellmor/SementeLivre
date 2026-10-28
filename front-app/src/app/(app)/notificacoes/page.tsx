@@ -1,7 +1,6 @@
 'use client';
 
 import React from 'react';
-import { useRouter } from 'next/navigation';
 import { Bell, ShoppingCart } from 'lucide-react';
 import { useNotifications } from '@/context/NotificationContext';
 import { Button } from '@/components/ui/button';
@@ -19,14 +18,17 @@ function timeAgo(date: Date): string {
   return 'agora';
 }
 
+// Pedido cancelado pelo produtor ou recusado pela fila ganha destaque em salmao
+function ehCancelamento(titulo: string): boolean {
+  return /cancelad|recusad/i.test(titulo);
+}
+
 export default function NotificacoesPage() {
   const { notifications, markAsRead, markAsUnread, markAllAsRead } = useNotifications();
-  const router = useRouter();
 
-  const handleNotif = async (idNotificacao: string, idPedido: string | undefined, lida: boolean) => {
+  // Tocar so marca como lida: a notificacao e o aviso em si, nao um atalho para o pedido
+  const handleNotif = async (idNotificacao: string, lida: boolean) => {
     if (!lida) await markAsRead(idNotificacao).catch(() => {});
-    // Notificacao de pedido excluido perde o vinculo (pedidoRelacionadoId nulo)
-    if (idPedido) router.push(`/pedidos/${idPedido}`);
   };
 
   return (
@@ -46,10 +48,10 @@ export default function NotificacoesPage() {
       ) : (
         <ul className={styles.list}>
           {notifications.map((n) => (
-            <li key={n.idNotificacao}>
+            <li key={n.idNotificacao} className={ehCancelamento(n.titulo) ? styles.cancelado : undefined}>
               <button
                 className={`${styles.item} ${!n.lida ? styles.unread : ''}`}
-                onClick={() => handleNotif(n.idNotificacao, n.idPedido, n.lida)}
+                onClick={() => handleNotif(n.idNotificacao, n.lida)}
                 aria-label={`${n.titulo}${!n.lida ? ' - nao lida' : ''}`}
               >
                 {!n.lida && <span className={styles.dot} aria-hidden="true" />}

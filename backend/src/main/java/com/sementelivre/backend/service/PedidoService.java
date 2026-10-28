@@ -6,7 +6,9 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.UUID;
 
 import org.springframework.context.ApplicationEventPublisher;
@@ -30,7 +32,9 @@ import com.sementelivre.backend.entity.Produto;
 import com.sementelivre.backend.entity.Proprietario;
 import com.sementelivre.backend.entity.Usuario;
 import com.sementelivre.backend.entity.enums.Disponibilidade;
+import com.sementelivre.backend.entity.enums.OrigemMovimentacao;
 import com.sementelivre.backend.entity.enums.StatusPedido;
+import com.sementelivre.backend.entity.enums.TipoMovimentacao;
 import com.sementelivre.backend.entity.enums.TipoPedido;
 import com.sementelivre.backend.repository.EstoqueRepository;
 import com.sementelivre.backend.repository.PedidoRepository;
@@ -44,17 +48,20 @@ import com.sementelivre.backend.repository.UsuarioRepository;
 /**
  * Regras de negocio do pedido (issue #67).
  *
- * Ciclo de vida e estoque andam juntos:
- *   - criar/alterar  : valida e reserva (baixa) o estoque; pedido nasce PENDENTE
- *   - confirmar      : apenas muda o status, o estoque ja foi baixado no registro
- *   - cancelar       : restaura o estoque reservado (PENDENTE ou CONFIRMADO)
- *   - excluir        : restaura o estoque se o pedido ainda nao estava CANCELADO (CDU-14)
+ * Fila de pedidos (#183): o estoque so baixa quando o produtor aceita.
+ *   - criar/alterar  : so confere se o saldo atual cobre o pedido; nasce PENDENTE, na fila
+ *   - confirmar      : baixa o estoque e recusa os PENDENTE do mesmo produto que nao cabem mais
+ *   - cancelar       : devolve o estoque se o pedido estava CONFIRMADO
+ *   - excluir        : idem (CDU-14)
  *
- * Reservar no registro impede que dois pedidos PENDENTE disputem a mesma
- * quantidade; um segundo cancelamento e barrado pela transicao de status, o
- * que evita restaurar o estoque duas vezes. As operacoes que mudam o pedido
- * travam a linha dele (buscarParaAtualizacao), senao dois cancelamentos
- * simultaneos passariam juntos pela validacao de transicao.
+ * Sem reserva no registro, quem pede tudo de ma-fe nao trava o estoque dos
+ * outros: os pedidos esperam na fila e o produtor escolhe quem atender.
+ *
+ * Um segundo cancelamento e barrado pela transicao de status, o que evita
+ * devolver o estoque duas vezes. As operacoes que mudam o pedido travam a
+ * linha dele (buscarParaAtualizacao). A confirmacao trava antes as linhas de
+ * estoque: duas confirmacoes do mesmo produto entram em fila no estoque em
+ * vez de uma travar o pedido que a outra quer recusar (deadlock).
  */
 @Service
 public class PedidoService {
@@ -62,6 +69,7 @@ public class PedidoService {
     private final PedidoRepository pedidoRepository;
     private final ProdutoRepository produtoRepository;
     private final EstoqueRepository estoqueRepository;
+    private final EstoqueService estoqueService;
     private final UsuarioRepository usuarioRepository;
     private final NotificacaoService notificacaoService;
     private final ApplicationEventPublisher eventos;
@@ -76,6 +84,7 @@ public class PedidoService {
             PedidoRepository pedidoRepository,
             ProdutoRepository produtoRepository,
             EstoqueRepository estoqueRepository,
+            EstoqueService estoqueService,
             UsuarioRepository usuarioRepository,
             NotificacaoService notificacaoService,
             ApplicationEventPublisher eventos) {
@@ -83,6 +92,7 @@ public class PedidoService {
         this.pedidoRepository = pedidoRepository;
         this.produtoRepository = produtoRepository;
         this.estoqueRepository = estoqueRepository;
+        this.estoqueService = estoqueService;
         this.usuarioRepository = usuarioRepository;
         this.notificacaoService = notificacaoService;
         this.eventos = eventos;
@@ -102,7 +112,7 @@ public class PedidoService {
 
         preencherItens(pedido, dto.itens());
 
-        reservarEstoque(pedido);
+        conferirSaldo(pedido);
 
         // Os itens sao persistidos junto pelo cascade configurado em Pedido.itens
         Pedido registrado = pedidoRepository.save(pedido);
@@ -118,7 +128,7 @@ public class PedidoService {
     @Transactional
     public PedidoPublicoResponseDTO criarPublico(PedidoPublicoRequestDTO dto) {
 
-        Estoque oferta = estoqueRepository.findPorIdParaAtualizacao(dto.estoqueId())
+        Estoque oferta = estoqueRepository.findById(dto.estoqueId())
                 .filter(estoque -> TIPO_POR_DISPONIBILIDADE_PUBLICA.containsKey(estoque.getDisponibilidade()))
                 .orElseThrow(() -> new RecursoNaoEncontradoException(
                         "Oferta não encontrada no catálogo: " + dto.estoqueId()));
@@ -142,7 +152,7 @@ public class PedidoService {
                 .precoUnitario(tipo == TipoPedido.VENDA ? oferta.getPreco() : null)
                 .build());
 
-        reservarEstoque(pedido);
+        conferirSaldo(pedido);
 
         Pedido registrado = pedidoRepository.save(pedido);
         notificacaoService.criarParaPedidoRegistrado(registrado);
@@ -177,6 +187,11 @@ public class PedidoService {
                 .toList();
     }
 
+    /** Usado no @PreAuthorize do controller: o pedido existe e foi recebido por esse proprietário. */
+    public boolean ehDoProprietario(UUID pedidoId, UUID proprietarioId) {
+        return pedidoRepository.existsByIdAndProprietarioRecebedorId(pedidoId, proprietarioId);
+    }
+
     // READ - por ID
     @Transactional(readOnly = true)
     public PedidoResponseDTO buscarPorId(UUID id) {
@@ -189,16 +204,14 @@ public class PedidoService {
 
         Pedido pedido = buscarParaAtualizacao(id);
 
-        // So faz sentido alterar um pedido que ainda nao movimentou estoque.
-        // Alterar um CONFIRMADO exigiria estornar a baixa antiga e refazer a
-        // nova; o fluxo correto nesse caso e cancelar e abrir outro pedido.
+        // So faz sentido alterar um pedido que ainda esta na fila. Alterar um
+        // CONFIRMADO exigiria estornar a baixa e refazer; o fluxo correto nesse
+        // caso e cancelar e abrir outro pedido.
         if (pedido.getStatus() != StatusPedido.PENDENTE) {
             throw new TransicaoStatusInvalidaException(
                     "Apenas pedidos PENDENTE podem ser alterados. Status atual: "
                             + pedido.getStatus());
         }
-
-        devolverEstoque(pedido);
 
         pedido.setTipoPedido(dto.tipoPedido());
         pedido.setMensagemOpcional(dto.mensagemOpcional());
@@ -207,7 +220,7 @@ public class PedidoService {
         pedido.getItens().clear();
         preencherItens(pedido, dto.itens());
 
-        reservarEstoque(pedido);
+        conferirSaldo(pedido);
 
         return mapToResponse(pedidoRepository.save(pedido));
     }
@@ -220,7 +233,7 @@ public class PedidoService {
 
         // Se o estoque chegou a ser baixado, devolve antes de apagar o pedido,
         // senao a quantidade some do sistema junto com o registro.
-        if (reservouEstoque(pedido)) {
+        if (baixouEstoque(pedido)) {
             devolverEstoque(pedido);
         }
 
@@ -234,12 +247,20 @@ public class PedidoService {
     @Transactional
     public PedidoResponseDTO confirmar(UUID id) {
 
+        travarEstoquesDoPedido(id);
+
         Pedido pedido = buscarParaAtualizacao(id);
         validarTransicao(pedido, StatusPedido.CONFIRMADO);
+
+        baixarEstoque(pedido);
 
         pedido.setStatus(StatusPedido.CONFIRMADO);
         Pedido confirmado = pedidoRepository.save(pedido);
         notificacaoService.criarParaPedidoConfirmado(confirmado);
+        // E-mail com o WhatsApp do produtor para combinarem a entrega (#184)
+        CopiaDoPedidoEmail.avisoDeConfirmacao(confirmado).ifPresent(eventos::publishEvent);
+
+        recusarPedidosQueNaoCabemMais(confirmado);
 
         return mapToResponse(confirmado);
     }
@@ -250,53 +271,133 @@ public class PedidoService {
         Pedido pedido = buscarParaAtualizacao(id);
         validarTransicao(pedido, StatusPedido.CANCELADO);
 
-        if (reservouEstoque(pedido)) {
+        boolean devolveu = baixouEstoque(pedido);
+        if (devolveu) {
             devolverEstoque(pedido);
         }
 
         pedido.setStatus(StatusPedido.CANCELADO);
         Pedido cancelado = pedidoRepository.save(pedido);
-        notificacaoService.criarParaPedidoCancelado(cancelado);
+        notificacaoService.criarParaPedidoCancelado(cancelado, devolveu);
 
         return mapToResponse(cancelado);
     }
 
     // REGRAS DE ESTOQUE
 
-    /** Reserva o estoque sob lock pessimista antes de persistir o pedido. */
-    private void reservarEstoque(Pedido pedido) {
+    /**
+     * Entrada na fila: o pedido nao pode passar do saldo de agora, mas nao
+     * baixa nada. Varios pendentes podem somar mais que o estoque; quem nao
+     * couber depois de uma confirmacao e recusado (recusarPedidosQueNaoCabemMais).
+     */
+    private void conferirSaldo(Pedido pedido) {
+
+        UUID proprietarioId = pedido.getProprietarioRecebedor().getId();
+
+        quantidadePorProduto(pedido).forEach((produtoId, demanda) ->
+                validarSaldo(estoqueRepository.findByProprietarioIdAndProdutoId(proprietarioId, produtoId), demanda));
+    }
+
+    /**
+     * Trava as linhas de estoque do pedido antes da linha do pedido. Os ids
+     * vem de consultas escalares para nenhuma entidade ser carregada sem lock
+     * (o Hibernate devolveria essa copia antiga no findParaAtualizacao).
+     */
+    private void travarEstoquesDoPedido(UUID pedidoId) {
+
+        UUID proprietarioId = pedidoRepository.findProprietarioRecebedorId(pedidoId)
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Pedido não encontrado: " + pedidoId));
+
+        new TreeSet<>(pedidoRepository.findProdutoIdsDoPedido(pedidoId))
+                .forEach(produtoId -> estoqueRepository.findParaAtualizacao(proprietarioId, produtoId));
+    }
+
+    /** Baixa o estoque na confirmacao, sob lock pessimista. */
+    private void baixarEstoque(Pedido pedido) {
 
         UUID proprietarioId = pedido.getProprietarioRecebedor().getId();
 
         quantidadePorProduto(pedido).forEach((produtoId, demanda) -> {
 
-            Estoque estoque = estoqueRepository
-                    .findParaAtualizacao(proprietarioId, produtoId)
-                    .orElseThrow(() -> new EstoqueInsuficienteException(
-                            "O produto " + demanda.nome()
-                                    + " não está disponível no estoque deste proprietário."));
+            Estoque estoque = validarSaldo(estoqueRepository.findParaAtualizacao(proprietarioId, produtoId), demanda);
 
-            // O proprietario tirou o produto de circulacao: ter saldo nao basta
-            if (estoque.getDisponibilidade() == Disponibilidade.INDISPONIVEL) {
-                throw new EstoqueInsuficienteException(
-                        "O produto " + demanda.nome()
-                                + " está marcado como indisponível no estoque deste proprietário.");
-            }
-
-            if (estoque.getQuantidade() < demanda.quantidade()) {
-                throw new EstoqueInsuficienteException(
-                        "Estoque insuficiente para o produto " + demanda.nome()
-                                + ": disponível " + formatarQuantidade(estoque.getQuantidade())
-                                + ", solicitado " + formatarQuantidade(demanda.quantidade()) + ".");
-            }
-
-            estoque.setQuantidade(estoque.getQuantidade() - demanda.quantidade());
+            double saldoAnterior = estoque.getQuantidade();
+            estoque.setQuantidade(saldoAnterior - demanda.quantidade());
             estoqueRepository.save(estoque);
+            estoqueService.registrarLancamentoDePedido(estoque, tipoDeSaida(pedido.getTipoPedido()),
+                    OrigemMovimentacao.PEDIDO, saldoAnterior, "Pedido de " + quemPediu(pedido));
         });
     }
 
+    private Estoque validarSaldo(Optional<Estoque> encontrado, Demanda demanda) {
+
+        Estoque estoque = encontrado.orElseThrow(() -> new EstoqueInsuficienteException(
+                "O produto " + demanda.nome()
+                        + " não está disponível no estoque deste proprietário."));
+
+        // O proprietario tirou o produto de circulacao: ter saldo nao basta
+        if (estoque.getDisponibilidade() == Disponibilidade.INDISPONIVEL) {
+            throw new EstoqueInsuficienteException(
+                    "O produto " + demanda.nome()
+                            + " está marcado como indisponível no estoque deste proprietário.");
+        }
+
+        if (estoque.getQuantidade() < demanda.quantidade()) {
+            throw new EstoqueInsuficienteException(
+                    "Estoque insuficiente para o produto " + demanda.nome()
+                            + ": disponível " + formatarQuantidade(estoque.getQuantidade())
+                            + ", solicitado " + formatarQuantidade(demanda.quantidade()) + ".");
+        }
+
+        return estoque;
+    }
+
     /**
-     * Soma de volta o que foi reservado no registro. Se a linha de estoque
+     * Depois de uma confirmacao, os pedidos da fila que pedem algum dos mesmos
+     * produtos e nao cabem mais no saldo sao recusados (viram CANCELADO) e quem
+     * pediu e avisado. Os que ainda cabem continuam na fila.
+     *
+     * Ex.: 50 kg; pedidos de 49 e 10. Confirmado o de 49, sobra 1 e o de 10 e
+     * recusado. Com pedidos de 40 e 10, sobram 10 e o segundo segue na fila.
+     */
+    private void recusarPedidosQueNaoCabemMais(Pedido confirmado) {
+
+        UUID proprietarioId = confirmado.getProprietarioRecebedor().getId();
+        Map<UUID, Double> saldoPorProduto = new TreeMap<>();
+
+        quantidadePorProduto(confirmado).keySet().forEach(produtoId ->
+                estoqueRepository.findParaAtualizacao(proprietarioId, produtoId)
+                        .ifPresent(estoque -> saldoPorProduto.put(produtoId, estoque.getQuantidade())));
+
+        if (saldoPorProduto.isEmpty()) {
+            return;
+        }
+
+        // Ids primeiro, e cada pedido carregado ja travado: um cancelamento ou
+        // exclusao simultaneo nao deixa o status lido aqui desatualizado
+        pedidoRepository.findIdsNaFila(proprietarioId, saldoPorProduto.keySet(), confirmado.getId())
+                .forEach(pedidoId -> pedidoRepository.findParaAtualizacao(pedidoId)
+                        .filter(pedido -> pedido.getStatus() == StatusPedido.PENDENTE)
+                        .filter(pedido -> !cabeNoSaldo(pedido, saldoPorProduto))
+                        .ifPresent(pedido -> recusarPorFaltaDeEstoque(pedido, saldoPorProduto)));
+    }
+
+    private boolean cabeNoSaldo(Pedido pedido, Map<UUID, Double> saldoPorProduto) {
+        return quantidadePorProduto(pedido).entrySet().stream()
+                .filter(demanda -> saldoPorProduto.containsKey(demanda.getKey()))
+                .allMatch(demanda -> demanda.getValue().quantidade() <= saldoPorProduto.get(demanda.getKey()));
+    }
+
+    private void recusarPorFaltaDeEstoque(Pedido pedido, Map<UUID, Double> saldoPorProduto) {
+
+        pedido.setStatus(StatusPedido.CANCELADO);
+        Pedido recusado = pedidoRepository.save(pedido);
+        notificacaoService.criarParaPedidoRecusado(recusado);
+        CopiaDoPedidoEmail.avisoDeRecusa(recusado, saldoPorProduto).ifPresent(eventos::publishEvent);
+    }
+
+    /**
+     * Soma de volta o que foi baixado na confirmacao. Se a linha de estoque
      * sumiu no meio do caminho nao ha o que restaurar, e o cancelamento nao
      * pode falhar por causa disso.
      */
@@ -308,8 +409,12 @@ public class PedidoService {
                 estoqueRepository
                         .findParaAtualizacao(proprietarioId, produtoId)
                         .ifPresent(estoque -> {
-                            estoque.setQuantidade(estoque.getQuantidade() + demanda.quantidade());
+                            double saldoAnterior = estoque.getQuantidade();
+                            estoque.setQuantidade(saldoAnterior + demanda.quantidade());
                             estoqueRepository.save(estoque);
+                            estoqueService.registrarLancamentoDePedido(estoque, TipoMovimentacao.ENTRADA,
+                                    OrigemMovimentacao.DEVOLUCAO, saldoAnterior,
+                                    "Devolução do pedido de " + quemPediu(pedido));
                         }));
     }
 
@@ -342,9 +447,28 @@ public class PedidoService {
         return total;
     }
 
-    // Todo pedido que ainda nao foi cancelado esta com o estoque reservado
-    private boolean reservouEstoque(Pedido pedido) {
-        return pedido.getStatus() != StatusPedido.CANCELADO;
+    private static TipoMovimentacao tipoDeSaida(TipoPedido tipo) {
+        return switch (tipo) {
+            case VENDA -> TipoMovimentacao.SAIDA_VENDA;
+            case TROCA -> TipoMovimentacao.SAIDA_TROCA;
+            case DOACAO -> TipoMovimentacao.SAIDA_DOACAO;
+        };
+    }
+
+    // Nome que aparece no historico do estoque: o comprador do site ou a conta que registrou
+    private static String quemPediu(Pedido pedido) {
+        if (pedido.getComprador() != null && pedido.getComprador().getNome() != null) {
+            return pedido.getComprador().getNome();
+        }
+        if (pedido.getUsuarioSolicitante() != null && pedido.getUsuarioSolicitante().getPessoa() != null) {
+            return pedido.getUsuarioSolicitante().getNome();
+        }
+        return "comprador não informado";
+    }
+
+    // So o pedido aceito pelo produtor tirou do estoque; o PENDENTE esta na fila
+    private boolean baixouEstoque(Pedido pedido) {
+        return pedido.getStatus() == StatusPedido.CONFIRMADO;
     }
 
     // 10.0 -> "10", 2.50 -> "2.5": a mensagem vai direto para a tela
