@@ -14,7 +14,7 @@ test.describe('Pedidos (front-app)', () => {
     await expect(page.getByRole('note')).toContainText('o estoque só é baixado quando você confirmar');
     expect((await buscarEstoque(produtor, oferta.estoqueId)).quantidade).toBe(40);
 
-    await page.getByRole('tab', { name: 'Pedidos' }).click();
+    await page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name: 'Pedidos' }).click();
     await expect(page.getByText('Maria Recebedora')).toBeVisible();
     expect((await listarPedidos(produtor)).map((p) => p.id)).toContain(id);
   });
