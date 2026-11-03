@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Search, Plus, Sprout, ChevronRight, PackageSearch, SlidersHorizontal } from 'lucide-react';
 import { useSeeds } from '@/hooks/useSeeds';
-import { DisponibilidadeProduto, DisponibilidadeLabels } from '@/types/stock';
+import { DisponibilidadeLabels, disponibilidadeEfetiva } from '@/types/stock';
 import { TipoProdutoLabels } from '@/types/seed';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/feedback/EmptyState';
@@ -26,7 +26,7 @@ export default function SementesPage() {
     return seeds.filter((s) => {
       const matchBusca =
         busca === '' || s.nomePopular.toLowerCase().includes(busca.toLowerCase());
-      const matchDisp = filtroDisp === 'TODAS' || s.disponibilidade === filtroDisp;
+      const matchDisp = filtroDisp === 'TODAS' || disponibilidadeEfetiva(s) === filtroDisp;
       return matchBusca && matchDisp;
     });
   }, [seeds, busca, filtroDisp]);
@@ -105,7 +105,7 @@ export default function SementesPage() {
                 <div className={styles.cardContent}>
                   <p className={styles.cardName}>{seed.nomePopular}</p>
                   <p className={styles.cardQty}>{seed.quantidade} {seed.tipoPesagem}</p>
-                  <Badge variant="availability" value={seed.disponibilidade} />
+                  <Badge variant="availability" value={disponibilidadeEfetiva(seed)} />
                 </div>
                 <ChevronRight size={16} strokeWidth={2} className={styles.chevron} />
               </Link>

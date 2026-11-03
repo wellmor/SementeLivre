@@ -52,7 +52,8 @@ public interface EstoqueRepository extends BaseRepository<Estoque, UUID> {
 
     /**
      * Estoques de um proprietario que podem ser exibidos no site publico
-     * (issue #91).
+     * (issue #91). Estoque zerado fica de fora, sem perder a disponibilidade
+     * escolhida pelo produtor: quando o saldo volta, a oferta volta (#127).
      */
     default List<Estoque> findVisiveisNoSitePublico(UUID proprietarioId) {
         return findByProprietarioIdExcetoDisponibilidade(proprietarioId, Disponibilidade.INDISPONIVEL);
@@ -68,6 +69,7 @@ public interface EstoqueRepository extends BaseRepository<Estoque, UUID> {
             join fetch e.produto p
             where e.proprietario.id = :proprietarioId
               and e.disponibilidade <> :excluida
+              and e.quantidade > 0
             order by p.nomePopular
             """)
     List<Estoque> findByProprietarioIdExcetoDisponibilidade(
@@ -75,7 +77,7 @@ public interface EstoqueRepository extends BaseRepository<Estoque, UUID> {
             @Param("excluida") Disponibilidade excluida);
 
     /**
-     * Catalogo publico - issue #93.
+     * Catalogo publico - issue #93. Oferta com estoque zerado nao aparece (#127).
      *
      * As disponibilidades permitidas sao recebidas como parametro para evitar
      * que o Hibernate gere casts PostgreSQL usando o nome da classe Java
@@ -95,6 +97,7 @@ public interface EstoqueRepository extends BaseRepository<Estoque, UUID> {
             left join pr.comunidade cp
             left join cp.logradouro lp
             where e.disponibilidade in :disponibilidadesPublicas
+              and e.quantidade > 0
               and (:nomePopular = ''
                    or lower(p.nomePopular) like concat('%', :nomePopular, '%'))
               and p.tipo in :tipos
@@ -125,6 +128,7 @@ public interface EstoqueRepository extends BaseRepository<Estoque, UUID> {
             left join fetch c.logradouro l
             where p.id = :produtoId
               and e.disponibilidade in :disponibilidadesPublicas
+              and e.quantidade > 0
             """)
     List<Estoque> buscarProdutosPublicosPorId(
             @Param("produtoId") UUID produtoId,
