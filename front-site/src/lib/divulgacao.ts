@@ -1,7 +1,4 @@
-// Divulgação na página inicial (#181): link do app e fotos das comunidades.
-
-// O app (front-app) ainda não tem endereço fixo; cada ambiente informa o seu.
-export const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+// Divulgação na página inicial (#181): fotos das comunidades.
 
 export interface FotoComunidade {
   src: string;

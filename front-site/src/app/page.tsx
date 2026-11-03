@@ -25,11 +25,10 @@ import {
   Sprout,
   ArrowRight,
   MessageCircle,
-  Smartphone,
 } from "lucide-react";
 import type { Disponibilidade, OfertaCatalogo, TipoProduto } from "@/lib/types";
 import { DISPONIBILIDADE_CONFIG, TIPO_PRODUTO_LABEL, unidade } from "@/lib/catalogo";
-import { APP_URL, FOTOS_COMUNIDADES } from "@/lib/divulgacao";
+import { FOTOS_COMUNIDADES } from "@/lib/divulgacao";
 
 type FilterStatus = Disponibilidade | "all";
 type FilterTipo = TipoProduto | "all";
@@ -127,15 +126,6 @@ export default function MarketplacePage() {
               Ver produtos disponíveis
               <ArrowRight className="w-4 h-4" />
             </Button>
-            <a
-              href={APP_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-white/70 px-4 text-sm font-semibold text-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-            >
-              <Smartphone className="w-4 h-4" aria-hidden="true" />
-              Acessar o app
-            </a>
           </div>
         </div>
       </section>
