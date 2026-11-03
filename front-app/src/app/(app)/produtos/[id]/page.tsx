@@ -6,7 +6,7 @@ import { Sprout, BarChart2, List, Pencil, Trash2, PackageSearch, ShoppingCart, C
 import { useSeeds } from '@/hooks/useSeeds';
 import { useOrders } from '@/hooks/useOrders';
 import { useToast } from '@/components/feedback/Toast';
-import { Estoque, DisponibilidadeLabels, DisponibilidadeProduto, PesagemLabels, TipoMovimentacao, TipoNegociavelLabels } from '@/types/stock';
+import { Estoque, DisponibilidadeLabels, DisponibilidadeProduto, PesagemLabels, TipoMovimentacao, TipoNegociavelLabels, disponibilidadeEfetiva } from '@/types/stock';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
@@ -150,7 +150,7 @@ export default function SementeDetailPage() {
           <div className={styles.info}>
             <div className={styles.titleRow}>
               <h2 className={styles.name}>{seed.nomePopular}</h2>
-              <Badge variant="availability" value={seed.disponibilidade} />
+              <Badge variant="availability" value={disponibilidadeEfetiva(seed)} />
             </div>
             {seed.descricao && <p className={styles.desc}>{seed.descricao}</p>}
 

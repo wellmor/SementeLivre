@@ -33,6 +33,14 @@ export const DisponibilidadeLabels: Record<DisponibilidadeProduto, string> = {
 };
 
 /**
+ * Disponibilidade que o produtor vê: estoque zerado aparece como indisponível
+ * (e sai do site), mas a escolhida continua gravada e volta com o saldo (#127).
+ */
+export function disponibilidadeEfetiva(estoque: { disponibilidade: DisponibilidadeProduto; quantidade: number }): DisponibilidadeProduto {
+  return estoque.quantidade > 0 ? estoque.disponibilidade : DisponibilidadeProduto.INDISPONIVEL;
+}
+
+/**
  * Tipo de pedido de cada disponibilidade que vai para o site. Só nelas faz
  * sentido escolher se o comprador pode propor outro tipo (negociar).
  */

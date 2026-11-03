@@ -1,5 +1,5 @@
 import { test, expect, toast } from '../../support/fixtures';
-import { PNG_1X1, unico } from '../../support/api';
+import { API_URL, PNG_1X1, criarOferta, unico } from '../../support/api';
 
 /** Cadastro de produto com foto: é o que alimenta o catálogo público. */
 test.describe('Produtos (front-app)', () => {
@@ -19,6 +19,26 @@ test.describe('Produtos (front-app)', () => {
     await expect(toast(page, 'Produto cadastrado com sucesso!')).toBeVisible();
     await expect(page).toHaveURL(/\/produtos$/);
     await expect(page.getByText(nome)).toBeVisible();
+  });
+
+  test('estoque zerado por pedido aparece como indisponível e sai do site (#127)', async ({ appLogado: page, produtor, request }) => {
+    const oferta = await criarOferta(produtor, { quantidade: 5 });
+    const headers = { Authorization: `Bearer ${produtor.accessToken}` };
+    const pedido = await request.post(`${API_URL}/pedidos`, {
+      headers,
+      data: { tipoPedido: 'VENDA', proprietarioRecebedorId: produtor.id,
+              itens: [{ produtoId: oferta.produtoId, quantidade: 5, precoUnitario: 10 }], comprador: { nome: 'Esgota' } },
+    });
+    expect(pedido.ok(), await pedido.text()).toBeTruthy();
+    expect((await request.patch(`${API_URL}/pedidos/${(await pedido.json()).id}/confirmar`, { headers })).ok()).toBeTruthy();
+
+    await page.goto('/produtos');
+    const card = page.getByRole('listitem').filter({ hasText: oferta.nomePopular });
+    await expect(card.getByText('0 KG')).toBeVisible();
+    await expect(card.getByText('Indisponível')).toBeVisible();
+
+    const catalogo = await (await request.get(`${API_URL}/catalogo/produtos?nomePopular=${encodeURIComponent(oferta.nomePopular)}`)).json();
+    expect(catalogo.content).toHaveLength(0);
   });
 
   test('endereços antigos /sementes levam para /produtos (#186)', async ({ appLogado: page }) => {
