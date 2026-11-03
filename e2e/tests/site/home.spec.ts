@@ -1,18 +1,13 @@
 import { test, expect } from '@playwright/test';
 
-/** Página inicial do site: link do app e carrossel das comunidades (#181). */
+/** Página inicial do site: carrossel das comunidades (#181). */
 test.describe('Página inicial (front-site)', () => {
-  test('link do app abre o front-app em outra aba', async ({ page }) => {
+  // O app ainda não está publicado (nem na Play Store): o site não leva a ele
+  test('página inicial não tem link nem seção do app', async ({ page }) => {
     await page.goto('/');
-
-    const links = page.getByRole('link', { name: /Acessar o app/ });
-    await expect(links).toHaveCount(2);
-    for (const link of await links.all()) {
-      await expect(link).toHaveAttribute('href', /^https?:\/\//);
-      await expect(link).toHaveAttribute('target', '_blank');
-      await expect(link).toHaveAttribute('rel', /noopener/);
-    }
-    await expect(page.getByRole('heading', { name: 'É produtor? Use o app Semente Livre' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Produtos Disponíveis' })).toBeVisible();
+    await expect(page.getByRole('link', { name: /app/i })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: /Use o app/ })).toHaveCount(0);
   });
 
   test('carrossel troca de foto pelos botões e pelos indicadores', async ({ page }) => {
