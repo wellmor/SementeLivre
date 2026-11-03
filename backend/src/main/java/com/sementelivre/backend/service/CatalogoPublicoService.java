@@ -1,11 +1,16 @@
 package com.sementelivre.backend.service;
 
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.sementelivre.backend.dto.CatalogoOfertaResponseDTO;
 import com.sementelivre.backend.dto.CatalogoProdutoDetalheResponseDTO;
@@ -14,10 +19,13 @@ import com.sementelivre.backend.entity.Comunidade;
 import com.sementelivre.backend.entity.Estoque;
 import com.sementelivre.backend.entity.Logradouro;
 import com.sementelivre.backend.entity.Produto;
+import com.sementelivre.backend.entity.Propriedade;
 import com.sementelivre.backend.entity.enums.Disponibilidade;
 import com.sementelivre.backend.entity.enums.EspecieGeral;
+import com.sementelivre.backend.entity.enums.StatusComunidade;
 import com.sementelivre.backend.entity.enums.TipoProduto;
 import com.sementelivre.backend.repository.EstoqueRepository;
+import com.sementelivre.backend.repository.PropriedadeRepository;
 import com.sementelivre.backend.exception.RecursoNaoEncontradoException;
 
 @Service
@@ -36,11 +44,14 @@ public class CatalogoPublicoService {
             );
 
     private final EstoqueRepository estoqueRepository;
+    private final PropriedadeRepository propriedadeRepository;
 
-    public CatalogoPublicoService(EstoqueRepository estoqueRepository) {
+    public CatalogoPublicoService(EstoqueRepository estoqueRepository, PropriedadeRepository propriedadeRepository) {
         this.estoqueRepository = estoqueRepository;
+        this.propriedadeRepository = propriedadeRepository;
     }
 
+    @Transactional(readOnly = true)
     public Page<CatalogoProdutoResponseDTO> listar(
             String nomePopular,
             TipoProduto tipo,
@@ -50,7 +61,7 @@ public class CatalogoPublicoService {
             String municipio,
             Pageable pageable) {
 
-        return estoqueRepository.buscarCatalogoPublico(
+        Page<Estoque> pagina = estoqueRepository.buscarCatalogoPublico(
                 DISPONIBILIDADES_PUBLICAS,
                 normalizar(nomePopular),
                 tipo != null ? List.of(tipo) : List.of(TipoProduto.values()),
@@ -60,10 +71,48 @@ public class CatalogoPublicoService {
                         : DISPONIBILIDADES_PUBLICAS,
                 normalizar(comunidade),
                 normalizar(municipio),
+                StatusComunidade.ATIVA,
                 pageable
-        ).map(this::toResponseDTO);
+        );
+
+        Map<UUID, Comunidade> daPropriedade = comunidadesDasPropriedades(pagina.getContent());
+
+        return pagina.map(estoque -> toResponseDTO(estoque, comunidadeDaOferta(estoque, daPropriedade)));
     }
 
+    /**
+     * Comunidade que o site mostra para a oferta: a de origem do produto ou,
+     * sem ela, a da propriedade mais recente do produtor numa comunidade ativa.
+     * O app não pede a comunidade no cadastro do produto, então sem isso
+     * nenhuma oferta do app tinha comunidade nem município no site (#100).
+     */
+    private static Comunidade comunidadeDaOferta(Estoque estoque, Map<UUID, Comunidade> daPropriedade) {
+        Comunidade origem = estoque.getProduto().getComunidadeOrigem();
+        return origem != null ? origem : daPropriedade.get(estoque.getProprietario().getId());
+    }
+
+    /** Proprietário → comunidade da propriedade mais recente dele numa comunidade ativa. */
+    private Map<UUID, Comunidade> comunidadesDasPropriedades(Collection<Estoque> estoques) {
+        List<UUID> semOrigem = estoques.stream()
+                .filter(e -> e.getProduto().getComunidadeOrigem() == null)
+                .map(e -> e.getProprietario().getId())
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+
+        Map<UUID, Comunidade> porProprietario = new HashMap<>();
+        if (semOrigem.isEmpty()) {
+            return porProprietario;
+        }
+        // Vem da mais recente para a mais antiga: fica a primeira de cada proprietário
+        for (Propriedade propriedade : propriedadeRepository.findByProprietariosEStatusDaComunidade(
+                semOrigem, StatusComunidade.ATIVA)) {
+            porProprietario.putIfAbsent(propriedade.getProprietario().getId(), propriedade.getComunidade());
+        }
+        return porProprietario;
+    }
+
+    @Transactional(readOnly = true)
     public CatalogoProdutoDetalheResponseDTO buscarPorProdutoId(
             UUID produtoId) {
 
@@ -81,7 +130,7 @@ public class CatalogoPublicoService {
 
         Produto produto = estoques.get(0).getProduto();
 
-        Comunidade comunidade = produto.getComunidadeOrigem();
+        Comunidade comunidade = comunidadeDaOferta(estoques.get(0), comunidadesDasPropriedades(estoques));
 
         Logradouro logradouro = comunidade != null
                 ? comunidade.getLogradouro()
@@ -118,11 +167,9 @@ public class CatalogoPublicoService {
     }
 
     private CatalogoProdutoResponseDTO toResponseDTO(
-            Estoque estoque) {
+            Estoque estoque, Comunidade comunidade) {
 
         Produto produto = estoque.getProduto();
-
-        Comunidade comunidade = produto.getComunidadeOrigem();
 
         Logradouro logradouro = comunidade != null
                 ? comunidade.getLogradouro()

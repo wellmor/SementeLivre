@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { buscarEstoque, criarOferta, criarProdutor, listarPedidos, unico } from '../../support/api';
+import { buscarEstoque, criarOferta, criarProdutor, criarPropriedade, listarPedidos, unico } from '../../support/api';
 
 /** CDU de catálogo público (front-site): listagem, busca, filtros e detalhe do produto. */
 test.describe('Catálogo público (front-site)', () => {
@@ -16,6 +16,20 @@ test.describe('Catálogo público (front-site)', () => {
     await expect(card).toBeVisible();
     await expect(card.getByText('15 kg em estoque')).toBeVisible();
     await expect(card.getByText('R$ 7.00/kg')).toBeVisible();
+  });
+
+  test('oferta do app mostra a comunidade da propriedade e entra no filtro por comunidade (#100)', async ({ page }) => {
+    const produtor = await criarProdutor();
+    await criarPropriedade(produtor);
+    const oferta = await criarOferta(produtor, { nomePopular: `Feijão Comunidade ${unico()}` });
+
+    await page.goto('/');
+    await page.getByLabel('Filtrar por comunidade').selectOption({ label: 'Quilombo dos Coelhos' });
+    await page.getByPlaceholder('Buscar por nome popular...').fill(oferta.nomePopular);
+
+    const card = page.locator('[data-slot="card"]').filter({ hasText: oferta.nomePopular });
+    await expect(card).toBeVisible();
+    await expect(card.getByText('Quilombo dos Coelhos')).toBeVisible();
   });
 
   test('busca sem resultado mostra estado vazio', async ({ page }) => {

@@ -179,3 +179,22 @@ export async function listarPropriedades(produtor: Produtor): Promise<Propriedad
   await api.dispose();
   return corpo;
 }
+
+/** Propriedade do produtor numa comunidade já ativa (a do seeder, por padrão). */
+export async function criarPropriedade(produtor: Produtor, comunidadeNome = 'Quilombo dos Coelhos'): Promise<void> {
+  const api = await autenticado(produtor);
+  const comunidades: Array<{ id: string; nome: string }> = await (await api.get('/api/comunidades')).json();
+  const comunidade = comunidades.find((c) => c.nome === comunidadeNome);
+  expect(comunidade, `comunidade ${comunidadeNome}`).toBeTruthy();
+  const res = await api.post('/api/propriedades', {
+    data: {
+      nome: `Sítio E2E ${unico()}`,
+      tamanhoHectares: 3,
+      proprietarioId: produtor.id,
+      comunidadeId: comunidade!.id,
+      endereco: { logradouro: 'Estrada', numero: '5', bairro: 'Zona Rural', municipio: 'Rio Pomba', uf: 'MG', cep: '36180000' },
+    },
+  });
+  expect(res.ok(), `propriedade: ${await res.text()}`).toBeTruthy();
+  await api.dispose();
+}
