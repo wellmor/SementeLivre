@@ -75,10 +75,12 @@ public class PedidoService {
     private final ApplicationEventPublisher eventos;
 
     // Ofertas que aparecem no catálogo público e o tipo de pedido que cada uma gera
+    // A_NEGOCIAR: o tipo é o que quem pede escolher; sem escolha, venda
     private static final Map<Disponibilidade, TipoPedido> TIPO_POR_DISPONIBILIDADE_PUBLICA = Map.of(
             Disponibilidade.PARA_VENDA, TipoPedido.VENDA,
             Disponibilidade.PARA_TROCA, TipoPedido.TROCA,
-            Disponibilidade.PARA_DOACAO, TipoPedido.DOACAO);
+            Disponibilidade.PARA_DOACAO, TipoPedido.DOACAO,
+            Disponibilidade.A_NEGOCIAR, TipoPedido.VENDA);
 
     public PedidoService(
             PedidoRepository pedidoRepository,
@@ -521,7 +523,7 @@ public class PedidoService {
         if (proposto == null || proposto == daOferta) {
             return daOferta;
         }
-        if (!oferta.isAceitaNegociacao()) {
+        if (!oferta.isAceitaNegociacao() && oferta.getDisponibilidade() != Disponibilidade.A_NEGOCIAR) {
             throw new NegociacaoNaoPermitidaException(
                     "O produtor não aceita negociar esta oferta: o pedido precisa ser de "
                             + ROTULO_TIPO.get(daOferta) + ".");

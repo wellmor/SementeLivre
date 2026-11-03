@@ -20,6 +20,7 @@ import {
   mensagemDeErro,
   unidade,
 } from "@/lib/catalogo";
+import { formatarMoeda } from "@/lib/utils";
 
 const emptyForm = {
   quantidade: 1,
@@ -61,7 +62,9 @@ export default function ProdutoPage() {
 
   const oferta: Oferta | undefined = produto?.ofertas.find((o) => o.estoqueId === estoqueId);
   const tipoDaOferta = oferta ? DISPONIBILIDADE_CONFIG[oferta.disponibilidade].tipoPedido : null;
-  const tipoPedido = oferta?.aceitaNegociacao ? (tipoProposto ?? tipoDaOferta) : tipoDaOferta;
+  // "A Negociar": o produtor não fixou o tipo, quem pede escolhe
+  const aNegociar = oferta?.disponibilidade === "A_NEGOCIAR";
+  const tipoPedido = oferta?.aceitaNegociacao || aNegociar ? (tipoProposto ?? tipoDaOferta) : tipoDaOferta;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -190,7 +193,7 @@ export default function ProdutoPage() {
                 )}
                 {oferta.preco != null && (
                   <span className="text-primary-dark font-bold text-base">
-                    R$ {oferta.preco.toFixed(2)}/{unidade(oferta.tipoPesagem)}
+                    {formatarMoeda(oferta.preco)}/{unidade(oferta.tipoPesagem)}
                   </span>
                 )}
               </div>
@@ -224,7 +227,7 @@ export default function ProdutoPage() {
                     {produto.ofertas.map((o) => (
                       <option key={o.estoqueId} value={o.estoqueId}>
                         {DISPONIBILIDADE_CONFIG[o.disponibilidade].label}
-                        {o.preco != null && ` · R$ ${o.preco.toFixed(2)}/${unidade(o.tipoPesagem)}`}
+                        {o.preco != null && ` · ${formatarMoeda(o.preco)}/${unidade(o.tipoPesagem)}`}
                         {o.quantidade != null && ` · ${o.quantidade} ${unidade(o.tipoPesagem)} em estoque`}
                         {o.descricao && ` · ${o.descricao}`}
                       </option>
@@ -234,7 +237,7 @@ export default function ProdutoPage() {
               )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {oferta.aceitaNegociacao ? (
+                {oferta.aceitaNegociacao || aNegociar ? (
                   <div className="space-y-1.5">
                     <Label htmlFor="tipoPedido">Tipo de negociação</Label>
                     <select
@@ -246,12 +249,14 @@ export default function ProdutoPage() {
                       {(Object.keys(TIPO_PEDIDO_LABEL) as TipoPedido[]).map((t) => (
                         <option key={t} value={t}>
                           {TIPO_PEDIDO_LABEL[t]}
-                          {t === statusCfg.tipoPedido ? " (oferta)" : " (proposta)"}
+                          {aNegociar ? "" : t === statusCfg.tipoPedido ? " (oferta)" : " (proposta)"}
                         </option>
                       ))}
                     </select>
                     <p className="text-xs text-muted-foreground">
-                      {tipoPedido === statusCfg.tipoPedido
+                      {aNegociar
+                        ? "Oferta a negociar: escolha venda, troca ou doação."
+                        : tipoPedido === statusCfg.tipoPedido
                         ? "O produtor aceita negociar: você pode propor outro tipo."
                         : `Proposta: a oferta é de ${TIPO_PEDIDO_LABEL[statusCfg.tipoPedido].toLowerCase()}, o produtor vai avaliar.`}
                     </p>

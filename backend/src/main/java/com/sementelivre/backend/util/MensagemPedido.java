@@ -5,11 +5,12 @@ import java.util.List;
 
 import com.sementelivre.backend.entity.Itens;
 import com.sementelivre.backend.entity.Pedido;
+import com.sementelivre.backend.entity.enums.TipoPedido;
 
 /**
  * Monta o texto das notificacoes de pedido com os detalhes do pedido (CDU-26).
  *
- * <p>Exemplo: "Pedido de TROCA confirmado. Solicitante: Maria. Itens: 2 x Feijao Crioulo."</p>
+ * <p>Exemplo: "Pedido de troca confirmado. Solicitante: Maria. Itens: 2 x Feijao Crioulo."</p>
  */
 public final class MensagemPedido {
 
@@ -21,7 +22,7 @@ public final class MensagemPedido {
         StringBuilder mensagem = new StringBuilder();
 
         if (pedido.getTipoPedido() != null) {
-            mensagem.append("Pedido de ").append(pedido.getTipoPedido()).append(" ").append(evento).append(".");
+            mensagem.append("Pedido de ").append(nomeDoTipo(pedido.getTipoPedido())).append(" ").append(evento).append(".");
         } else {
             mensagem.append("Pedido ").append(evento).append(".");
         }
@@ -41,6 +42,15 @@ public final class MensagemPedido {
         }
 
         return mensagem.toString();
+    }
+
+    // Texto que o produtor le, e nao o nome da constante ("DOACAO")
+    private static String nomeDoTipo(TipoPedido tipo) {
+        return switch (tipo) {
+            case VENDA -> "venda";
+            case TROCA -> "troca";
+            case DOACAO -> "doação";
+        };
     }
 
     // Junta os itens em um texto so: "2 x Feijao Crioulo, 1 x Milho"

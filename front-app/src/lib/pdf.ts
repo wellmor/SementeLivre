@@ -6,6 +6,7 @@ import { DisponibilidadeLabels, type Estoque } from '@/types/stock';
 import { EspecieGeralLabels } from '@/types/seed';
 import { TipoPedidoLabels, StatusPedidoLabels, type Pedido } from '@/types/order';
 import { LOGOS_IF } from '@/lib/institutionalLogo';
+import { formatarDecimal } from './formato';
 
 export type PdfTipo = 'ESTOQUE' | 'PEDIDOS';
 
@@ -113,7 +114,7 @@ export async function baixarRelatorioPdf({ tipo, filtroDisponibilidade, filtroEs
         String(s.quantidade ?? ''),
         s.tipoPesagem ?? '',
         DisponibilidadeLabels[s.disponibilidade] ?? s.disponibilidade,
-        s.preco != null ? s.preco.toFixed(2) : '—',
+        s.preco != null ? formatarDecimal(s.preco) : '—',
       ])
     : orders.map((o) => [
         `#${o.idPedido.slice(-6).toUpperCase()}`,
@@ -121,7 +122,7 @@ export async function baixarRelatorioPdf({ tipo, filtroDisponibilidade, filtroEs
         o.nomeRecebedor,
         TipoPedidoLabels[o.tipoPedido] ?? o.tipoPedido,
         StatusPedidoLabels[o.status] ?? o.status,
-        o.totalValor != null ? o.totalValor.toFixed(2) : '—',
+        o.totalValor != null ? formatarDecimal(o.totalValor) : '—',
       ]);
 
   autoTable(doc, {

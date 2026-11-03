@@ -19,6 +19,12 @@ export const DISPONIBILIDADE_CONFIG: Record<
     className: "bg-blue-100 text-blue-900 border-transparent",
     tipoPedido: "DOACAO",
   },
+  // Quem pede escolhe venda, troca ou doação; venda vem marcada
+  A_NEGOCIAR: {
+    label: "A Negociar",
+    className: "bg-violet-100 text-violet-900 border-transparent",
+    tipoPedido: "VENDA",
+  },
 };
 
 export const TIPO_PRODUTO_LABEL: Record<TipoProduto, string> = {

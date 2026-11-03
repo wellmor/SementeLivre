@@ -1,6 +1,6 @@
 // Espelham os DTOs do catálogo público do backend (/catalogo/produtos, /catalogo/pedidos).
 
-export type Disponibilidade = "PARA_VENDA" | "PARA_TROCA" | "PARA_DOACAO";
+export type Disponibilidade = "PARA_VENDA" | "PARA_TROCA" | "PARA_DOACAO" | "A_NEGOCIAR";
 export type TipoProduto =
   | "HORTALICA"
   | "FRUTIFERA"
