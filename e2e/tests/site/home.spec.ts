@@ -6,13 +6,14 @@ test.describe('Página inicial (front-site)', () => {
     await page.goto('/');
 
     const links = page.getByRole('link', { name: /Acessar o app/ });
-    await expect(links).toHaveCount(2);
+    await expect(links).toHaveCount(1);
     for (const link of await links.all()) {
       await expect(link).toHaveAttribute('href', /^https?:\/\//);
       await expect(link).toHaveAttribute('target', '_blank');
       await expect(link).toHaveAttribute('rel', /noopener/);
     }
-    await expect(page.getByRole('heading', { name: 'É produtor? Use o app Semente Livre' })).toBeVisible();
+    // A seção "É produtor? Use o app" saiu da página; fica só o botão do topo
+    await expect(page.getByRole('heading', { name: /Use o app/ })).toHaveCount(0);
   });
 
   test('carrossel troca de foto pelos botões e pelos indicadores', async ({ page }) => {

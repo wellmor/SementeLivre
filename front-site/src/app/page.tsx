@@ -360,31 +360,6 @@ export default function MarketplacePage() {
         </div>
       </section>
 
-      {/* ── App (#181) ── */}
-      <section id="app" aria-labelledby="titulo-app" className="py-14 px-6">
-        <div className="max-w-4xl mx-auto rounded-2xl bg-gradient-to-br from-primary to-primary-dark text-white p-8 sm:p-10 flex flex-col sm:flex-row items-center gap-6 shadow-lg">
-          <div className="w-16 h-16 flex-shrink-0 rounded-2xl bg-white/20 flex items-center justify-center">
-            <Smartphone className="w-8 h-8" aria-hidden="true" />
-          </div>
-          <div className="flex-1 text-center sm:text-left space-y-2">
-            <h2 id="titulo-app" className="text-2xl font-bold">É produtor? Use o app Semente Livre</h2>
-            <p className="text-primary-light text-sm leading-relaxed">
-              Cadastre seus produtos, acompanhe o estoque e responda aos pedidos pelo celular.
-              Funciona no navegador e pode ser instalado na tela inicial.
-            </p>
-          </div>
-          <a
-            href={APP_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-white px-6 text-sm font-semibold text-primary-dark shadow hover:bg-primary-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-          >
-            Acessar o app
-            <ArrowRight className="w-4 h-4" aria-hidden="true" />
-          </a>
-        </div>
-      </section>
-
       {/* ── About section ── */}
       <section
         id="sobre"
