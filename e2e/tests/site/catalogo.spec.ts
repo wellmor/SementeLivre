@@ -15,7 +15,7 @@ test.describe('Catálogo público (front-site)', () => {
     const card = page.locator('[data-slot="card"]').filter({ hasText: oferta.nomePopular });
     await expect(card).toBeVisible();
     await expect(card.getByText('15 kg em estoque')).toBeVisible();
-    await expect(card.getByText('R$ 7.00/kg')).toBeVisible();
+    await expect(card.getByText('R$ 7,00/kg')).toBeVisible();
   });
 
   test('oferta do app mostra a comunidade da propriedade e entra no filtro por comunidade (#100)', async ({ page }) => {
@@ -89,6 +89,27 @@ test.describe('Catálogo público (front-site)', () => {
     expect(pedidos).toHaveLength(1);
     expect(pedidos[0]).toMatchObject({ status: 'PENDENTE', tipoPedido: 'VENDA' });
     expect((await buscarEstoque(produtor, oferta.estoqueId)).quantidade).toBe(20);
+  });
+
+  test('oferta "a negociar" aparece no site e quem pede escolhe o tipo', async ({ page }) => {
+    const produtor = await criarProdutor();
+    const oferta = await criarOferta(produtor, { nomePopular: `Milho Negociar ${unico()}`, disponibilidade: 'A_NEGOCIAR', aceitaNegociacao: false });
+
+    await page.goto('/');
+    await page.getByPlaceholder('Buscar por nome popular...').fill(oferta.nomePopular);
+    const card = page.locator('[data-slot="card"]').filter({ hasText: oferta.nomePopular });
+    await expect(card.getByText('A Negociar')).toBeVisible();
+
+    await page.goto(`/produto/${oferta.produtoId}?oferta=${oferta.estoqueId}`);
+    await expect(page.getByText('Oferta a negociar: escolha venda, troca ou doação.')).toBeVisible();
+    await page.locator('#tipoPedido').selectOption('TROCA');
+    await page.getByLabel(/^Quantidade/).fill('2');
+    await page.getByLabel(/Seu nome/).fill('Cliente Negociar');
+    await page.getByLabel(/E-mail/).fill(`negociar-${unico()}@sementelivre.test`);
+    await page.getByRole('button', { name: 'Enviar pedido' }).click();
+
+    await expect(page.getByText('Pedido enviado! Uma cópia vai para o e-mail informado.')).toBeVisible();
+    expect((await listarPedidos(produtor))[0]).toMatchObject({ status: 'PENDENTE', tipoPedido: 'TROCA' });
   });
 
   test('oferta sem negociação trava o tipo do pedido', async ({ page }) => {

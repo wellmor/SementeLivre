@@ -18,6 +18,7 @@ import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import Link from 'next/link';
 import styles from './semente.module.css';
+import { formatarMoeda } from '@/lib/formato';
 
 const pesagemOptions = Object.entries(PesagemLabels).map(([v, l]) => ({ value: v, label: l }));
 const dispOptions = Object.entries(DisponibilidadeLabels).map(([v, l]) => ({ value: v, label: l }));
@@ -161,8 +162,8 @@ export default function SementeDetailPage() {
               </div>
               {seed.preco && (
                 <div className={styles.gridItem}>
-                  <span className={styles.gridLabel}>Preco</span>
-                  <span className={styles.gridValue}>R$ {seed.preco.toFixed(2)}</span>
+                  <span className={styles.gridLabel}>Preço</span>
+                  <span className={styles.gridValue}>{formatarMoeda(seed.preco)}</span>
                 </div>
               )}
               {tipoNegociavel && (
@@ -185,7 +186,7 @@ export default function SementeDetailPage() {
             <Link href={`/produtos/${id}/estoque`}>
               <Button variant="ghost" fullWidth>
                 <List size={16} strokeWidth={2} />
-                Ver Movimentacoes
+                Ver Movimentações
               </Button>
             </Link>
           </div>

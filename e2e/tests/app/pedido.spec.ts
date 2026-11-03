@@ -10,7 +10,7 @@ test.describe('Pedidos (front-app)', () => {
 
     await expect(page.getByText('Maria Recebedora')).toBeVisible();
     await expect(page.getByText('Pendente')).toBeVisible();
-    await expect(page.getByText('Total: R$ 62.50')).toBeVisible();
+    await expect(page.getByText('Total: R$ 62,50')).toBeVisible();
     await expect(page.getByRole('note')).toContainText('o estoque só é baixado quando você confirmar');
     expect((await buscarEstoque(produtor, oferta.estoqueId)).quantidade).toBe(40);
 

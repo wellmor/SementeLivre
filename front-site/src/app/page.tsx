@@ -28,10 +28,14 @@ import {
 } from "lucide-react";
 import type { Disponibilidade, OfertaCatalogo, TipoProduto } from "@/lib/types";
 import { DISPONIBILIDADE_CONFIG, TIPO_PRODUTO_LABEL, unidade } from "@/lib/catalogo";
+import { formatarMoeda } from "@/lib/utils";
 import { FOTOS_COMUNIDADES } from "@/lib/divulgacao";
 
 type FilterStatus = Disponibilidade | "all";
 type FilterTipo = TipoProduto | "all";
+
+// Cards por vez na listagem; o resto aparece no "Mostrar mais"
+const POR_PAGINA = 24;
 
 export default function MarketplacePage() {
   const router = useRouter();
@@ -41,6 +45,10 @@ export default function MarketplacePage() {
   const [filter, setFilter] = useState<FilterStatus>("all");
   const [filterTipo, setFilterTipo] = useState<FilterTipo>("all");
   const [filterComunidade, setFilterComunidade] = useState("all");
+  // Cards mostrados aos poucos ("Mostrar mais"); a contagem volta ao início quando o filtro muda
+  const chaveDoFiltro = JSON.stringify([search, filter, filterTipo, filterComunidade]);
+  const [exibicao, setExibicao] = useState({ chave: chaveDoFiltro, quantidade: POR_PAGINA });
+  const quantidadeVisivel = exibicao.chave === chaveDoFiltro ? exibicao.quantidade : POR_PAGINA;
 
   useEffect(() => {
     fetch("/api/catalog")
@@ -244,7 +252,7 @@ export default function MarketplacePage() {
         {/* Grid */}
         {!loading && filtered.length > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-            {filtered.map((oferta) => {
+            {filtered.slice(0, quantidadeVisivel).map((oferta) => {
               const cfg = DISPONIBILIDADE_CONFIG[oferta.disponibilidade];
               const descricao = oferta.descricao || oferta.historico;
 
@@ -300,7 +308,7 @@ export default function MarketplacePage() {
                       )}
                       {oferta.preco != null && (
                         <p className="text-xs text-primary-dark font-semibold">
-                          R$ {oferta.preco.toFixed(2)}/{unidade(oferta.tipoPesagem)}
+                          {formatarMoeda(oferta.preco)}/{unidade(oferta.tipoPesagem)}
                         </p>
                       )}
                       {descricao && (
@@ -308,7 +316,8 @@ export default function MarketplacePage() {
                           {descricao}
                         </p>
                       )}
-                      {!oferta.aceitaNegociacao && (
+                      {/* "A Negociar" sempre aceita proposta: o aviso de tipo fixo não vale */}
+                      {!oferta.aceitaNegociacao && oferta.disponibilidade !== "A_NEGOCIAR" && (
                         <p className="flex items-center gap-1 text-[11px] text-muted-foreground pt-1">
                           <Lock className="w-3 h-3" />
                           Só {cfg.label.replace("Para ", "").toLowerCase()}, sem negociação
@@ -325,12 +334,24 @@ export default function MarketplacePage() {
                       }
                     >
                       <MessageCircle className="w-3.5 h-3.5" />
-                      {oferta.aceitaNegociacao ? "Quero negociar" : "Fazer pedido"}
+                      {oferta.aceitaNegociacao || oferta.disponibilidade === "A_NEGOCIAR" ? "Quero negociar" : "Fazer pedido"}
                     </Button>
                   </CardContent>
                 </Card>
               );
             })}
+          </div>
+        )}
+
+        {!loading && filtered.length > quantidadeVisivel && (
+          <div className="mt-8 flex justify-center">
+            <Button
+              variant="outline"
+              className="border-border text-primary-dark hover:bg-primary-light"
+              onClick={() => setExibicao({ chave: chaveDoFiltro, quantidade: quantidadeVisivel + POR_PAGINA })}
+            >
+              Mostrar mais ({filtered.length - quantidadeVisivel} restantes)
+            </Button>
           </div>
         )}
       </section>

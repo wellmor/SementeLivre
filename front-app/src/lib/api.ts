@@ -161,6 +161,11 @@ async function pedirRenovacao(): Promise<Renovacao> {
   try {
     // fetch direto (e não request()) para um 401 da própria renovação nunca disparar outra
     const res = await fetch('/api/sessao/renovar', { method: 'POST' });
+    // 204: não há sessão neste navegador
+    if (res.status === 204) {
+      clearTokens();
+      return 'sem-sessao';
+    }
     if (res.ok) {
       saveAccessToken(((await res.json()) as { accessToken: string }).accessToken);
       return 'ok';

@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import styles from './pedido.module.css';
+import { formatarMoeda } from '@/lib/formato';
 
 export default function PedidoDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -81,12 +82,12 @@ export default function PedidoDetailPage() {
             <li key={item.idItem} className={styles.item}>
               <span className={styles.itemName}>{item.nomePopular}</span>
               <span className={styles.itemQty}>{item.quantidade}{item.tipoPesagem ? ` ${item.tipoPesagem}` : ''}</span>
-              {item.precoUnitario && <span className={styles.itemPrice}>R$ {(item.precoUnitario * item.quantidade).toFixed(2)}</span>}
+              {item.precoUnitario && <span className={styles.itemPrice}>{formatarMoeda(item.precoUnitario * item.quantidade)}</span>}
             </li>
           ))}
         </ul>
         {!!order.totalValor && (
-          <p className={styles.total}>Total: <strong>R$ {order.totalValor.toFixed(2)}</strong></p>
+          <p className={styles.total}>Total: <strong>{formatarMoeda(order.totalValor)}</strong></p>
         )}
       </div>
 

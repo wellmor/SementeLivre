@@ -107,7 +107,7 @@ export async function criarOferta(
     nomePopular?: string;
     quantidade?: number;
     preco?: number;
-    disponibilidade?: 'PARA_VENDA' | 'PARA_TROCA' | 'PARA_DOACAO';
+    disponibilidade?: 'PARA_VENDA' | 'PARA_TROCA' | 'PARA_DOACAO' | 'A_NEGOCIAR';
     aceitaNegociacao?: boolean;
   } = {}
 ): Promise<Oferta> {

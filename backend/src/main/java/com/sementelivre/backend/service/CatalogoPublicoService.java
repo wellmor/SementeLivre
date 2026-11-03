@@ -34,13 +34,16 @@ public class CatalogoPublicoService {
     /*
      * Disponibilidades que podem aparecer no catalogo publico.
      *
-     * A_NEGOCIAR e INDISPONIVEL ficam fora do catalogo da issue #93.
+     * INDISPONIVEL fica fora. A_NEGOCIAR ficava fora desde a issue #93, mas o app
+     * oferece essa opcao no cadastro: o produto sumia do site sem aviso. No site,
+     * quem pede escolhe venda, troca ou doacao.
      */
     private static final List<Disponibilidade> DISPONIBILIDADES_PUBLICAS =
             List.of(
                     Disponibilidade.PARA_VENDA,
                     Disponibilidade.PARA_TROCA,
-                    Disponibilidade.PARA_DOACAO
+                    Disponibilidade.PARA_DOACAO,
+                    Disponibilidade.A_NEGOCIAR
             );
 
     private final EstoqueRepository estoqueRepository;

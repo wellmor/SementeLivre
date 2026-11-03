@@ -320,9 +320,35 @@ class PedidoServiceTest {
         assertNull(pedidoSalvo().getItens().get(0).getPrecoUnitario());
     }
 
+    // "A Negociar" aparece no site e quem pede escolhe o tipo, mesmo sem a opção
+    // "aceita negociar" (antes a oferta nem chegava ao site)
+    @Test
+    void ofertaANegociarAceitaQualquerTipoEscolhidoNoSite() {
+        estoque.setAceitaNegociacao(false);
+        estoque.setDisponibilidade(Disponibilidade.A_NEGOCIAR);
+        when(estoqueRepository.findById(estoque.getId())).thenReturn(Optional.of(estoque));
+        mockEstoqueDisponivel();
+        mockSalvarPedido();
+
+        PedidoPublicoResponseDTO resposta = pedidoService.criarPublico(requestPublicoComTipo(TipoPedido.TROCA));
+
+        assertEquals(TipoPedido.TROCA, resposta.tipoPedido());
+        assertNull(pedidoSalvo().getItens().get(0).getPrecoUnitario());
+    }
+
+    @Test
+    void ofertaANegociarSemTipoEscolhidoViraVenda() {
+        estoque.setDisponibilidade(Disponibilidade.A_NEGOCIAR);
+        when(estoqueRepository.findById(estoque.getId())).thenReturn(Optional.of(estoque));
+        mockEstoqueDisponivel();
+        mockSalvarPedido();
+
+        assertEquals(TipoPedido.VENDA, pedidoService.criarPublico(requestPublico()).tipoPedido());
+    }
+
     @Test
     void naoDeveCriarPedidoPublicoParaOfertaForaDoCatalogo() {
-        estoque.setDisponibilidade(Disponibilidade.A_NEGOCIAR);
+        estoque.setDisponibilidade(Disponibilidade.INDISPONIVEL);
         when(estoqueRepository.findById(estoque.getId())).thenReturn(Optional.of(estoque));
 
         assertThrows(RecursoNaoEncontradoException.class,

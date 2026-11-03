@@ -27,6 +27,7 @@ import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/feedback/EmptyState';
 
 import styles from './produto.module.css';
+import { formatarMoeda } from '@/lib/formato';
 
 interface PageProps {
   params: Promise<{
@@ -213,7 +214,7 @@ export default function CatalogoProdutoPage({ params }: PageProps) {
 
                   {oferta.preco != null && (
                     <strong className={styles.price}>
-                      R$ {oferta.preco.toFixed(2)}
+                      {formatarMoeda(oferta.preco)}
                     </strong>
                   )}
                 </div>

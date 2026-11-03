@@ -3,13 +3,15 @@ import { COOKIE_REFRESH, apagarCookie, backendIndisponivel, chamarBackend, repas
 
 /**
  * Renova a sessão com o refresh token do cookie: POST /api/sessao/renovar → { accessToken }.
- * 401 quando não há sessão; 503 quando o backend não responde (a página
- * mantém a sessão e oferece tentar de novo).
+ * 204 quando nunca houve sessão (quem abre a tela de login sem estar logado:
+ * um 401 aqui virava erro no console a cada visita); 401 quando a sessão
+ * acabou; 503 quando o backend não responde (a página mantém a sessão e
+ * oferece tentar de novo).
  */
 export async function POST(request: NextRequest) {
   const refreshToken = request.cookies.get(COOKIE_REFRESH)?.value;
   if (!refreshToken) {
-    return NextResponse.json({ message: 'Sem sessão.', code: 'auth/sem-sessao' }, { status: 401 });
+    return new NextResponse(null, { status: 204 });
   }
 
   const res = await chamarBackend(request, '/auth/refresh', { refreshToken });

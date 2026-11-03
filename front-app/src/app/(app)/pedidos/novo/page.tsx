@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import styles from './novoPedido.module.css';
+import { formatarMoeda } from '@/lib/formato';
 
 interface ItemForm { seed: EstoqueParaPedido; quantidade: number; }
 
@@ -121,7 +122,7 @@ export default function NovoPedidoPage() {
                 <span className={styles.itemName}>{item.seed.nomePopular}</span>
                 <span className={styles.itemQty}>{item.quantidade} {PesagemLabels[item.seed.tipoPesagem]}</span>
                 {tipo === TipoPedido.VENDA && item.seed.preco && (
-                  <span className={styles.itemPrice}>R$ {(item.seed.preco * item.quantidade).toFixed(2)}</span>
+                  <span className={styles.itemPrice}>{formatarMoeda(item.seed.preco * item.quantidade)}</span>
                 )}
                 <button type="button" className={styles.removeItem} onClick={() => setItens(p => p.filter(i => i.seed.idEstoque !== item.seed.idEstoque))} aria-label={`Remover ${item.seed.nomePopular}`}>✕</button>
               </li>
@@ -129,7 +130,7 @@ export default function NovoPedidoPage() {
           </ul>
         )}
         {tipo === TipoPedido.VENDA && itens.length > 0 && (
-          <p className={styles.total}>Total: <strong>R$ {total.toFixed(2)}</strong></p>
+          <p className={styles.total}>Total: <strong>{formatarMoeda(total)}</strong></p>
         )}
       </div>
 

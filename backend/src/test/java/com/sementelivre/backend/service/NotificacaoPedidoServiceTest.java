@@ -108,7 +108,7 @@ class NotificacaoPedidoServiceTest {
 
         String mensagem = notificacaoSalva(pedido).getMensagem();
 
-        assertTrue(mensagem.contains("Pedido de TROCA confirmado"), mensagem);
+        assertTrue(mensagem.contains("Pedido de troca confirmado"), mensagem);
         assertTrue(mensagem.contains("Solicitante: Maria Silva"), mensagem);
         assertTrue(mensagem.contains("Feijao Crioulo"), mensagem);
         assertTrue(mensagem.contains("Milho"), mensagem);
@@ -146,7 +146,7 @@ class NotificacaoPedidoServiceTest {
 
         String mensagem = notificacaoSalva(pedido).getMensagem();
 
-        assertEquals("Pedido de DOACAO confirmado.", mensagem);
+        assertEquals("Pedido de doação confirmado.", mensagem);
     }
 
     // ---- CDU-26: registro e cancelamento tambem avisam o proprietario (#94, #102) ----
@@ -158,7 +158,7 @@ class NotificacaoPedidoServiceTest {
         Notificacao salva = notificacaoSalva(() -> notificacaoService.criarParaPedidoRegistrado(pedido));
 
         assertEquals("Novo pedido recebido", salva.getTitulo());
-        assertEquals("Pedido de TROCA registrado. Solicitante: Maria Silva."
+        assertEquals("Pedido de troca registrado. Solicitante: Maria Silva."
                 + " Itens: 2 x Feijao Crioulo, 1.5 x Milho.", salva.getMensagem());
         assertFalse(salva.isLida());
     }
@@ -170,7 +170,7 @@ class NotificacaoPedidoServiceTest {
         Notificacao salva = notificacaoSalva(() -> notificacaoService.criarParaPedidoCancelado(pedido, true));
 
         assertEquals("Pedido cancelado", salva.getTitulo());
-        assertTrue(salva.getMensagem().startsWith("Pedido de TROCA cancelado."), salva.getMensagem());
+        assertTrue(salva.getMensagem().startsWith("Pedido de troca cancelado."), salva.getMensagem());
         assertTrue(salva.getMensagem().endsWith("A quantidade voltou para o estoque."), salva.getMensagem());
     }
 
@@ -192,7 +192,7 @@ class NotificacaoPedidoServiceTest {
                 () -> notificacaoService.criarParaPedidoRecusado(pedido), 2);
 
         assertEquals("Pedido recusado", salvas.get(0).getTitulo());
-        assertTrue(salvas.get(0).getMensagem().startsWith("Pedido de TROCA recusado."), salvas.get(0).getMensagem());
+        assertTrue(salvas.get(0).getMensagem().startsWith("Pedido de troca recusado."), salvas.get(0).getMensagem());
         assertTrue(salvas.get(0).getMensagem().endsWith("O estoque não cobre mais este pedido depois da confirmação de outro."));
         assertEquals(solicitante, salvas.get(1).getProprietario());
         assertEquals("Seu pedido foi recusado", salvas.get(1).getTitulo());
@@ -258,7 +258,7 @@ class NotificacaoPedidoServiceTest {
 
         assertEquals(solicitante, salvas.get(1).getProprietario());
         assertEquals("Seu pedido foi cancelado", salvas.get(1).getTitulo());
-        assertTrue(salvas.get(1).getMensagem().startsWith("Pedido de TROCA cancelado."));
+        assertTrue(salvas.get(1).getMensagem().startsWith("Pedido de troca cancelado."));
     }
 
     @Test
