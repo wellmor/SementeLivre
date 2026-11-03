@@ -1,16 +1,8 @@
 import { test, expect, toast } from '../../support/fixtures';
 import { listarPropriedades, unico } from '../../support/api';
 
-/**
- * CDU de propriedade/comunidade no front-app.
- *
- * As telas ainda gravam propriedades e comunidades só no localStorage (lib/db.ts),
- * então nada chega ao backend e a comunidade do seeder não aparece na lista.
- * A integração está no PR #161; remova o fixme quando ele entrar no developer.
- */
+/** CDU de propriedade/comunidade no front-app, gravando no backend (#100). */
 test.describe('Propriedades e comunidades (front-app)', () => {
-  test.fixme(true, 'Aguarda a integração de propriedades/comunidades com o backend (PR #161)');
-
   test('cadastra propriedade em comunidade existente e grava no backend', async ({ appLogado: page, produtor }) => {
     const nome = `Sítio E2E ${unico()}`;
     await page.goto('/propriedades/nova');
