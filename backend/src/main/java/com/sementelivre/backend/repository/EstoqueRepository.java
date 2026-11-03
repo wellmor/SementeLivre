@@ -14,6 +14,7 @@ import org.springframework.data.repository.query.Param;
 import com.sementelivre.backend.entity.Estoque;
 import com.sementelivre.backend.entity.enums.Disponibilidade;
 import com.sementelivre.backend.entity.enums.EspecieGeral;
+import com.sementelivre.backend.entity.enums.StatusComunidade;
 import com.sementelivre.backend.entity.enums.TipoProduto;
 
 import jakarta.persistence.LockModeType;
@@ -85,6 +86,14 @@ public interface EstoqueRepository extends BaseRepository<Estoque, UUID> {
             join e.produto p
             left join p.comunidadeOrigem c
             left join c.logradouro l
+            left join Propriedade pr
+                   on pr.proprietario = e.proprietario
+                  and pr.comunidade.status = :comunidadeAtiva
+                  and pr.dataCadastro = (select max(pr2.dataCadastro) from Propriedade pr2
+                                         where pr2.proprietario = e.proprietario
+                                           and pr2.comunidade.status = :comunidadeAtiva)
+            left join pr.comunidade cp
+            left join cp.logradouro lp
             where e.disponibilidade in :disponibilidadesPublicas
               and (:nomePopular = ''
                    or lower(p.nomePopular) like concat('%', :nomePopular, '%'))
@@ -92,9 +101,10 @@ public interface EstoqueRepository extends BaseRepository<Estoque, UUID> {
               and p.especie in :especies
               and e.disponibilidade in :disponibilidadesFiltro
               and (:comunidade = ''
-                   or lower(c.nome) like concat('%', :comunidade, '%'))
+                   or lower(coalesce(c.nome, cp.nome)) like concat('%', :comunidade, '%'))
               and (:municipio = ''
-                   or lower(l.municipio) like concat('%', :municipio, '%'))
+                   or lower(case when c.id is not null then l.municipio else lp.municipio end)
+                      like concat('%', :municipio, '%'))
             """)
     Page<Estoque> buscarCatalogoPublico(
             @Param("disponibilidadesPublicas")
@@ -105,6 +115,7 @@ public interface EstoqueRepository extends BaseRepository<Estoque, UUID> {
             @Param("disponibilidadesFiltro") List<Disponibilidade> disponibilidadesFiltro,
             @Param("comunidade") String comunidade,
             @Param("municipio") String municipio,
+            @Param("comunidadeAtiva") StatusComunidade comunidadeAtiva,
             Pageable pageable);
 
     @Query("""

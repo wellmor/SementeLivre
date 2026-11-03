@@ -2,11 +2,13 @@ package com.sementelivre.backend.repository;
 
 import com.sementelivre.backend.entity.Comunidade;
 import com.sementelivre.backend.entity.Propriedade;
+import com.sementelivre.backend.entity.enums.StatusComunidade;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
@@ -14,6 +16,24 @@ import java.util.UUID;
 public interface PropriedadeRepository extends BaseRepository<Propriedade, UUID> {
 
     List<Propriedade> findByProprietarioIdOrderByDataCadastroDesc(UUID proprietarioId);
+
+    /**
+     * Propriedades dos proprietários em comunidades com o status pedido, da
+     * mais recente para a mais antiga, com a comunidade e o endereço dela.
+     * O catálogo público usa a primeira de cada proprietário como comunidade
+     * das ofertas sem comunidade de origem.
+     */
+    @Query("""
+            select p from Propriedade p
+            join fetch p.comunidade c
+            join fetch c.logradouro
+            where p.proprietario.id in :proprietarioIds
+              and c.status = :status
+            order by p.dataCadastro desc
+            """)
+    List<Propriedade> findByProprietariosEStatusDaComunidade(
+            @Param("proprietarioIds") Collection<UUID> proprietarioIds,
+            @Param("status") StatusComunidade status);
 
     boolean existsByIdAndProprietarioId(UUID id, UUID proprietarioId);
 
