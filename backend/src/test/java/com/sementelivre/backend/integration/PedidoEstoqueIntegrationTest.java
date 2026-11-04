@@ -1,6 +1,7 @@
 package com.sementelivre.backend.integration;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -25,6 +26,7 @@ import com.sementelivre.backend.dto.CompradorDTO;
 import com.sementelivre.backend.dto.MovimentacaoResponseDTO;
 import com.sementelivre.backend.dto.PedidoRequestDTO;
 import com.sementelivre.backend.dto.PedidoResponseDTO;
+import com.sementelivre.backend.entity.Comprador;
 import com.sementelivre.backend.entity.Estoque;
 import com.sementelivre.backend.entity.Notificacao;
 import com.sementelivre.backend.entity.Pedido;
@@ -340,6 +342,28 @@ class PedidoEstoqueIntegrationTest extends AbstractPostgresIntegrationTest {
         assertEquals("Associação de Agricultores", buscado.comprador().nome());
         assertEquals("32999990000", buscado.comprador().telefone());
         assertEquals(scenario.produto().getNomePopular(), buscado.itens().get(0).nomeProduto());
+    }
+
+    @Test
+    @Transactional
+    void excluirPedidoComComprador_naoDeixaODadoPessoalDoCompradorOrfao() {
+        CrossDomainFixture.Scenario scenario = fixture(ESTOQUE_INICIAL);
+        PedidoRequestDTO base = CrossDomainFixture.pedido(scenario, QUANTIDADE_PEDIDA);
+        PedidoResponseDTO criado = pedidoService.criar(new PedidoRequestDTO(
+                base.tipoPedido(), base.mensagemOpcional(), base.usuarioSolicitanteId(),
+                base.proprietarioRecebedorId(), base.itens(),
+                new CompradorDTO("Comprador Que Some", "32988887777")));
+        entityManager.flush();
+        UUID compradorId = pedidoRepository.findById(criado.id()).orElseThrow().getComprador().getId();
+        entityManager.clear();
+
+        pedidoService.excluir(criado.id());
+        entityManager.flush();
+        entityManager.clear();
+
+        assertNull(entityManager.find(Pedido.class, criado.id()));
+        assertNull(entityManager.find(Comprador.class, compradorId),
+                "nome e telefone do comprador não podem sobrar sem o pedido");
     }
 
     private static final class TestRollbackException extends RuntimeException {
