@@ -258,21 +258,21 @@ class PedidoPublicoIntegrationTest extends AbstractPostgresIntegrationTest {
     // LIMITE (cada teste usa IPs e e-mails próprios: o limitador é compartilhado no contexto)
 
     @Test
-    void quartoPedidoParaOMesmoEmailDeveSerBarradoCom429() throws Exception {
+    void trigesimoPrimeiroPedidoParaOMesmoEmailDeveSerBarradoCom429() throws Exception {
         CrossDomainFixture.Scenario scenario = cenarioComEstoque(100.0);
         UUID estoqueId = estoque(scenario).getId();
         String email = "vitima-" + UUID.randomUUID() + "@exemplo.com";
 
-        // Variações do mesmo endereço e IPs diferentes: o limite é da caixa de entrada
+        // Variações do mesmo endereço e um IP por tentativa: o limite (30) é da caixa de entrada
         String[] variacoes = { email, email.toUpperCase(), email.replace("@", "+spam@") };
         UUID semOferta = UUID.randomUUID();
-        for (int i = 0; i < variacoes.length; i++) {
-            mockMvc.perform(pedido(semOferta, variacoes[i], "198.51.100." + (10 + i)))
+        for (int i = 0; i < 30; i++) {
+            mockMvc.perform(pedido(semOferta, variacoes[i % variacoes.length], "192.0.2." + (1 + i)))
                     .andExpect(status().isNotFound()); // oferta inexistente, mas a tentativa conta
         }
 
-        // O quarto, numa oferta real, é barrado antes de chegar ao estoque
-        mockMvc.perform(pedido(estoqueId, email, "198.51.100.13"))
+        // O 31º, numa oferta real, é barrado antes de chegar ao estoque
+        mockMvc.perform(pedido(estoqueId, email, "192.0.2.31"))
                 .andExpect(status().isTooManyRequests())
                 .andExpect(header().string("Retry-After", "3600"))
                 .andExpect(jsonPath("$.message").value("Este e-mail já recebeu muitos pedidos. Tente novamente em 60 minutos."));

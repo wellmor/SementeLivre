@@ -50,7 +50,7 @@ app:
   # Acima do limite a API responde 429 com Retry-After.
   pedido-publico:
     limite:
-      por-email: ${PEDIDO_PUBLICO_LIMITE_POR_EMAIL:3}
+      por-email: ${PEDIDO_PUBLICO_LIMITE_POR_EMAIL:30}
       janela-email: ${PEDIDO_PUBLICO_JANELA_EMAIL:1h}
       por-ip: ${PEDIDO_PUBLICO_LIMITE_POR_IP:10}
       janela-ip: ${PEDIDO_PUBLICO_JANELA_IP:10m}
