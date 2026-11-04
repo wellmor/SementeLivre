@@ -11,7 +11,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class LimitePedidoPublicoProperties {
 
     /** Pedidos por e-mail de destino dentro da janela. Protege a caixa de quem recebe a cópia. */
-    private int porEmail = 3;
+    private int porEmail = 30;
     private Duration janelaEmail = Duration.ofHours(1);
 
     /** Pedidos por IP do cliente dentro da janela. */
