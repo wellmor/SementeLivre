@@ -1,0 +1,15 @@
+# Só para o teste de carga local: expõe a API, não sobe caddy/backup e
+# afrouxa os limites por IP (todo o tráfego do k6 sai de um IP só).
+services:
+  db:
+    container_name: sl_carga_db
+  app:
+    container_name: sl_carga_app
+    ports:
+      - "18080:8080"
+    environment:
+      AUTH_LIMITE_LOGIN_POR_IP: "100000000"
+      AUTH_LIMITE_CADASTRO_POR_IP: "100000000"
+      AUTH_LIMITE_REFRESH_POR_IP: "100000000"
+      PEDIDO_PUBLICO_LIMITE_POR_IP: "100000000"
+      PEDIDO_PUBLICO_LIMITE_POR_EMAIL: "100000000"
