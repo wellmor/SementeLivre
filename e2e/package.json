@@ -8,7 +8,8 @@
     "test:site": "playwright test --project=front-site",
     "report": "playwright show-report",
     "install:browsers": "playwright install --with-deps chromium",
-    "typecheck": "tsc -p ."
+    "typecheck": "tsc -p .",
+    "test:smoke": "playwright test -c playwright.smoke.config.ts"
   },
   "license": "UNLICENSED",
   "devDependencies": {
