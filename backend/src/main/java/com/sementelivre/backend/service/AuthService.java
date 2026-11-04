@@ -160,7 +160,7 @@ public class AuthService {
 
     /** Grava o hash do token novo e devolve o token, que só o cliente fica sabendo. */
     private String criarRefreshToken(Usuario usuario) {
-        refreshTokenRepository.deleteByUsuario(usuario);
+        refreshTokenRepository.apagarTodosDoUsuario(usuario);
 
         String token = UUID.randomUUID().toString();
 
