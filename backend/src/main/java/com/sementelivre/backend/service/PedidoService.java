@@ -36,6 +36,7 @@ import com.sementelivre.backend.entity.enums.OrigemMovimentacao;
 import com.sementelivre.backend.entity.enums.StatusPedido;
 import com.sementelivre.backend.entity.enums.TipoMovimentacao;
 import com.sementelivre.backend.entity.enums.TipoPedido;
+import com.sementelivre.backend.repository.CompradorRepository;
 import com.sementelivre.backend.repository.EstoqueRepository;
 import com.sementelivre.backend.repository.PedidoRepository;
 import com.sementelivre.backend.repository.ProdutoRepository;
@@ -72,6 +73,7 @@ public class PedidoService {
     private final EstoqueService estoqueService;
     private final UsuarioRepository usuarioRepository;
     private final NotificacaoService notificacaoService;
+    private final CompradorRepository compradorRepository;
     private final ApplicationEventPublisher eventos;
 
     // Ofertas que aparecem no catálogo público e o tipo de pedido que cada uma gera
@@ -89,6 +91,7 @@ public class PedidoService {
             EstoqueService estoqueService,
             UsuarioRepository usuarioRepository,
             NotificacaoService notificacaoService,
+            CompradorRepository compradorRepository,
             ApplicationEventPublisher eventos) {
 
         this.pedidoRepository = pedidoRepository;
@@ -97,6 +100,7 @@ public class PedidoService {
         this.estoqueService = estoqueService;
         this.usuarioRepository = usuarioRepository;
         this.notificacaoService = notificacaoService;
+        this.compradorRepository = compradorRepository;
         this.eventos = eventos;
     }
 
@@ -241,7 +245,15 @@ public class PedidoService {
 
         notificacaoService.desvincularPedido(pedido.getId());
 
+        Comprador comprador = pedido.getComprador();
+
         pedidoRepository.delete(pedido);
+
+        // Nome, e-mail e telefone do comprador são dados pessoais: sem o pedido
+        // que os trouxe, não podem ficar órfãos (mesma regra da exclusão de conta)
+        if (comprador != null) {
+            compradorRepository.deleteSemPedidoByIdIn(List.of(comprador.getId()));
+        }
     }
 
     // CICLO DE VIDA

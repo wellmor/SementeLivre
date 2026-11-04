@@ -48,6 +48,7 @@ import com.sementelivre.backend.entity.enums.OrigemMovimentacao;
 import com.sementelivre.backend.entity.enums.StatusPedido;
 import com.sementelivre.backend.entity.enums.TipoMovimentacao;
 import com.sementelivre.backend.entity.enums.TipoPedido;
+import com.sementelivre.backend.repository.CompradorRepository;
 import com.sementelivre.backend.repository.EstoqueRepository;
 import com.sementelivre.backend.repository.PedidoRepository;
 import com.sementelivre.backend.repository.ProdutoRepository;
@@ -79,6 +80,9 @@ class PedidoServiceTest {
     private NotificacaoService notificacaoService;
 
     @Mock
+    private CompradorRepository compradorRepository;
+
+    @Mock
     private ApplicationEventPublisher eventos;
 
     private PedidoService pedidoService;
@@ -105,6 +109,7 @@ class PedidoServiceTest {
                 estoqueService,
                 usuarioRepository,
                 notificacaoService,
+                compradorRepository,
                 eventos
         );
 
@@ -835,6 +840,30 @@ class PedidoServiceTest {
         verify(pedidoRepository).delete(pedido);
         verify(estoqueService).registrarLancamentoDePedido(eq(estoque), eq(TipoMovimentacao.ENTRADA),
                 eq(OrigemMovimentacao.DEVOLUCAO), eq(ESTOQUE_INICIAL - QUANTIDADE_PEDIDA), anyString());
+    }
+
+    @Test
+    void excluirPedidoApagaOCompradorQueFicouSemPedido() {
+        Pedido pedido = pedidoPendente();
+        Comprador comprador = Comprador.builder().id(UUID.randomUUID()).nome("Comprador do site").build();
+        pedido.setComprador(comprador);
+        mockBuscaPedido(pedido);
+
+        pedidoService.excluir(pedidoId);
+
+        verify(pedidoRepository).delete(pedido);
+        verify(compradorRepository).deleteSemPedidoByIdIn(List.of(comprador.getId()));
+    }
+
+    @Test
+    void excluirPedidoSemCompradorNaoMexeEmComprador() {
+        Pedido pedido = pedidoPendente();
+        pedido.setComprador(null);
+        mockBuscaPedido(pedido);
+
+        pedidoService.excluir(pedidoId);
+
+        verify(compradorRepository, never()).deleteSemPedidoByIdIn(any());
     }
 
     @Test
