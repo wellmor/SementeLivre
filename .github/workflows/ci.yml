@@ -40,3 +40,10 @@ jobs:
         with:
           name: relatorio-testes
           path: backend/target/surefire-reports
+
+      - name: Publicar relatório de cobertura (JaCoCo)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: relatorio-cobertura
+          path: backend/target/site/jacoco
