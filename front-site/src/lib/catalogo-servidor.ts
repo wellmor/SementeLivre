@@ -12,7 +12,9 @@ export async function buscarCatalogoCompleto(): Promise<OfertaCatalogo[] | null>
   try {
     const ofertas: OfertaCatalogo[] = [];
     for (let pagina = 0; pagina < MAX_PAGINAS; pagina++) {
-      const res = await fetch(`${BACKEND_URL}/catalogo/produtos?size=${POR_PAGINA}&page=${pagina}`, {
+      // sort=id: sem ordem fixa o Postgres devolve as páginas em ordem instável, e
+      // ofertas apareciam duas vezes enquanto outras sumiam (com mais de 100 ofertas)
+      const res = await fetch(`${BACKEND_URL}/catalogo/produtos?size=${POR_PAGINA}&page=${pagina}&sort=id,asc`, {
         cache: "no-store",
       });
       if (!res.ok) return null;
