@@ -1,13 +1,22 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, ArrowDown, ArrowUp, History, Plus, Loader2 } from 'lucide-react';
+import { ArrowLeft, ArrowDown, ArrowUp, CloudOff, History, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import { useToast } from '@/components/feedback/Toast';
+import { useAuth } from '@/context/AuthContext';
+import { isApiError } from '@/lib/api';
 import { useSeeds } from '@/hooks/useSeeds';
 import { buscarMovimentacoesApi, Movimentacao, NovaMovimentacao, registrarMovimentacaoApi } from '@/lib/estoqueApi';
+import {
+  descartarPendente,
+  enfileirarMovimentacao,
+  listarPendentes,
+  MovimentacaoPendente,
+  ouvirFila,
+} from '@/lib/filaMovimentacoes';
 import { OrigemMovimentacaoLabels, TipoMovimentacao, TipoMovimentacaoLabels } from '@/types/stock';
 import styles from './movimentacoes.module.css';
 
@@ -23,6 +32,8 @@ export default function MovimentacoesEstoquePage() {
   const router = useRouter();
   const { getSeed, recarregar } = useSeeds();
   const { showToast } = useToast();
+  const { user } = useAuth();
+  const donoId = user?.uid;
 
   const [seedName, setSeedName] = useState<string>('Produto');
   const [saldoAtual, setSaldoAtual] = useState<number | null>(null);
@@ -35,6 +46,10 @@ export default function MovimentacoesEstoquePage() {
   const [quantidade, setQuantidade] = useState('');
   const [descricao, setDescricao] = useState('');
   const [salvando, setSalvando] = useState(false);
+
+  // Movimentações registradas sem internet, ainda não enviadas (#234)
+  const [pendentes, setPendentes] = useState<MovimentacaoPendente[]>([]);
+  const quantasPendentes = useRef(0);
 
   const carregar = useCallback(async () => {
     try {
@@ -61,6 +76,37 @@ export default function MovimentacoesEstoquePage() {
     carregar();
   }, [id, getSeed, carregar]);
 
+  useEffect(() => {
+    if (!donoId) return;
+    const atualizar = () => {
+      const lista = listarPendentes(donoId, id);
+      // A fila diminuiu: algo foi enviado, então o histórico e o saldo mudaram
+      if (lista.length < quantasPendentes.current) void Promise.all([carregar(), recarregar()]);
+      quantasPendentes.current = lista.length;
+      setPendentes(lista);
+    };
+    atualizar();
+    return ouvirFila(atualizar);
+  }, [donoId, id, carregar, recarregar]);
+
+  const limparFormulario = () => {
+    setShowForm(false);
+    setQuantidade('');
+    setDescricao('');
+  };
+
+  /** Sem internet: guarda no aparelho, e a sincronização envia quando a conexão voltar. */
+  const guardarSemInternet = (dados: NovaMovimentacao) => {
+    if (!donoId) return;
+    try {
+      enfileirarMovimentacao(donoId, id, dados);
+      showToast('Sem internet: a movimentação foi guardada e será enviada quando a conexão voltar.', 'info');
+      limparFormulario();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Não foi possível guardar a movimentação.', 'error');
+    }
+  };
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     const qtd = Number(quantidade);
@@ -68,23 +114,30 @@ export default function MovimentacoesEstoquePage() {
       showToast('Informe uma quantidade maior que zero.', 'error');
       return;
     }
+    const dados: NovaMovimentacao = {
+      tipo,
+      quantidade: qtd,
+      descricao: descricao.trim() || undefined,
+    };
+    if (!navigator.onLine) {
+      guardarSemInternet(dados);
+      return;
+    }
     setSalvando(true);
     try {
-      await registrarMovimentacaoApi(id, {
-        tipo,
-        quantidade: qtd,
-        descricao: descricao.trim() || undefined,
-      });
+      await registrarMovimentacaoApi(id, dados);
       showToast('Movimentação registrada.', 'success');
-      setShowForm(false);
-      setQuantidade('');
-      setDescricao('');
+      limparFormulario();
       await Promise.all([carregar(), recarregar()]);
     } catch (err) {
-      showToast(
-        err instanceof Error ? err.message : 'Não foi possível registrar a movimentação.',
-        'error'
-      );
+      if (isApiError(err) && err.status === 0) {
+        guardarSemInternet(dados);
+      } else {
+        showToast(
+          err instanceof Error || isApiError(err) ? err.message : 'Não foi possível registrar a movimentação.',
+          'error'
+        );
+      }
     } finally {
       setSalvando(false);
     }
@@ -156,6 +209,56 @@ export default function MovimentacoesEstoquePage() {
             Registrar
           </Button>
         </form>
+      )}
+
+      {pendentes.length > 0 && (
+        <section aria-labelledby="titulo-pendentes" className={styles.pendentes}>
+          <h2 id="titulo-pendentes" className={styles.pendentesTitulo}>
+            <CloudOff size={16} aria-hidden="true" />
+            Aguardando envio
+          </h2>
+          <ul className={styles.list}>
+            {pendentes.map((p) => {
+              const aumento = p.dados.tipo === TipoMovimentacao.ENTRADA;
+              const data = new Date(p.criadaEm);
+              const nome = `${TipoMovimentacaoLabels[p.dados.tipo]} de ${p.dados.quantidade}`;
+              return (
+                <li key={p.idLocal} className={`${styles.card} ${p.erro ? styles.cardFalha : styles.cardPendente}`}>
+                  <div className={`${styles.iconWrap} ${aumento ? styles.iconPos : styles.iconNeg}`}>
+                    {aumento ? <ArrowUp size={16} strokeWidth={2.5} /> : <ArrowDown size={16} strokeWidth={2.5} />}
+                  </div>
+                  <div className={styles.info}>
+                    <p className={styles.type}>{TipoMovimentacaoLabels[p.dados.tipo]}</p>
+                    <p className={styles.date}>
+                      Registrada sem internet em {data.toLocaleDateString()} às{' '}
+                      {data.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                    {p.dados.descricao && <p className={styles.motivo}>{p.dados.descricao}</p>}
+                    {p.erro ? (
+                      <p className={styles.statusFalha}>Recusada pelo servidor: {p.erro}</p>
+                    ) : (
+                      <p className={styles.statusPendente}>Será enviada quando a internet voltar</p>
+                    )}
+                    {p.erro && (
+                      <button
+                        type="button"
+                        className={styles.descartar}
+                        onClick={() => descartarPendente(p.idLocal)}
+                        aria-label={`Descartar ${nome}`}
+                      >
+                        Descartar
+                      </button>
+                    )}
+                  </div>
+                  <div className={`${styles.qty} ${aumento ? styles.qtyPos : styles.qtyNeg}`}>
+                    {aumento ? '+' : '−'}
+                    {p.dados.quantidade}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
       )}
 
       {loading ? (
