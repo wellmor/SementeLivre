@@ -14,4 +14,11 @@ test.describe('Acessibilidade (front-site)', () => {
     await page.goto(`/produto/${oferta.produtoId}?oferta=${oferta.estoqueId}`);
     await semViolacoesGraves(page, '/produto');
   });
+
+  test('mapa de sementes', async ({ page }) => {
+    await page.route('https://tile.openstreetmap.org/**', (rota) => rota.abort());
+    await page.goto('/mapa');
+    await page.getByRole('region', { name: /Mapa das comunidades/ }).waitFor();
+    await semViolacoesGraves(page, '/mapa');
+  });
 });

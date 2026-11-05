@@ -26,6 +26,9 @@ export default function PublicHeader() {
           <Link href="/#comunidades" className="hover:text-primary-dark transition-colors">
             Comunidades
           </Link>
+          <Link href="/mapa" className="hover:text-primary-dark transition-colors">
+            Mapa
+          </Link>
           <Link href="/#sobre" className="hover:text-primary-dark transition-colors">
             Sobre a Rede
           </Link>
