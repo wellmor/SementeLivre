@@ -8,10 +8,12 @@
  *    (7 dias) fica num cookie HttpOnly das rotas /api/sessao, que script nenhum
  *    da página lê (#201).
  *  - Avisar por toast quando não há conexão ou quando a sessão expira.
+ *  - Sem conexão, responder os GETs com a última resposta salva (#234, cacheOffline.ts).
  *  - Exportar helpers tipados: apiGet, apiPost, apiPut, apiPatch, apiDelete.
  */
 
 import { emitirToast } from './toast';
+import { lerOffline, limparCacheOffline, renovarValidadeOffline, salvarOffline } from './cacheOffline';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
 
@@ -65,11 +67,14 @@ export function getAccessToken(): string | null {
 export function saveAccessToken(token: string): void {
   accessToken = token;
   guardarNaAba(token);
+  renovarValidadeOffline();
 }
 
 export function clearTokens(): void {
   accessToken = null;
   guardarNaAba(null);
+  // A sessão acabou (logout, expirou ou não existe): os dados offline vão junto (LGPD)
+  limparCacheOffline();
   try {
     CHAVES_ANTIGAS.forEach((chave) => localStorage.removeItem(chave));
   } catch {
@@ -207,11 +212,13 @@ export async function verificarSessao(): Promise<Renovacao> {
   return getAccessToken() ? 'ok' : renovarSessao();
 }
 
-/** Depois de um 401: renova e devolve o token novo, ou lança o erro de sessão expirada / sem conexão. */
+/**
+ * Depois de um 401: renova e devolve o token novo, ou lança o erro de sessão expirada /
+ * sem conexão. O toast de sem conexão fica com quem chamou (pode haver dado salvo).
+ */
 async function renovarDepoisDe401(): Promise<string> {
   const renovacao = await renovarSessao();
   if (renovacao === 'indisponivel') {
-    emitirToast(MENSAGEM_SEM_CONEXAO, 'error');
     throw buildApiError(0, { message: MENSAGEM_SEM_CONEXAO, code: 'network/offline' });
   }
   if (renovacao === 'sem-sessao' || !getAccessToken()) {
@@ -236,7 +243,31 @@ interface RequestOptions extends Omit<RequestInit, 'body'> {
   public?: boolean;
 }
 
+function semConexao(err: unknown): boolean {
+  return isApiError(err) && err.status === 0;
+}
+
+/**
+ * Requisição com o comportamento offline (#234): GET autenticado que dá certo fica
+ * salvo; sem conexão, o GET responde com o que foi salvo, sem toast de erro.
+ */
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const usaCacheOffline = (options.method ?? 'GET') === 'GET' && !options.public;
+  try {
+    const dados = await requestNaRede<T>(path, options);
+    if (usaCacheOffline) salvarOffline(path, dados);
+    return dados;
+  } catch (err) {
+    if (usaCacheOffline && semConexao(err)) {
+      const salvo = lerOffline<T>(path);
+      if (salvo) return salvo.dados;
+    }
+    if (semConexao(err)) emitirToast(MENSAGEM_SEM_CONEXAO, 'error');
+    throw err;
+  }
+}
+
+async function requestNaRede<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { body, public: isPublic, headers: extraHeaders, ...rest } = options;
 
   const buildHeaders = (token: string | null): HeadersInit => {
@@ -258,7 +289,6 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
         body: body !== undefined ? JSON.stringify(body) : undefined,
       });
     } catch {
-      emitirToast(MENSAGEM_SEM_CONEXAO, 'error');
       throw buildApiError(0, { message: MENSAGEM_SEM_CONEXAO, code: 'network/offline' });
     }
   };
@@ -330,7 +360,10 @@ export async function apiUpload<T>(path: string, formData: FormData): Promise<T>
   let res = await doFetch(getAccessToken(), formData);
 
   if (res.status === 401) {
-    const newToken = await renovarDepoisDe401();
+    const newToken = await renovarDepoisDe401().catch((err) => {
+      if (semConexao(err)) emitirToast(MENSAGEM_SEM_CONEXAO, 'error');
+      throw err;
+    });
     // O FormData só pode ser lido uma vez: recria os campos para o reenvio.
     const reenvio = new FormData();
     formData.forEach((valor, chave) => reenvio.append(chave, valor));

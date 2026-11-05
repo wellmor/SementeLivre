@@ -16,6 +16,7 @@
  */
 
 import { apiGet, apiPost, apiPut, apiDelete, chamarSessao, saveAccessToken, clearTokens, ApiError } from './api';
+import { definirDonoOffline, lerOffline, salvarOffline } from './cacheOffline';
 import { PerfilUsuario, PessoaUpdateRequest, Proprietario, ProprietarioCadastroRequest } from '@/types/user';
 
 // ── DTOs (espelham os Records do backend) ─────────────────────────────────────
@@ -44,8 +45,18 @@ export function sessaoDoPerfil(perfil: PerfilUsuario): AuthSession {
 
 // ── me ────────────────────────────────────────────────────────────────────────
 
-export function meApi(): Promise<PerfilUsuario> {
-  return apiGet<PerfilUsuario>('/auth/me');
+export async function meApi(): Promise<PerfilUsuario> {
+  const me = await apiGet<PerfilUsuario>('/auth/me');
+  // Dados offline são de uma conta só: se entrou outra pessoa, apaga os da anterior (#234).
+  // O /auth/me acabou de ser salvo e pode ter ido junto; salva de novo.
+  definirDonoOffline(me.id);
+  salvarOffline('/auth/me', me);
+  return me;
+}
+
+/** Perfil salvo no aparelho, para abrir o app sem conexão com a sessão ainda válida (#234). */
+export function perfilOffline(): PerfilUsuario | null {
+  return lerOffline<PerfilUsuario>('/auth/me')?.dados ?? null;
 }
 
 // ── login ─────────────────────────────────────────────────────────────────────
