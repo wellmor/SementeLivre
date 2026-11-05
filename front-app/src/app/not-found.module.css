@@ -148,3 +148,24 @@
     animation: none;
   }
 }
+
+/* Usado também pela tela /offline (#234) */
+button.botao {
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.link {
+  color: var(--color-primary-dark);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.link:focus-visible {
+  outline: 3px solid var(--color-primary-glow);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
