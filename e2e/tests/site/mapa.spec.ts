@@ -43,6 +43,48 @@ test.describe('Mapa de sementes (front-site)', () => {
     await expect(item.getByText('Rio Pomba - MG')).toBeVisible();
   });
 
+  test('card da comunidade em /mapa mostra as fotos e leva aos produtos dela', async ({ page }) => {
+    const produtor = await criarProdutor();
+    await criarPropriedade(produtor);
+    const oferta = await criarOferta(produtor, { nomePopular: `Abóbora Lista ${unico()}` });
+
+    await semTilesDoOsm(page);
+    await page.goto('/mapa');
+    const card = page.getByRole('listitem').filter({ has: page.getByRole('heading', { name: /Quilombo dos Coelhos/ }) });
+    await expect(card.getByText('Rio Pomba - MG')).toBeVisible();
+    await expect(card.getByText(/\d+ produtos?/)).toBeVisible();
+    await expect(card.getByRole('list', { name: 'Produtos de Quilombo dos Coelhos' }).getByRole('img').first()).toBeVisible();
+
+    // "Ver no mapa" foca o pino e abre o balão
+    await card.getByRole('button', { name: /Ver no mapa/ }).click();
+    await expect(page.locator('.leaflet-popup-content')).toContainText('Quilombo dos Coelhos');
+
+    // "Ver produtos" abre a home já filtrada pela comunidade
+    await card.getByRole('link', { name: /Ver produtos/ }).click();
+    await expect(page).toHaveURL(/\/\?comunidade=.+#produtos$/);
+    await expect(page.getByLabel('Filtrar por comunidade')).toHaveValue(/.+/);
+    await expect(page.getByLabel('Filtrar por comunidade').locator('option:checked')).toHaveText('Quilombo dos Coelhos');
+    await page.getByPlaceholder('Buscar por nome popular...').fill(oferta.nomePopular);
+    await expect(page.locator('[data-slot="card"]').filter({ hasText: oferta.nomePopular })).toBeVisible();
+  });
+
+  test('home tem a seção do mapa, que só carrega ao rolar até ela', async ({ page }) => {
+    const pedidosDoMapa: string[] = [];
+    page.on('request', (r) => {
+      if (r.url().includes('/api/mapa')) pedidosDoMapa.push(r.url());
+    });
+    await semTilesDoOsm(page);
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: 'Banco Comunitário de Sementes' })).toBeVisible();
+    expect(pedidosDoMapa).toHaveLength(0);
+
+    const secao = page.getByRole('region', { name: 'Onde estão as comunidades' });
+    await secao.scrollIntoViewIfNeeded();
+    await expect(secao.getByRole('region', { name: /Mapa das comunidades/ })).toBeVisible();
+    await expect(secao.getByText('A localização é aproximada.')).toBeVisible();
+    expect(pedidosDoMapa.length).toBeGreaterThan(0);
+  });
+
   test('"Ver no mapa" do card abre a região, e nome com HTML não vira script no balão', async ({ page }) => {
     const produtor = await criarProdutor();
     await criarPropriedade(produtor);

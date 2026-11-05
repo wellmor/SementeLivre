@@ -7,6 +7,7 @@ import PublicHeader from "@/components/public-header";
 import FotoProduto from "@/components/foto-produto";
 import CarrosselComunidades from "@/components/carrossel-comunidades";
 import BotaoVerNoMapa from "@/components/botao-ver-no-mapa";
+import SecaoMapa from "@/components/secao-mapa";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -57,9 +58,14 @@ export default function MarketplacePage() {
         if (!r.ok) throw new Error();
         return r.json();
       })
-      .then((lista: OfertaCatalogo[]) =>
-        setOfertas([...lista].sort((a, b) => a.nomePopular.localeCompare(b.nomePopular, "pt-BR")))
-      )
+      .then((lista: OfertaCatalogo[]) => {
+        setOfertas([...lista].sort((a, b) => a.nomePopular.localeCompare(b.nomePopular, "pt-BR")));
+        // "Ver produtos" da página /mapa chega com ?comunidade=<id>: já abre filtrado
+        const comunidade = new URLSearchParams(window.location.search).get("comunidade");
+        if (comunidade && lista.some((o) => o.comunidadeId === comunidade)) {
+          setFilterComunidade(comunidade);
+        }
+      })
       .catch(() => toast.error("Erro ao carregar produtos."))
       .finally(() => setLoading(false));
   }, []);
@@ -380,6 +386,9 @@ export default function MarketplacePage() {
           <CarrosselComunidades fotos={FOTOS_COMUNIDADES} />
         </div>
       </section>
+
+      {/* ── Mapa das comunidades (RF-08) ── */}
+      <SecaoMapa />
 
       {/* ── About section ── */}
       <section

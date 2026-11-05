@@ -17,8 +17,10 @@ interface MapaSementesProps {
   pontos: PontoMapa[];
   /** Altura em CSS (padrão: 500px). */
   altura?: string;
-  /** Comunidade cujo balão abre sozinho (botão "Ver no mapa" do card). */
+  /** Comunidade cujo balão abre sozinho (botão "Ver no mapa"). */
   destaque?: string;
+  /** Muda a cada clique em "Ver no mapa", para focar de novo a mesma comunidade. */
+  focoVez?: number;
 }
 
 /** Quadrado do tamanho da miniatura, para a foto ou para o "sem foto" / "+N". */
@@ -121,35 +123,36 @@ function balao(ponto: PontoMapa): HTMLElement {
  * componente monta duas vezes e o Leaflet reclamaria que o elemento "já está
  * em uso".
  */
-export default function MapaSementes({ pontos, altura = "500px", destaque }: MapaSementesProps) {
+export default function MapaSementes({ pontos, altura = "500px", destaque, focoVez = 0 }: MapaSementesProps) {
   const elemento = useRef<HTMLDivElement>(null);
+  const mapaRef = useRef<L.Map | null>(null);
+  const marcadoresRef = useRef(new Map<string, L.CircleMarker>());
 
+  // Cria o mapa e os pinos; só recria quando os pontos mudam
   useEffect(() => {
     if (!elemento.current) return;
 
     const mapa = L.map(elemento.current, { scrollWheelZoom: false });
+    const marcadores = new Map<string, L.CircleMarker>();
 
     L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 12, // mais perto que isso não acrescenta nada a um ponto aproximado
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     }).addTo(mapa);
 
-    const marcadores = pontos.map((ponto) =>
-      L.circleMarker([ponto.latitude, ponto.longitude], {
+    for (const ponto of pontos) {
+      const marcador = L.circleMarker([ponto.latitude, ponto.longitude], {
         radius: 8 + Math.min(ponto.produtos.length, 10),
         color: "#15803d",
         fillColor: "#22c55e",
         fillOpacity: 0.6,
       })
         .addTo(mapa)
-        .bindPopup(() => balao(ponto))
-    );
+        .bindPopup(() => balao(ponto));
+      marcadores.set(ponto.comunidadeId, marcador);
+    }
 
-    const emFoco = pontos.findIndex((p) => p.comunidadeId === destaque);
-    if (emFoco >= 0) {
-      mapa.setView([pontos[emFoco].latitude, pontos[emFoco].longitude], 9);
-      marcadores[emFoco].openPopup();
-    } else if (pontos.length > 1) {
+    if (pontos.length > 1) {
       mapa.fitBounds(L.latLngBounds(pontos.map((p) => [p.latitude, p.longitude])), {
         padding: [40, 40],
         maxZoom: 9,
@@ -160,10 +163,22 @@ export default function MapaSementes({ pontos, altura = "500px", destaque }: Map
       mapa.setView(CENTRO_DO_BRASIL, 4);
     }
 
+    mapaRef.current = mapa;
+    marcadoresRef.current = marcadores;
     return () => {
       mapa.remove();
+      mapaRef.current = null;
     };
-  }, [pontos, destaque]);
+  }, [pontos]);
+
+  // Foca a comunidade em destaque e abre o balão dela, sem recriar o mapa.
+  // focoVez muda a cada pedido, para focar de novo a mesma comunidade.
+  useEffect(() => {
+    const marcador = destaque ? marcadoresRef.current.get(destaque) : undefined;
+    if (!mapaRef.current || !marcador) return;
+    mapaRef.current.setView(marcador.getLatLng(), 9);
+    marcador.openPopup();
+  }, [pontos, destaque, focoVez]);
 
   return (
     <div
