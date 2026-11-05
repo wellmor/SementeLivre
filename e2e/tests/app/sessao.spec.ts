@@ -1,5 +1,15 @@
+import type { Page } from '@playwright/test';
 import { test, expect, toast, gravarSessao, cookieDeSessao } from '../../support/fixtures';
 import { API_URL } from '../../support/api';
+
+/** Aparelho sem nada salvo para uso offline (#234). */
+async function apagarDadosOffline(page: Page) {
+  await page.evaluate(() =>
+    Object.keys(localStorage)
+      .filter((chave) => chave.startsWith('sl_offline'))
+      .forEach((chave) => localStorage.removeItem(chave))
+  );
+}
 
 /**
  * Comportamento offline e de sessão do front-app.
@@ -83,7 +93,9 @@ test.describe('Sessão e offline (front-app)', () => {
     await expect(page.getByRole('navigation', { name: 'Navegação principal' })).toBeVisible();
   });
 
-  test('backend fora do ar ao abrir o app mantém a sessão e oferece tentar de novo', async ({ appLogado: page }) => {
+  test('backend fora do ar ao abrir o app, sem dados salvos no aparelho, mantém a sessão e oferece tentar de novo', async ({ appLogado: page }) => {
+    // Com dados salvos o app abre offline (#234, leitura-offline.spec.ts); aqui não há
+    await apagarDadosOffline(page);
     await page.context().route(`${API_URL}/**`, (route) => route.abort('internetdisconnected'));
     await page.reload();
 
@@ -98,7 +110,9 @@ test.describe('Sessão e offline (front-app)', () => {
     await expect(page.getByRole('navigation', { name: 'Navegação principal' })).toBeVisible();
   });
 
-  test('perda de conexão durante o uso mostra aviso de sem conexão', async ({ appLogado: page }) => {
+  test('perda de conexão durante o uso, numa tela sem dados salvos, mostra aviso de sem conexão', async ({ appLogado: page }) => {
+    // Tela com dados salvos mostra os dados, sem aviso (#234, leitura-offline.spec.ts)
+    await apagarDadosOffline(page);
     await page.context().route(`${API_URL}/**`, (route) => route.abort('internetdisconnected'));
     await page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name: 'Pedidos' }).click();
 

@@ -8,13 +8,14 @@
  *     o perfil completo do proprietário.
  *   - `user` é o resumo da sessão (uid + email + nome); `perfil` é a resposta completa do /auth/me.
  *   - Escuta `sl:session-expired` (disparado por api.ts quando o refresh falha) para sair.
- *   - Sem conexão na revalidação: mantém os tokens e expõe `semConexao`, para o layout
- *     oferecer "tentar novamente" em vez de deslogar.
+ *   - Sem conexão na revalidação: mantém os tokens e expõe `semConexao`. Com o perfil
+ *     salvo no aparelho (cacheOffline.ts), o app abre offline; sem ele, o layout
+ *     oferece "tentar novamente" em vez de deslogar (#234).
  *   - Logout automático após 30 min de inatividade.
  */
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { AuthSession, logoutApi, meApi, sessaoDoPerfil } from '@/lib/authApi';
+import { AuthSession, logoutApi, meApi, perfilOffline, sessaoDoPerfil } from '@/lib/authApi';
 import { isApiError, verificarSessao } from '@/lib/api';
 import { PerfilUsuario } from '@/types/user';
 
@@ -69,8 +70,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const sessao = await verificarSessao();
       if (cancelled) return;
       if (sessao !== 'ok') {
-        // Servidor fora do ar: a sessão continua no cookie, o layout oferece tentar de novo
-        if (sessao === 'indisponivel') setSemConexao(true);
+        // Servidor fora do ar: a sessão continua no cookie. Com o perfil salvo no
+        // aparelho, o app abre offline (#234); sem ele, o layout oferece tentar de novo.
+        if (sessao === 'indisponivel') {
+          setSemConexao(true);
+          const salvo = perfilOffline();
+          if (salvo) setPerfil(salvo);
+        }
         setLoading(false);
         return;
       }
