@@ -6,6 +6,7 @@ import { toast } from "react-toastify";
 import PublicHeader from "@/components/public-header";
 import FotoProduto from "@/components/foto-produto";
 import CarrosselComunidades from "@/components/carrossel-comunidades";
+import BotaoVerNoMapa from "@/components/botao-ver-no-mapa";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -283,9 +284,18 @@ export default function MarketplacePage() {
                       </Badge>
                     </div>
                     {oferta.comunidade && (
-                      <p className="text-[11px] text-primary font-medium mt-1">
-                        🌿 {oferta.comunidade}
-                      </p>
+                      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5 mt-1">
+                        <p className="text-[11px] text-primary font-medium">
+                          🌿 {oferta.comunidade}
+                        </p>
+                        {/* Região aproximada da comunidade (RF-08) */}
+                        {oferta.comunidadeId && oferta.uf && (
+                          <BotaoVerNoMapa
+                            comunidadeId={oferta.comunidadeId}
+                            comunidade={oferta.comunidade}
+                          />
+                        )}
+                      </div>
                     )}
                   </CardHeader>
 

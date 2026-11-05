@@ -4,14 +4,16 @@ const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8080";
 const DEV = process.env.NODE_ENV !== "production";
 
 // Cabeçalhos de segurança (#202). O site só fala com a própria origem: os dados vêm das
-// rotas /api dele, as fotos do /uploads (rewrite abaixo) e a fonte do next/font.
+// rotas /api dele, as fotos do /uploads (rewrite abaixo) e a fonte do next/font. A única
+// exceção são as imagens do mapa, que vêm do OpenStreetMap.
 const CSP = [
   "default-src 'self'",
   // 'unsafe-inline': o Next põe scripts inline na hidratação; 'unsafe-eval' só no next dev
   `script-src 'self' 'unsafe-inline'${DEV ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self' data:",
-  "img-src 'self' data: blob:",
+  // tile.openstreetmap.org: imagens do fundo do mapa de sementes (RF-08)
+  "img-src 'self' data: blob: https://tile.openstreetmap.org",
   `connect-src 'self'${DEV ? " ws: wss:" : ""}`,
   "object-src 'none'",
   "base-uri 'self'",

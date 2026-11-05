@@ -94,6 +94,12 @@ export default function PrivacidadePage() {
             para dados de contato, quando você escolher exibir seu perfil no site público
             do Semente Livre — essa opção é desligada por padrão.
           </p>
+          <p className={styles.text}>
+            Os produtos que você publica aparecem no catálogo do site com o nome da comunidade e o
+            município e a UF da comunidade, inclusive no mapa de sementes. No mapa, a comunidade é
+            marcada na sede do município: seu nome, seu endereço e o endereço da propriedade não
+            aparecem no catálogo nem no mapa.
+          </p>
         </section>
 
         <section className={styles.section}>
