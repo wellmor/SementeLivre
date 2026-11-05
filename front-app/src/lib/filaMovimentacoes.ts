@@ -79,6 +79,23 @@ export function enfileirarMovimentacao(
   return item;
 }
 
+/**
+ * Avisa quando a fila muda, nesta aba (EVENTO_FILA) ou em outra aba do app
+ * (evento "storage" do navegador): a sincronização pode rodar em qualquer aba.
+ * Devolve a função que cancela a escuta.
+ */
+export function ouvirFila(aoMudar: () => void): () => void {
+  const deOutraAba = (evento: StorageEvent) => {
+    if (evento.key === CHAVE || evento.key === null) aoMudar();
+  };
+  window.addEventListener(EVENTO_FILA, aoMudar);
+  window.addEventListener('storage', deOutraAba);
+  return () => {
+    window.removeEventListener(EVENTO_FILA, aoMudar);
+    window.removeEventListener('storage', deOutraAba);
+  };
+}
+
 export function descartarPendente(idLocal: string): void {
   gravar(ler().filter((item) => item.idLocal !== idLocal));
 }

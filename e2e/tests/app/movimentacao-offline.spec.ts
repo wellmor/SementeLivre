@@ -112,4 +112,30 @@ test.describe('Movimentação de estoque offline (front-app)', () => {
     expect((await buscarEstoque(produtor, oferta.estoqueId)).quantidade).toBe(34);
     await expect(page.getByRole('listitem').filter({ hasText: 'Resposta perdida' })).toHaveCount(1);
   });
+
+  test('com o app aberto em duas abas, as duas acompanham a fila e a movimentação vai uma vez só', async ({ appLogado: page, produtor, context }) => {
+    const oferta = await criarOferta(produtor, { quantidade: 15 });
+    const tela = `/produtos/${oferta.estoqueId}/estoque`;
+    await page.goto(tela);
+    await expect(page.getByRole('heading', { name: 'Histórico de Estoque' })).toBeVisible();
+    const outra = await context.newPage();
+    await outra.goto(tela);
+    await expect(outra.getByRole('heading', { name: 'Histórico de Estoque' })).toBeVisible();
+
+    await context.setOffline(true);
+    await registrar(page, 'ENTRADA', '2', 'Registrada na primeira aba');
+
+    // A outra aba fica sabendo pela mudança no armazenamento do navegador
+    await expect(outra.getByRole('region', { name: 'Aguardando envio' }).getByText('Registrada na primeira aba')).toBeVisible();
+
+    // A conexão volta: uma aba envia, as duas limpam a pendência
+    await context.setOffline(false);
+    for (const aba of [page, outra]) {
+      await expect(aba.getByRole('region', { name: 'Aguardando envio' })).toHaveCount(0);
+    }
+    await expect.poll(async () => (await buscarEstoque(produtor, oferta.estoqueId)).quantidade).toBe(17);
+    // Dá tempo de a outra aba tentar também: o saldo não pode subir de novo
+    await page.waitForTimeout(2_000);
+    expect((await buscarEstoque(produtor, oferta.estoqueId)).quantidade).toBe(17);
+  });
 });

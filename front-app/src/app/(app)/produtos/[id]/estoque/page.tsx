@@ -13,9 +13,9 @@ import { buscarMovimentacoesApi, Movimentacao, NovaMovimentacao, registrarMovime
 import {
   descartarPendente,
   enfileirarMovimentacao,
-  EVENTO_FILA,
   listarPendentes,
   MovimentacaoPendente,
+  ouvirFila,
 } from '@/lib/filaMovimentacoes';
 import { OrigemMovimentacaoLabels, TipoMovimentacao, TipoMovimentacaoLabels } from '@/types/stock';
 import styles from './movimentacoes.module.css';
@@ -86,8 +86,7 @@ export default function MovimentacoesEstoquePage() {
       setPendentes(lista);
     };
     atualizar();
-    window.addEventListener(EVENTO_FILA, atualizar);
-    return () => window.removeEventListener(EVENTO_FILA, atualizar);
+    return ouvirFila(atualizar);
   }, [donoId, id, carregar, recarregar]);
 
   const limparFormulario = () => {
