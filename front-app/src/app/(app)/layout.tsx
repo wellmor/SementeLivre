@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { NotificationProvider } from '@/context/NotificationContext';
 import { Header } from '@/components/layout/Header';
 import { BottomNavigation } from '@/components/layout/BottomNavigation';
+import { SincronizarMovimentacoes } from '@/components/offline/SincronizarMovimentacoes';
 import { Button } from '@/components/ui/button';
 import { usePathname, useRouter } from 'next/navigation';
 import styles from './app.module.css';
@@ -72,6 +73,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
         {children}
       </main>
       <BottomNavigation />
+      <SincronizarMovimentacoes />
     </div>
   );
 }
