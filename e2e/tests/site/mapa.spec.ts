@@ -31,7 +31,9 @@ test.describe('Mapa de sementes (front-site)', () => {
     expect(ponto).toMatchObject({ localizacao: 'Rio Pomba - MG', precisao: 'municipio' });
     expect(ponto!.latitude as number).toBeCloseTo(-21.2712, 3);
     expect(ponto!.longitude as number).toBeCloseTo(-43.1696, 3);
-    expect(ponto!.produtos).toContain(oferta.nomePopular);
+    const produtos = ponto!.produtos as Array<{ nome: string; urlFoto: string | null }>;
+    expect(produtos.map((p) => Object.keys(p).sort())).toContainEqual(['nome', 'urlFoto']);
+    expect(produtos.find((p) => p.nome === oferta.nomePopular)?.urlFoto).toMatch(/^\/uploads\/produtos\//);
 
     await semTilesDoOsm(page);
     await page.goto('/mapa');
@@ -60,9 +62,13 @@ test.describe('Mapa de sementes (front-site)', () => {
 
     const balao = janela.locator('.leaflet-popup-content');
     await expect(balao).toContainText('Quilombo dos Coelhos');
-    // O balão lista só os 5 primeiros em ordem alfabética; "<" vem antes das letras
-    await expect(balao).toContainText('Feijão <img src=x onerror="window.__xss=1">');
-    await expect(balao.locator('img')).toHaveCount(0);
+    // Miniatura com a foto enviada e o nome como texto alternativo. O balão mostra
+    // as primeiras em ordem alfabética; "<" vem antes das letras.
+    const miniatura = balao.locator('img[alt^="Feijão <img src=x onerror="]').first();
+    await expect(miniatura).toBeVisible();
+    await expect(miniatura).toHaveAttribute('src', /^\/uploads\/produtos\//);
+    // O nome não virou elemento: nenhuma imagem com src="x"
+    await expect(balao.locator('img[src="x"]')).toHaveCount(0);
     expect(await page.evaluate(() => (window as unknown as { __xss?: number }).__xss)).toBeUndefined();
 
     await janela.getByRole('button', { name: 'Fechar mapa' }).click();

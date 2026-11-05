@@ -22,10 +22,10 @@ Mapa com a localização **aproximada** das comunidades que têm bancos de semen
 ## LGPD
 
 - **Minimização:** o pino é a sede do município, não o endereço da comunidade nem da propriedade. Não há geocodificação de endereço, e o zoom máximo é 12.
-- **Nada de produtor:** `PontoMapa` só tem o que o catálogo público já mostra (nome da comunidade, município, UF e nomes dos produtos). O e2e `mapa.spec.ts` confere isso.
+- **Nada de produtor:** `PontoMapa` só tem o que o catálogo público já mostra (nome da comunidade, município, UF e nome e foto dos produtos, exibidos como miniaturas no balão). O e2e `mapa.spec.ts` confere isso.
 - **Sem texto livre de localização:** município e UF vêm do cadastro estruturado da comunidade. A proposta anterior pedia ao produtor um campo de texto livre, que exibiria o endereço por extenso se alguém o digitasse.
-- **XSS:** o balão do pino é montado com `textContent`. Os nomes vêm do cadastro no app e nunca entram como HTML.
-- **OpenStreetMap:** as imagens do mapa vêm de `tile.openstreetmap.org`, e a OpenStreetMap Foundation (Reino Unido) recebe o IP de quem abre o mapa. A tela avisa isso (`components/aviso-mapa.tsx`), e o botão do card não baixa nada antes do clique.
+- **XSS:** o balão do pino é montado com nós DOM (`textContent`, `alt`, `title`). Os nomes vêm do cadastro no app e nunca entram como HTML.
+- **OpenStreetMap:** as imagens do mapa vêm de `tile.openstreetmap.org`, e a OpenStreetMap Foundation (Reino Unido) recebe o IP de quem abre o mapa. O botão do card não baixa nada antes do clique. A tela só diz "A localização é aproximada" (decisão da equipe); se a gestão quiser citar o OpenStreetMap, o lugar é uma política de privacidade do site.
 - **Transparência:** a política de privacidade do app (seção 5) diz que comunidade, município e UF aparecem no catálogo e no mapa.
 
 ## Atualizar a tabela de coordenadas

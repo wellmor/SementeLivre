@@ -4,13 +4,14 @@ import { useEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
-import type { PontoMapa } from "@/lib/mapa/pontos";
+import type { PontoMapa, ProdutoNoMapa } from "@/lib/mapa/pontos";
 
 /** Centro do Brasil, para quando não há ponto nenhum. */
 const CENTRO_DO_BRASIL: L.LatLngTuple = [-15.78, -47.93];
 
-/** Acima disso o balão mostra "e mais N"; a lista completa fica na página /mapa. */
-const PRODUTOS_NO_BALAO = 5;
+/** Miniaturas no balão; acima disso aparece "+N". A lista completa fica na página /mapa. */
+const FOTOS_NO_BALAO = 8;
+const TAMANHO_FOTO = "52px";
 
 interface MapaSementesProps {
   pontos: PontoMapa[];
@@ -20,8 +21,53 @@ interface MapaSementesProps {
   destaque?: string;
 }
 
+/** Quadrado do tamanho da miniatura, para a foto ou para o "sem foto" / "+N". */
+function quadrado(): HTMLElement {
+  const caixa = document.createElement("span");
+  Object.assign(caixa.style, {
+    width: TAMANHO_FOTO,
+    height: TAMANHO_FOTO,
+    borderRadius: "8px",
+    overflow: "hidden",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    background: "#dcfce7",
+    color: "#166534",
+    fontSize: "13px",
+    fontWeight: "600",
+  });
+  return caixa;
+}
+
+/** Miniatura de um produto; sem foto, ou se ela não carregar, mostra a muda. */
+function miniatura(produto: ProdutoNoMapa): HTMLElement {
+  const caixa = quadrado();
+  caixa.title = produto.nome;
+
+  const semFoto = () => {
+    caixa.replaceChildren("🌱");
+    caixa.setAttribute("role", "img");
+    caixa.setAttribute("aria-label", produto.nome);
+  };
+
+  if (!produto.urlFoto) {
+    semFoto();
+    return caixa;
+  }
+
+  const foto = document.createElement("img");
+  foto.src = produto.urlFoto;
+  foto.alt = produto.nome;
+  foto.loading = "lazy";
+  Object.assign(foto.style, { width: "100%", height: "100%", objectFit: "cover" });
+  foto.onerror = semFoto;
+  caixa.append(foto);
+  return caixa;
+}
+
 /**
- * Balão do pino. Montado com nós DOM e textContent, NUNCA com HTML
+ * Balão do pino. Montado com nós DOM, textContent e atributos, NUNCA com HTML
  * concatenado: nome da comunidade e dos produtos vêm do cadastro feito no app,
  * e um nome como `<img src=x onerror=...>` virava script no site público.
  */
@@ -35,17 +81,30 @@ function balao(ponto: PontoMapa): HTMLElement {
   const regiao = document.createElement("span");
   regiao.textContent =
     ponto.precisao === "municipio" ? `Região de ${ponto.localizacao}` : `Estado: ${ponto.localizacao}`;
-  raiz.append(regiao, document.createElement("br"));
+  raiz.append(regiao);
 
-  const produtos = document.createElement("span");
-  produtos.style.color = "#475569";
   const total = ponto.produtos.length;
-  const primeiros = ponto.produtos.slice(0, PRODUTOS_NO_BALAO).join(", ");
-  produtos.textContent =
-    total > PRODUTOS_NO_BALAO
-      ? `${total} produtos: ${primeiros} e mais ${total - PRODUTOS_NO_BALAO}`
-      : `${total} ${total === 1 ? "produto" : "produtos"}: ${primeiros}`;
-  raiz.append(produtos);
+  const resumo = document.createElement("div");
+  Object.assign(resumo.style, { color: "#475569", margin: "6px 0 4px" });
+  resumo.textContent = `${total} ${total === 1 ? "produto" : "produtos"}`;
+  raiz.append(resumo);
+
+  const grade = document.createElement("div");
+  Object.assign(grade.style, {
+    display: "grid",
+    gridTemplateColumns: `repeat(4, ${TAMANHO_FOTO})`,
+    gap: "6px",
+  });
+  // Com mais produtos que cabem, a última casa vira "+N"
+  const cabem = total > FOTOS_NO_BALAO ? FOTOS_NO_BALAO - 1 : total;
+  grade.append(...ponto.produtos.slice(0, cabem).map(miniatura));
+  if (total > cabem) {
+    const resto = quadrado();
+    resto.textContent = `+${total - cabem}`;
+    resto.title = `Mais ${total - cabem} produtos`;
+    grade.append(resto);
+  }
+  raiz.append(grade);
 
   return raiz;
 }

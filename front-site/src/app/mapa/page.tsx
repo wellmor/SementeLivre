@@ -69,7 +69,7 @@ export default function MapaPage() {
                   <li key={ponto.comunidadeId} className="rounded-xl border border-border bg-white p-4">
                     <p className="font-medium text-primary-dark">🌿 {ponto.comunidade}</p>
                     <p className="text-sm text-slate-600">{ponto.localizacao}</p>
-                    <p className="text-xs text-muted-foreground mt-1">{ponto.produtos.join(", ")}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{ponto.produtos.map((p) => p.nome).join(", ")}</p>
                   </li>
                 ))}
               </ul>

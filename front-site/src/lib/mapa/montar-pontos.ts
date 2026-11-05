@@ -1,7 +1,7 @@
 // Só no servidor: depende da tabela de coordenadas, que não vai para o navegador.
 import type { OfertaCatalogo } from "../types";
 import { coordenadaDe } from "./coordenadas";
-import type { PontoMapa } from "./pontos";
+import type { PontoMapa, ProdutoNoMapa } from "./pontos";
 
 /**
  * Agrupa as ofertas do catálogo público em um ponto por comunidade.
@@ -11,13 +11,21 @@ import type { PontoMapa } from "./pontos";
  * comunidade sem UF reconhecida, fica de fora: melhor sem pino que com pino errado.
  */
 export function montarPontos(ofertas: OfertaCatalogo[]): PontoMapa[] {
-  const porComunidade = new Map<string, { oferta: OfertaCatalogo; produtos: Set<string> }>();
+  // Por comunidade: a primeira oferta (para município/UF) e os produtos por nome
+  const porComunidade = new Map<string, { oferta: OfertaCatalogo; produtos: Map<string, ProdutoNoMapa> }>();
 
   for (const oferta of ofertas) {
     if (!oferta.comunidadeId || !oferta.comunidade) continue;
-    const grupo = porComunidade.get(oferta.comunidadeId);
-    if (grupo) grupo.produtos.add(oferta.nomePopular);
-    else porComunidade.set(oferta.comunidadeId, { oferta, produtos: new Set([oferta.nomePopular]) });
+    let grupo = porComunidade.get(oferta.comunidadeId);
+    if (!grupo) {
+      grupo = { oferta, produtos: new Map() };
+      porComunidade.set(oferta.comunidadeId, grupo);
+    }
+    // Mesmo produto em mais de uma oferta: fica uma vez, com a primeira foto que tiver
+    const atual = grupo.produtos.get(oferta.nomePopular);
+    if (!atual || (!atual.urlFoto && oferta.urlFoto)) {
+      grupo.produtos.set(oferta.nomePopular, { nome: oferta.nomePopular, urlFoto: oferta.urlFoto });
+    }
   }
 
   const pontos: PontoMapa[] = [];
@@ -31,7 +39,7 @@ export function montarPontos(ofertas: OfertaCatalogo[]): PontoMapa[] {
       comunidade: oferta.comunidade!,
       localizacao: coordenada.precisao === "municipio" ? `${oferta.municipio!.trim()} - ${uf}` : uf,
       ...coordenada,
-      produtos: [...produtos].sort((a, b) => a.localeCompare(b, "pt-BR")),
+      produtos: [...produtos.values()].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR")),
     });
   }
 
