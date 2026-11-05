@@ -89,7 +89,8 @@ test.describe('Mapa de sementes (front-site)', () => {
     const produtor = await criarProdutor();
     await criarPropriedade(produtor);
     const sufixo = unico();
-    const nomePopular = `Feijão <img src=x onerror="window.__xss=1"> ${sufixo}`;
+    // "0" no começo: dígito vem antes das letras, então sempre está entre as primeiras miniaturas
+    const nomePopular = `0 Feijão <img src=x onerror="window.__xss=1"> ${sufixo}`;
     await criarOferta(produtor, { nomePopular });
 
     await semTilesDoOsm(page);
@@ -105,8 +106,8 @@ test.describe('Mapa de sementes (front-site)', () => {
     const balao = janela.locator('.leaflet-popup-content');
     await expect(balao).toContainText('Quilombo dos Coelhos');
     // Miniatura com a foto enviada e o nome como texto alternativo. O balão mostra
-    // as primeiras em ordem alfabética; "<" vem antes das letras.
-    const miniatura = balao.locator('img[alt^="Feijão <img src=x onerror="]').first();
+    // as primeiras em ordem alfabética; o "0" do nome põe esta entre elas.
+    const miniatura = balao.locator('img[alt^="0 Feijão <img src=x onerror="]').first();
     await expect(miniatura).toBeVisible();
     await expect(miniatura).toHaveAttribute('src', /^\/uploads\/produtos\//);
     // O nome não virou elemento: nenhuma imagem com src="x"
