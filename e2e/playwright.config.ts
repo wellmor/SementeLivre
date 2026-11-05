@@ -9,6 +9,10 @@ import { defineConfig, devices } from '@playwright/test';
  */
 
 const CI = !!process.env.CI;
+
+// O context.setOffline não alcança as requisições do Service Worker do PWA (#234);
+// com isto, o context.route também as intercepta e os testes offline derrubam a rede dele.
+process.env.PW_EXPERIMENTAL_SERVICE_WORKER_NETWORK_EVENTS = '1';
 const APP_URL = process.env.APP_URL ?? 'http://localhost:3000';
 const SITE_URL = process.env.SITE_URL ?? 'http://localhost:3001';
 

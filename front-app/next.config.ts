@@ -37,7 +37,11 @@ const nextConfig: NextConfig = {
   // Sem o "X-Powered-By: Next.js", que só conta a quem ataca qual é a stack
   poweredByHeader: false,
   async headers() {
-    return [{ source: '/:path*', headers: CABECALHOS_DE_SEGURANCA }];
+    return [
+      { source: '/:path*', headers: CABECALHOS_DE_SEGURANCA },
+      // Service Worker (#234): o navegador sempre confere se há versão nova
+      { source: '/sw.js', headers: [{ key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' }] },
+    ];
   },
   // As telas de produto eram /sementes (#186): links e favoritos antigos continuam valendo
   async redirects() {
