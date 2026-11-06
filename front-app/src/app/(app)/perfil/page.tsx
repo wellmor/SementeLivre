@@ -17,7 +17,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/feedback/Toast';
 import { useRouter } from 'next/navigation';
-import { Lock, LogOut, Phone, MapPin, Hash, ChevronRight, User, Shield, Mail, Pencil, Accessibility, Trash2 } from 'lucide-react';
+import { Lock, LogOut, Phone, MapPin, Hash, ChevronRight, User, Shield, ShieldCheck, Mail, Pencil, Accessibility, Trash2 } from 'lucide-react';
 import { alterarSenhaApi, atualizarProprietarioApi, excluirContaApi } from '@/lib/authApi';
 import { isApiError, renovarToken } from '@/lib/api';
 import { aplicarErrosDaApi, comMascara } from '@/lib/forms';
@@ -57,7 +57,7 @@ function perfilParaForm(p: PerfilUsuario): PerfilForm {
 }
 
 export default function PerfilPage() {
-  const { perfil, recarregarPerfil, logout } = useAuth();
+  const { user, perfil, recarregarPerfil, logout } = useAuth();
   const { showToast } = useToast();
   const router = useRouter();
   const [showLogout, setShowLogout] = useState(false);
@@ -206,9 +206,12 @@ export default function PerfilPage() {
             <div className={styles.cardHeader}>
               <User size={14} strokeWidth={2.5} className={styles.cardHeaderIcon} />
               <p className={styles.cardTitle}>Dados Pessoais</p>
-              <Button variant="text" size="sm" onClick={iniciarEdicao} style={{ marginLeft: 'auto' }}>
-                <Pencil size={13} strokeWidth={2} /> Editar
-              </Button>
+              {/* Editar usa PUT /proprietarios/{id}: o admin não tem cadastro de proprietário */}
+              {!user?.admin && (
+                <Button variant="text" size="sm" onClick={iniciarEdicao} style={{ marginLeft: 'auto' }}>
+                  <Pencil size={13} strokeWidth={2} /> Editar
+                </Button>
+              )}
             </div>
             <div className={styles.dataList}>
               <div className={styles.dataRow}>
@@ -333,6 +336,23 @@ export default function PerfilPage() {
         </button>
       </div>
 
+      {/* Administração: só para admin */}
+      {user?.admin && (
+        <div className={styles.card}>
+          <div className={styles.cardHeader}>
+            <ShieldCheck size={14} strokeWidth={2.5} className={styles.cardHeaderIcon} />
+            <p className={styles.cardTitle}>Administração</p>
+          </div>
+          <Link href="/admin/comunidades" className={styles.actionRow} style={{ textDecoration: 'none' }}>
+            <div className={styles.actionIcon}>
+              <ShieldCheck size={15} strokeWidth={2} />
+            </div>
+            <span className={styles.actionLabel}>Aprovar comunidades</span>
+            <ChevronRight size={15} className={styles.actionChevron} />
+          </Link>
+        </div>
+      )}
+
       {/* Acessibilidade */}
       <div className={styles.card}>
         <div className={styles.cardHeader}>
@@ -374,19 +394,21 @@ export default function PerfilPage() {
         Sair do Aplicativo
       </button>
 
-      {/* Exclusão de conta (LGPD) */}
-      <div className={styles.dangerZone}>
-        <p className={styles.dangerTitle}>Excluir conta</p>
-        <p className={styles.dangerText}>
-          Remove seu cadastro, seus pedidos e seu estoque. Os produtos que você cadastrou
-          continuam visíveis no catálogo, sem os seus dados pessoais. Esta ação não pode ser
-          desfeita.
-        </p>
-        <button className={styles.dangerBtn} onClick={() => setShowExcluir(true)}>
-          <Trash2 size={16} strokeWidth={2} />
-          Excluir minha conta
-        </button>
-      </div>
+      {/* Exclusão de conta (LGPD): o texto e a exclusão são do proprietário (pedidos, estoque) */}
+      {!user?.admin && (
+        <div className={styles.dangerZone}>
+          <p className={styles.dangerTitle}>Excluir conta</p>
+          <p className={styles.dangerText}>
+            Remove seu cadastro, seus pedidos e seu estoque. Os produtos que você cadastrou
+            continuam visíveis no catálogo, sem os seus dados pessoais. Esta ação não pode ser
+            desfeita.
+          </p>
+          <button className={styles.dangerBtn} onClick={() => setShowExcluir(true)}>
+            <Trash2 size={16} strokeWidth={2} />
+            Excluir minha conta
+          </button>
+        </div>
+      )}
 
       {/* Logout confirm */}
       <ConfirmDialog

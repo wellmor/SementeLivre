@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Bell, BellDot, Leaf } from 'lucide-react';
+import { ArrowLeft, Bell, BellDot, Leaf, User } from 'lucide-react';
 import styles from './Header.module.css';
 import { useNotifications } from '@/context/NotificationContext';
 
@@ -12,9 +12,11 @@ interface HeaderProps {
   showBack?: boolean;
   actions?: React.ReactNode;
   showNotifications?: boolean;
+  /** Atalho para o perfil, para quem não tem a barra de navegação de baixo (admin) */
+  showPerfil?: boolean;
 }
 
-export function Header({ title, showBack = false, actions, showNotifications = false }: HeaderProps) {
+export function Header({ title, showBack = false, actions, showNotifications = false, showPerfil = false }: HeaderProps) {
   const router = useRouter();
   const { unreadCount } = useNotifications();
 
@@ -40,6 +42,11 @@ export function Header({ title, showBack = false, actions, showNotifications = f
         </div>
         <div className={styles.right}>
           {actions}
+          {showPerfil && (
+            <Link href="/perfil" className={styles.notifBtn} aria-label="Meu perfil">
+              <User size={19} strokeWidth={2} />
+            </Link>
+          )}
           {showNotifications && (
             <Link
               href="/notificacoes"

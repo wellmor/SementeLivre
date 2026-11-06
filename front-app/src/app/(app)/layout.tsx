@@ -23,18 +23,35 @@ const headerConfig: Record<string, { title: string; showBack?: boolean; showNoti
   '/perfil': { title: 'Meu Perfil', showNotifications: true },
   '/privacidade': { title: 'Política de Privacidade', showBack: true },
   '/termos': { title: 'Termos de Uso', showBack: true },
+  '/admin/comunidades': { title: 'Aprovar Comunidades' },
 };
+
+// O admin não tem cadastro de proprietário: as telas de produtos, pedidos, propriedades,
+// relatórios e notificações chamam endpoints do proprietário e ficariam vazias ou com erro.
+// Ele fica na área de administração, no perfil e nas telas informativas.
+const INICIO_DO_ADMIN = '/admin/comunidades';
+const ROTAS_DO_ADMIN = ['/admin', '/perfil', '/termos', '/privacidade', '/ajuda'];
+
+function adminPodeAbrir(pathname: string): boolean {
+  return ROTAS_DO_ADMIN.some((rota) => pathname === rota || pathname.startsWith(rota + '/'));
+}
 
 function AppLayoutInner({ children }: { children: React.ReactNode }) {
   const { user, loading, semConexao } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  const admin = !!user?.admin;
+  const adminForaDaArea = admin && !adminPodeAbrir(pathname);
 
   useEffect(() => {
     if (!loading && !user && !semConexao) {
       router.replace('/entrar');
     }
   }, [loading, user, semConexao, router]);
+
+  useEffect(() => {
+    if (adminForaDaArea) router.replace(INICIO_DO_ADMIN);
+  }, [adminForaDaArea, router]);
 
   if (loading) {
     return (
@@ -54,7 +71,8 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!user) {
+  // Admin numa tela de proprietário: não monta a tela (nem as chamadas dela) enquanto redireciona
+  if (!user || adminForaDaArea) {
     return null;
   }
 
@@ -67,12 +85,14 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
       <Header
         title={config.title}
         showBack={config.showBack}
-        showNotifications={config.showNotifications}
+        // Notificações são de pedidos do proprietário; o admin tem o atalho do perfil no lugar da barra de baixo
+        showNotifications={config.showNotifications && !admin}
+        showPerfil={admin && pathname !== '/perfil'}
       />
-      <main className={styles.content}>
+      <main className={admin ? `${styles.content} ${styles.contentSemNav}` : styles.content}>
         {children}
       </main>
-      <BottomNavigation />
+      {!admin && <BottomNavigation />}
       <SincronizarMovimentacoes />
     </div>
   );
