@@ -353,6 +353,10 @@ export default function PerfilPage() {
         <div className={styles.about}>IF Sudeste MG — Campus Rio Pomba</div>
         <div className={styles.about}>Gestão de bancos de produtos crioulos para produtores rurais familiares.</div>
         <div className={styles.legalLinks}>
+          <Link href="/ajuda" className={styles.legalLink}>
+            Ajuda
+            <ChevronRight size={15} strokeWidth={2.5} />
+          </Link>
           <Link href="/privacidade" className={styles.legalLink}>
             Política de Privacidade
             <ChevronRight size={15} strokeWidth={2.5} />
