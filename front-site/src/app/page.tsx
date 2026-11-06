@@ -70,7 +70,16 @@ export default function MarketplacePage() {
       .then((lista: OfertaCatalogo[]) => {
         setOfertas([...lista].sort((a, b) => a.nomePopular.localeCompare(b.nomePopular, "pt-BR")));
         // Filtros da URL: link compartilhado ou o "Ver produtos" do /mapa (?comunidade=<id>)
-        setFiltros(filtrosDaUrl(new URLSearchParams(window.location.search), lista));
+        const daUrl = filtrosDaUrl(new URLSearchParams(window.location.search), lista);
+        // O que a pessoa já mexeu enquanto o catálogo carregava (ex.: digitou na busca)
+        // vale mais que a URL; sem isso o texto digitado sumia quando a lista chegava
+        setFiltros((atual) => {
+          const mesclados = { ...daUrl };
+          for (const k of Object.keys(FILTROS_VAZIOS) as (keyof FiltrosCatalogo)[]) {
+            if (atual[k] !== FILTROS_VAZIOS[k]) (mesclados as Record<keyof FiltrosCatalogo, string>)[k] = atual[k];
+          }
+          return filtrosCoerentes(mesclados, lista);
+        });
         setUrlLida(true);
       })
       .catch(() => toast.error("Erro ao carregar produtos."))
