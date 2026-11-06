@@ -38,6 +38,8 @@ export interface Pedido {
   status: StatusPedido;
   nomeRecebedor: string;
   contatoRecebedor?: string;
+  /** Dados do recebedor como vieram do backend (o formulário de alteração parte deles). */
+  recebedor?: { nome: string; telefone?: string; email?: string };
   mensagemOpcional?: string;
   dataPedido: Date;
   itens: ItemPedido[];
@@ -60,4 +62,9 @@ export interface NovoPedido {
   contatoRecebedor?: string;
   mensagemOpcional?: string;
   itens: { idProduto: string; quantidade: number; precoUnitario?: number }[];
+}
+
+/** Dados do formulário de alteração (CDU-13). O e-mail é o de quem pediu pelo site. */
+export interface AlteracaoPedido extends NovoPedido {
+  emailRecebedor?: string;
 }

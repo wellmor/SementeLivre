@@ -58,10 +58,18 @@ export interface PedidoRequestDTO {
   itens: ItemPedidoRequestDTO[];
 }
 
+export interface CompradorDTO {
+  nome: string;
+  telefone?: string | null;
+  email?: string | null;
+}
+
+/** Só pedido PENDENTE; sem comprador, o backend mantém o atual (CDU-13). */
 export interface PedidoUpdateDTO {
   tipoPedido: TipoPedidoDTO;
   mensagemOpcional?: string | null;
   itens: ItemPedidoRequestDTO[];
+  comprador?: CompradorDTO | null;
 }
 
 export interface NotificacaoDTO {
