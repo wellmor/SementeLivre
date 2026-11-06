@@ -65,6 +65,11 @@ test.describe('Aprovar comunidades (front-app, admin)', () => {
   });
 
   test.describe('com a conta de admin', () => {
+    // Em série: todos usam a mesma conta de admin, e cada login apaga o refresh token
+    // anterior do usuário (AuthService.criarRefreshToken). Em paralelo, um teste
+    // derrubava a sessão do outro e ele caía na tela de login.
+    test.describe.configure({ mode: 'serial' });
+
     let adminDisponivel = false;
 
     test.beforeAll(async () => {
