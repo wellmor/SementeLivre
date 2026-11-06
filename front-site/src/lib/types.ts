@@ -34,6 +34,12 @@ export interface OfertaCatalogo {
   comunidade: string | null;
   municipio: string | null;
   uf: string | null;
+  /** Nome de exibição do produtor; nulo quando ele não autorizou aparecer no site (LGPD). */
+  nomeProdutor?: string | null;
+  /** Data de inclusão da semente/muda (ISO, sem fuso). */
+  dataInclusao?: string | null;
+  /** Última alteração do produto ou da oferta (ISO, sem fuso). */
+  dataUltimaAlteracao?: string | null;
 }
 
 export interface Oferta {
