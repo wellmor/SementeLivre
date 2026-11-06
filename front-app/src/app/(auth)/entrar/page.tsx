@@ -3,7 +3,8 @@
 /**
  * entrar/page.tsx — Tela de login integrada ao backend REST.
  *
- *   - `loginApi(email, senha)` → POST /auth/login + GET /auth/me (só conta de proprietário).
+ *   - `loginApi(email, senha)` → POST /auth/login + GET /auth/me (proprietário ou admin;
+ *     o admin vai direto para a aprovação de comunidades).
  *   - Credencial inválida (401) vai em toast. Sem conexão já vira toast em lib/api.ts.
  *   - "Conta criada" e "sessão expirada" também chegam como toast (o ToastProvider fica no layout raiz).
  */
@@ -47,8 +48,8 @@ export default function EntrarPage() {
     if (!email || !senha) { setError('Preencha todos os campos.'); return; }
     setLoading(true);
     try {
-      await loginApi(email.trim(), senha);
-      router.push('/dashboard');
+      const sessao = await loginApi(email.trim(), senha);
+      router.push(sessao.admin ? '/admin/comunidades' : '/dashboard');
     } catch (err: unknown) {
       if (!isApiError(err)) {
         showToast('Ocorreu um erro. Tente novamente.', 'error');

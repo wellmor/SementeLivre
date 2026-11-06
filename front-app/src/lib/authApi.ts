@@ -37,10 +37,17 @@ export interface AuthSession {
   uid: string;
   email: string;
   nome: string;
+  /** Conta de admin (ROLE_ADMIN): vê a área de aprovação de comunidades. */
+  admin: boolean;
+}
+
+/** O backend devolve os perfis como "ROLE_ADMIN"/"ROLE_PROPRIETARIO" em `roles`. */
+export function ehAdmin(perfil: PerfilUsuario): boolean {
+  return perfil.tipoPessoa === 'ADMIN' || (perfil.roles ?? []).includes('ROLE_ADMIN');
 }
 
 export function sessaoDoPerfil(perfil: PerfilUsuario): AuthSession {
-  return { uid: perfil.id, email: perfil.email, nome: perfil.nome };
+  return { uid: perfil.id, email: perfil.email, nome: perfil.nome, admin: ehAdmin(perfil) };
 }
 
 // ── me ────────────────────────────────────────────────────────────────────────
@@ -67,12 +74,12 @@ export async function loginApi(email: string, senha: string): Promise<AuthSessio
 
   // Obtém dados do usuário autenticado para montar a sessão
   const me = await meApi();
-  if (me.tipoPessoa !== 'PROPRIETARIO') {
-    // O front-app é do proprietário; admin usa o painel do front-site.
+  // O front-app é do proprietário; o admin entra só para aprovar comunidades (/admin/comunidades).
+  if (me.tipoPessoa !== 'PROPRIETARIO' && !ehAdmin(me)) {
     logoutApi();
     const erro: ApiError = {
       status: 403,
-      message: 'Esta conta não é de proprietário. Use o painel administrativo.',
+      message: 'Esta conta não tem acesso ao aplicativo.',
       code: 'auth/not-proprietario',
       fieldErrors: {},
     };

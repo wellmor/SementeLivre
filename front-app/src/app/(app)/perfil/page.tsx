@@ -17,7 +17,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/feedback/Toast';
 import { useRouter } from 'next/navigation';
-import { Lock, LogOut, Phone, MapPin, Hash, ChevronRight, User, Shield, Mail, Pencil, Accessibility, Trash2 } from 'lucide-react';
+import { Lock, LogOut, Phone, MapPin, Hash, ChevronRight, User, Shield, ShieldCheck, Mail, Pencil, Accessibility, Trash2 } from 'lucide-react';
 import { alterarSenhaApi, atualizarProprietarioApi, excluirContaApi } from '@/lib/authApi';
 import { isApiError, renovarToken } from '@/lib/api';
 import { aplicarErrosDaApi, comMascara } from '@/lib/forms';
@@ -57,7 +57,7 @@ function perfilParaForm(p: PerfilUsuario): PerfilForm {
 }
 
 export default function PerfilPage() {
-  const { perfil, recarregarPerfil, logout } = useAuth();
+  const { user, perfil, recarregarPerfil, logout } = useAuth();
   const { showToast } = useToast();
   const router = useRouter();
   const [showLogout, setShowLogout] = useState(false);
@@ -332,6 +332,23 @@ export default function PerfilPage() {
           <ChevronRight size={15} className={styles.actionChevron} />
         </button>
       </div>
+
+      {/* Administração: só para admin */}
+      {user?.admin && (
+        <div className={styles.card}>
+          <div className={styles.cardHeader}>
+            <ShieldCheck size={14} strokeWidth={2.5} className={styles.cardHeaderIcon} />
+            <p className={styles.cardTitle}>Administração</p>
+          </div>
+          <Link href="/admin/comunidades" className={styles.actionRow} style={{ textDecoration: 'none' }}>
+            <div className={styles.actionIcon}>
+              <ShieldCheck size={15} strokeWidth={2} />
+            </div>
+            <span className={styles.actionLabel}>Aprovar comunidades</span>
+            <ChevronRight size={15} className={styles.actionChevron} />
+          </Link>
+        </div>
+      )}
 
       {/* Acessibilidade */}
       <div className={styles.card}>

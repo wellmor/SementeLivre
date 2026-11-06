@@ -8,11 +8,14 @@
  *  DELETE /api/propriedades/{id}     → 204
  *  GET    /api/comunidades           → List<ComunidadeResponseDTO> (todas; a tela filtra)
  *  POST   /api/comunidades           → ComunidadeResponseDTO (nasce PENDENTE_APROVACAO)
+ *  PATCH  /api/comunidades/{id}/aprovar  → ComunidadeResponseDTO (só admin; vira ATIVA)
+ *  PATCH  /api/comunidades/{id}/rejeitar → ComunidadeResponseDTO (só admin; vira REJEITADA)
+ *    As duas respondem 409 se a comunidade já não estiver pendente.
  *
  * O endereço vai junto no corpo (`endereco`): o backend cria o logradouro.
  */
 
-import { apiDelete, apiGet, apiPost, apiPut } from './api';
+import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from './api';
 import { StatusComunidade } from '@/types/property';
 
 export interface EnderecoDTO {
@@ -85,4 +88,14 @@ export function listarComunidades(): Promise<ComunidadeDTO[]> {
 
 export function solicitarComunidade(dados: ComunidadeRequestDTO): Promise<ComunidadeDTO> {
   return apiPost<ComunidadeDTO>('/api/comunidades', dados);
+}
+
+// ── Admin ─────────────────────────────────────────────────────────────────────
+
+export function aprovarComunidade(id: string): Promise<ComunidadeDTO> {
+  return apiPatch<ComunidadeDTO>(`/api/comunidades/${id}/aprovar`);
+}
+
+export function rejeitarComunidade(id: string): Promise<ComunidadeDTO> {
+  return apiPatch<ComunidadeDTO>(`/api/comunidades/${id}/rejeitar`);
 }

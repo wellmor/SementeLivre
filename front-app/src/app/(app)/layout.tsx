@@ -23,6 +23,7 @@ const headerConfig: Record<string, { title: string; showBack?: boolean; showNoti
   '/perfil': { title: 'Meu Perfil', showNotifications: true },
   '/privacidade': { title: 'Política de Privacidade', showBack: true },
   '/termos': { title: 'Termos de Uso', showBack: true },
+  '/admin/comunidades': { title: 'Aprovar Comunidades', showBack: true },
 };
 
 function AppLayoutInner({ children }: { children: React.ReactNode }) {
