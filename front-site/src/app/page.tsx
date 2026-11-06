@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
 import PublicHeader from "@/components/public-header";
@@ -8,8 +8,8 @@ import FotoProduto from "@/components/foto-produto";
 import CarrosselComunidades from "@/components/carrossel-comunidades";
 import BotaoVerNoMapa from "@/components/botao-ver-no-mapa";
 import SecaoMapa from "@/components/secao-mapa";
+import FiltrosCatalogoPainel from "@/components/filtros-catalogo";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -20,21 +20,30 @@ import {
 import {
   Lock,
   Loader2,
-  Search,
   Leaf,
   FlaskConical,
   BookOpen,
   Sprout,
   ArrowRight,
   MessageCircle,
+  User,
+  CalendarDays,
 } from "lucide-react";
-import type { Disponibilidade, OfertaCatalogo, TipoProduto } from "@/lib/types";
-import { DISPONIBILIDADE_CONFIG, TIPO_PRODUTO_LABEL, unidade } from "@/lib/catalogo";
+import type { OfertaCatalogo } from "@/lib/types";
+import { DISPONIBILIDADE_CONFIG, unidade } from "@/lib/catalogo";
 import { formatarMoeda } from "@/lib/utils";
 import { FOTOS_COMUNIDADES } from "@/lib/divulgacao";
-
-type FilterStatus = Disponibilidade | "all";
-type FilterTipo = TipoProduto | "all";
+import {
+  FILTROS_VAZIOS,
+  filtrarOfertas,
+  filtrosCoerentes,
+  filtrosDaUrl,
+  formatarData,
+  opcoesDosFiltros,
+  queryDosFiltros,
+  temFiltroAtivo,
+  type FiltrosCatalogo,
+} from "@/lib/filtros-catalogo";
 
 // Cards por vez na listagem; o resto aparece no "Mostrar mais"
 const POR_PAGINA = 24;
@@ -43,12 +52,12 @@ export default function MarketplacePage() {
   const router = useRouter();
   const [ofertas, setOfertas] = useState<OfertaCatalogo[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<FilterStatus>("all");
-  const [filterTipo, setFilterTipo] = useState<FilterTipo>("all");
-  const [filterComunidade, setFilterComunidade] = useState("all");
+  const [filtros, setFiltros] = useState<FiltrosCatalogo>(FILTROS_VAZIOS);
+  // Só escreve os filtros na URL depois de ler os que vieram nela
+  const [urlLida, setUrlLida] = useState(false);
+  const buscaRef = useRef<HTMLInputElement>(null);
   // Cards mostrados aos poucos ("Mostrar mais"); a contagem volta ao início quando o filtro muda
-  const chaveDoFiltro = JSON.stringify([search, filter, filterTipo, filterComunidade]);
+  const chaveDoFiltro = JSON.stringify(filtros);
   const [exibicao, setExibicao] = useState({ chave: chaveDoFiltro, quantidade: POR_PAGINA });
   const quantidadeVisivel = exibicao.chave === chaveDoFiltro ? exibicao.quantidade : POR_PAGINA;
 
@@ -60,35 +69,51 @@ export default function MarketplacePage() {
       })
       .then((lista: OfertaCatalogo[]) => {
         setOfertas([...lista].sort((a, b) => a.nomePopular.localeCompare(b.nomePopular, "pt-BR")));
-        // "Ver produtos" da página /mapa chega com ?comunidade=<id>: já abre filtrado
-        const comunidade = new URLSearchParams(window.location.search).get("comunidade");
-        if (comunidade && lista.some((o) => o.comunidadeId === comunidade)) {
-          setFilterComunidade(comunidade);
-        }
+        // Filtros da URL: link compartilhado ou o "Ver produtos" do /mapa (?comunidade=<id>)
+        const daUrl = filtrosDaUrl(new URLSearchParams(window.location.search), lista);
+        // O que a pessoa já mexeu enquanto o catálogo carregava (ex.: digitou na busca)
+        // vale mais que a URL; sem isso o texto digitado sumia quando a lista chegava
+        setFiltros((atual) => {
+          const mesclados = { ...daUrl };
+          for (const k of Object.keys(FILTROS_VAZIOS) as (keyof FiltrosCatalogo)[]) {
+            if (atual[k] !== FILTROS_VAZIOS[k]) (mesclados as Record<keyof FiltrosCatalogo, string>)[k] = atual[k];
+          }
+          return filtrosCoerentes(mesclados, lista);
+        });
+        setUrlLida(true);
       })
       .catch(() => toast.error("Erro ao carregar produtos."))
       .finally(() => setLoading(false));
   }, []);
 
-  // Só as comunidades que têm alguma oferta no catálogo
-  const comunidades = Array.from(
-    new Map(
-      ofertas
-        .filter((o) => o.comunidadeId && o.comunidade)
-        .map((o) => [o.comunidadeId as string, o.comunidade as string])
-    )
-  ).sort((a, b) => a[1].localeCompare(b[1], "pt-BR"));
+  // Filtros na URL para a busca poder ser compartilhada. replaceState (sem nova
+  // entrada no histórico) e com atraso curto: digitar não vira uma chamada por tecla.
+  useEffect(() => {
+    if (!urlLida) return;
+    const espera = setTimeout(() => {
+      const url = `${window.location.pathname}${queryDosFiltros(filtros)}${window.location.hash}`;
+      if (url !== `${window.location.pathname}${window.location.search}${window.location.hash}`) {
+        window.history.replaceState(null, "", url);
+      }
+    }, 300);
+    return () => clearTimeout(espera);
+  }, [filtros, urlLida]);
 
-  const filtered = ofertas.filter((o) => {
-    const matchSearch = o.nomePopular
-      .toLowerCase()
-      .includes(search.toLowerCase());
-    const matchFilter = filter === "all" || o.disponibilidade === filter;
-    const matchTipo = filterTipo === "all" || o.tipo === filterTipo;
-    const matchComunidade =
-      filterComunidade === "all" || o.comunidadeId === filterComunidade;
-    return matchSearch && matchFilter && matchTipo && matchComunidade;
-  });
+  function atualizarFiltros(parcial: Partial<FiltrosCatalogo>) {
+    // Coerentes: limpar o estado limpa também o município dele, e assim por diante
+    setFiltros((atual) => filtrosCoerentes({ ...atual, ...parcial }, ofertas));
+  }
+
+  function limparFiltros() {
+    setFiltros(FILTROS_VAZIOS);
+    // O botão some junto com os filtros: o foco vai para a busca, e não se perde
+    buscaRef.current?.focus();
+  }
+
+  // Opções só com o que existe no catálogo
+  const opcoes = opcoesDosFiltros(ofertas, filtros);
+  const filtroAtivo = temFiltroAtivo(filtros);
+  const filtered = filtrarOfertas(ofertas, filtros);
 
   const stats = {
     total: ofertas.length,
@@ -154,88 +179,19 @@ export default function MarketplacePage() {
           <h2 className="text-2xl font-bold text-foreground mb-1">
             Produtos Disponíveis
           </h2>
-          <p className="text-muted-foreground text-sm" role="status">
+          <p className="text-muted-foreground text-sm" role="status" aria-live="polite" aria-atomic="true">
             {filtered.length} resultado{filtered.length !== 1 ? "s" : ""}
           </p>
         </div>
 
-        {/* Search + filters */}
-        <div className="flex flex-col gap-3 mb-8">
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="relative flex-1 max-w-sm">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
-              <Input
-                type="search"
-                aria-label="Buscar por nome popular"
-                placeholder="Buscar por nome popular..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-9 border-border focus-visible:ring-ring"
-              />
-            </div>
-
-            <select
-              aria-label="Filtrar por comunidade"
-              value={filterComunidade}
-              onChange={(e) => setFilterComunidade(e.target.value)}
-              className="rounded-md border border-border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-            >
-              <option value="all">Todas as comunidades</option>
-              {comunidades.map(([id, nome]) => (
-                <option key={id} value={id}>
-                  {nome}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Status pills */}
-          <div className="flex gap-2 flex-wrap" role="group" aria-label="Filtrar por disponibilidade">
-            {(["all", ...Object.keys(DISPONIBILIDADE_CONFIG)] as FilterStatus[]).map((f) => {
-              const label =
-                f === "all"
-                  ? "Todos"
-                  : DISPONIBILIDADE_CONFIG[f as Disponibilidade].label;
-              return (
-                <button
-                  key={f}
-                  type="button"
-                  aria-pressed={filter === f}
-                  onClick={() => setFilter(f)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
-                    filter === f
-                      ? "bg-primary text-white border-primary shadow-sm"
-                      : "bg-white text-slate-600 border-border hover:border-primary hover:text-primary-dark"
-                  }`}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Tipo pills */}
-          <div className="flex gap-2 flex-wrap" role="group" aria-label="Filtrar por tipo">
-            {(["all", ...Object.keys(TIPO_PRODUTO_LABEL)] as FilterTipo[]).map((t) => {
-              const label = t === "all" ? "Todos os tipos" : TIPO_PRODUTO_LABEL[t as TipoProduto];
-              return (
-                <button
-                  key={t}
-                  type="button"
-                  aria-pressed={filterTipo === t}
-                  onClick={() => setFilterTipo(t)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
-                    filterTipo === t
-                      ? "bg-primary-dark text-white border-primary-dark shadow-sm"
-                      : "bg-white text-slate-600 border-border hover:border-primary hover:text-primary-dark"
-                  }`}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
+        <FiltrosCatalogoPainel
+          filtros={filtros}
+          opcoes={opcoes}
+          ativo={filtroAtivo}
+          onChange={atualizarFiltros}
+          onLimpar={limparFiltros}
+          buscaRef={buscaRef}
+        />
 
         {/* Loading */}
         {loading && (
@@ -249,9 +205,11 @@ export default function MarketplacePage() {
           <div className="flex flex-col items-center justify-center h-52 bg-white rounded-2xl border border-dashed border-border gap-3">
             <Leaf className="w-10 h-10 text-primary/30" />
             <p className="text-muted-foreground text-sm">
-              {search
-                ? `Nenhum produto encontrado para "${search}".`
-                : "Nenhum produto no catálogo ainda."}
+              {filtros.busca.trim()
+                ? `Nenhum produto encontrado para "${filtros.busca.trim()}".`
+                : filtroAtivo
+                  ? "Nenhum produto encontrado com esses filtros."
+                  : "Nenhum produto no catálogo ainda."}
             </p>
           </div>
         )}
@@ -317,6 +275,22 @@ export default function MarketplacePage() {
                         <BookOpen className="w-3 h-3" />
                         <span>{oferta.familiaBotanica || "—"}</span>
                       </div>
+                      {/* Só vem preenchido quando o produtor autorizou aparecer no site (LGPD) */}
+                      {oferta.nomeProdutor && (
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <User className="w-3 h-3" aria-hidden="true" />
+                          <span>
+                            <span className="sr-only">Produtor: </span>
+                            {oferta.nomeProdutor}
+                          </span>
+                        </div>
+                      )}
+                      {formatarData(oferta.dataUltimaAlteracao) && (
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <CalendarDays className="w-3 h-3" aria-hidden="true" />
+                          <span>Atualizado em {formatarData(oferta.dataUltimaAlteracao)}</span>
+                        </div>
+                      )}
                       {oferta.quantidade != null && (
                         <p className="text-xs text-slate-600 font-medium">
                           📦 {oferta.quantidade} {unidade(oferta.tipoPesagem)} em estoque

@@ -32,6 +32,64 @@ test.describe('Catálogo público (front-site)', () => {
     await expect(card.getByText('Quilombo dos Coelhos')).toBeVisible();
   });
 
+  test('filtro por produtor só acha quem autorizou mostrar o nome (LGPD)', async ({ page }) => {
+    const sufixo = unico();
+    const publico = await criarProdutor();
+    const privado = await criarProdutor({ exibirNoSitePublico: false });
+    const ofertaPublica = await criarOferta(publico, { nomePopular: `Feijão Produtor ${sufixo}` });
+    const ofertaPrivada = await criarOferta(privado, { nomePopular: `Milho Produtor ${sufixo}` });
+
+    await page.goto('/');
+    await page.getByPlaceholder('Buscar por nome popular...').fill(sufixo);
+    await expect(page.getByText('2 resultados', { exact: true })).toBeVisible();
+
+    const cardPublico = page.locator('[data-slot="card"]').filter({ hasText: ofertaPublica.nomePopular });
+    const cardPrivado = page.locator('[data-slot="card"]').filter({ hasText: ofertaPrivada.nomePopular });
+    await expect(cardPublico.getByText(publico.nome)).toBeVisible();
+    await expect(cardPrivado.getByText(privado.nome)).toHaveCount(0);
+
+    await page.getByLabel('Buscar por nome do produtor').fill(publico.nome);
+    await expect(page.getByText('1 resultado', { exact: true })).toBeVisible();
+    await expect(cardPublico).toBeVisible();
+
+    // O nome de quem não autorizou não chega ao site: a busca por ele não acha nada
+    await page.getByLabel('Buscar por nome do produtor').fill(privado.nome);
+    await expect(page.getByText('Nenhum produto encontrado para', { exact: false })).toBeVisible();
+  });
+
+  test('filtros de estado, município e data vão para a URL e "Limpar filtros" zera tudo', async ({ page }) => {
+    const produtor = await criarProdutor();
+    await criarPropriedade(produtor);
+    const oferta = await criarOferta(produtor, { nomePopular: `Feijão Município ${unico()}` });
+    const card = page.locator('[data-slot="card"]').filter({ hasText: oferta.nomePopular });
+
+    await page.goto('/');
+    await page.getByPlaceholder('Buscar por nome popular...').fill(oferta.nomePopular);
+    await page.getByLabel('Filtrar por estado').selectOption('MG');
+    await page.getByLabel('Filtrar por município').selectOption({ label: 'Rio Pomba - MG' });
+    await page.getByLabel('Filtrar por data de inclusão').selectOption({ label: 'Últimos 7 dias' });
+    await expect(card).toBeVisible();
+    await expect(page.getByText('1 resultado', { exact: true })).toBeVisible();
+
+    await expect(page).toHaveURL(/uf=MG/);
+    await expect(page).toHaveURL(/municipio=Rio\+Pomba/);
+    await expect(page).toHaveURL(/incluido=7/);
+
+    // O link filtrado abre igual (dá para compartilhar)
+    await page.reload();
+    await expect(page.getByLabel('Filtrar por estado')).toHaveValue('MG');
+    await expect(page.getByLabel('Filtrar por município').locator('option:checked')).toHaveText('Rio Pomba - MG');
+    await expect(page.getByPlaceholder('Buscar por nome popular...')).toHaveValue(oferta.nomePopular);
+    await expect(card).toBeVisible();
+
+    await page.getByRole('button', { name: 'Limpar filtros' }).click();
+    await expect(page.getByLabel('Filtrar por estado')).toHaveValue('all');
+    await expect(page.getByPlaceholder('Buscar por nome popular...')).toHaveValue('');
+    await expect(page.getByPlaceholder('Buscar por nome popular...')).toBeFocused();
+    await expect(page.getByRole('button', { name: 'Limpar filtros' })).toHaveCount(0);
+    await expect(page).toHaveURL(/\/$/);
+  });
+
   test('busca sem resultado mostra estado vazio', async ({ page }) => {
     await page.goto('/');
     const termo = `inexistente-${unico()}`;
