@@ -1,8 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { apiGet, apiPatch, apiPost, comQuery, errorMessage, isApiError } from '@/lib/api';
-import { FiltroPedidos, NovoPedido, Pedido, StatusPedido, TipoPedido } from '@/types/order';
+import { apiGet, apiPatch, apiPost, apiPut, comQuery, errorMessage, isApiError } from '@/lib/api';
+import { AlteracaoPedido, FiltroPedidos, NovoPedido, Pedido, StatusPedido, TipoPedido } from '@/types/order';
 import { useAuth } from '@/context/AuthContext';
 
 // Formato de PedidoResponseDTO no backend
@@ -45,6 +45,13 @@ function toPedido(api: PedidoApi): Pedido {
     nomeRecebedor: api.comprador?.nome ?? 'Comprador não informado',
     // Pedido do site pode ter só e-mail, só telefone ou os dois
     contatoRecebedor: [api.comprador?.telefone, api.comprador?.email].filter(Boolean).join(' · ') || undefined,
+    recebedor: api.comprador
+      ? {
+          nome: api.comprador.nome,
+          telefone: api.comprador.telefone ?? undefined,
+          email: api.comprador.email ?? undefined,
+        }
+      : undefined,
     mensagemOpcional: api.mensagemOpcional ?? undefined,
     // LocalDateTime chega sem fuso; o navegador interpreta como horário local
     dataPedido: new Date(api.dataPedido),
@@ -117,6 +124,27 @@ export function useOrders(filtro?: FiltroPedidos) {
     [proprietarioId]
   );
 
+  /**
+   * Altera um pedido PENDENTE (CDU-13). O backend confere o saldo de novo e
+   * recusa com 422 se não cobrir; nada é baixado até a confirmação (#183).
+   */
+  const updateOrder = useCallback(async (id: string, data: AlteracaoPedido): Promise<Pedido> => {
+    return toPedido(await apiPut<PedidoApi>(`/pedidos/${id}`, {
+      tipoPedido: data.tipoPedido,
+      mensagemOpcional: data.mensagemOpcional?.trim() || null,
+      comprador: {
+        nome: data.nomeRecebedor.trim(),
+        telefone: data.contatoRecebedor?.trim() || null,
+        email: data.emailRecebedor?.trim() || null,
+      },
+      itens: data.itens.map((i) => ({
+        produtoId: i.idProduto,
+        quantidade: i.quantidade,
+        precoUnitario: i.precoUnitario ?? null,
+      })),
+    }));
+  }, []);
+
   const confirmOrder = useCallback(async (id: string): Promise<Pedido> => {
     return toPedido(await apiPatch<PedidoApi>(`/pedidos/${id}/confirmar`));
   }, []);
@@ -135,5 +163,5 @@ export function useOrders(filtro?: FiltroPedidos) {
     }
   }, []);
 
-  return { orders, loading, error, reload, createOrder, cancelOrder, confirmOrder, getOrder };
+  return { orders, loading, error, reload, createOrder, updateOrder, cancelOrder, confirmOrder, getOrder };
 }

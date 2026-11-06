@@ -939,6 +939,128 @@ class PedidoServiceTest {
         verify(pedidoRepository, never()).save(any(Pedido.class));
     }
 
+    @Test
+    void alterarPedidoPendenteSoConfereOSaldoSemBaixarEstoque() {
+        mockBuscaPedido(pedidoPendente());
+        when(produtoRepository.findById(produtoId)).thenReturn(Optional.of(produto));
+        mockEstoqueDisponivel();
+        mockSalvarPedido();
+
+        // Pode subir ate o saldo inteiro: os pendentes nao reservam (#183)
+        pedidoService.atualizar(pedidoId, new PedidoUpdateDTO(
+                TipoPedido.VENDA, null, List.of(new ItemPedidoRequestDTO(produtoId, ESTOQUE_INICIAL, 15.0))));
+
+        assertEquals(ESTOQUE_INICIAL, estoque.getQuantidade());
+        verify(estoqueRepository, never()).save(any(Estoque.class));
+        verify(estoqueRepository, never()).findParaAtualizacao(any(UUID.class), any(UUID.class));
+        verify(estoqueService, never()).registrarLancamentoDePedido(
+                any(Estoque.class), any(TipoMovimentacao.class), any(OrigemMovimentacao.class), anyDouble(), anyString());
+    }
+
+    @Test
+    void naoDeveAtualizarPedidoCancelado() {
+        mockBuscaPedido(pedidoComStatus(StatusPedido.CANCELADO));
+
+        assertThrows(
+                TransicaoStatusInvalidaException.class,
+                () -> pedidoService.atualizar(pedidoId, new PedidoUpdateDTO(
+                        TipoPedido.VENDA, null, List.of(new ItemPedidoRequestDTO(produtoId, 1.0, 15.0))))
+        );
+
+        verify(pedidoRepository, never()).save(any(Pedido.class));
+    }
+
+    @Test
+    void naoDeveAtualizarComProdutoIndisponivel() {
+        mockBuscaPedido(pedidoPendente());
+        when(produtoRepository.findById(produtoId)).thenReturn(Optional.of(produto));
+        estoque.setDisponibilidade(Disponibilidade.INDISPONIVEL);
+        mockEstoqueDisponivel();
+
+        assertThrows(
+                EstoqueInsuficienteException.class,
+                () -> pedidoService.atualizar(pedidoId, new PedidoUpdateDTO(
+                        TipoPedido.VENDA, null, List.of(new ItemPedidoRequestDTO(produtoId, 1.0, 15.0))))
+        );
+
+        verify(pedidoRepository, never()).save(any(Pedido.class));
+    }
+
+    @Test
+    void deveAtualizarNomeEContatoDoComprador() {
+        Pedido pedido = pedidoPendente();
+        Comprador comprador = Comprador.builder()
+                .id(UUID.randomUUID()).nome("Ana Souza").telefone("32 9999").email("ana@exemplo.com").build();
+        pedido.setComprador(comprador);
+        mockBuscaPedido(pedido);
+        when(produtoRepository.findById(produtoId)).thenReturn(Optional.of(produto));
+        mockEstoqueDisponivel();
+        mockSalvarPedido();
+
+        PedidoResponseDTO resposta = pedidoService.atualizar(pedidoId, new PedidoUpdateDTO(
+                TipoPedido.VENDA, "  ", List.of(new ItemPedidoRequestDTO(produtoId, 2.0, 15.0)),
+                new CompradorDTO(" Ana Maria Souza ", " 32 98888 ", "  ")));
+
+        // Mesmo comprador, dados novos; e-mail em branco vira nulo
+        assertEquals(comprador, pedido.getComprador());
+        assertEquals("Ana Maria Souza", resposta.comprador().nome());
+        assertEquals("32 98888", resposta.comprador().telefone());
+        assertNull(resposta.comprador().email());
+        assertNull(resposta.mensagemOpcional());
+        verify(compradorRepository, never()).save(any(Comprador.class));
+    }
+
+    @Test
+    void deveManterCompradorQuandoAlteracaoNaoTrazComprador() {
+        Pedido pedido = pedidoPendente();
+        pedido.setComprador(Comprador.builder().nome("Ana Souza").telefone("32 9999").build());
+        mockBuscaPedido(pedido);
+        when(produtoRepository.findById(produtoId)).thenReturn(Optional.of(produto));
+        mockEstoqueDisponivel();
+        mockSalvarPedido();
+
+        PedidoResponseDTO resposta = pedidoService.atualizar(pedidoId, new PedidoUpdateDTO(
+                TipoPedido.TROCA, null, List.of(new ItemPedidoRequestDTO(produtoId, 2.0, null))));
+
+        assertEquals("Ana Souza", resposta.comprador().nome());
+        assertEquals("32 9999", resposta.comprador().telefone());
+    }
+
+    @Test
+    void deveCriarCompradorAoAlterarPedidoQueNaoTinha() {
+        mockBuscaPedido(pedidoPendente());
+        when(produtoRepository.findById(produtoId)).thenReturn(Optional.of(produto));
+        mockEstoqueDisponivel();
+        mockSalvarPedido();
+        when(compradorRepository.save(any(Comprador.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        PedidoResponseDTO resposta = pedidoService.atualizar(pedidoId, new PedidoUpdateDTO(
+                TipoPedido.VENDA, null, List.of(new ItemPedidoRequestDTO(produtoId, 2.0, 15.0)),
+                new CompradorDTO("Carlos", null)));
+
+        assertNotNull(resposta.comprador());
+        assertEquals("Carlos", resposta.comprador().nome());
+        verify(compradorRepository).save(any(Comprador.class));
+    }
+
+    @Test
+    void naoDeveAlterarCompradorQuandoEstoqueNaoCobre() {
+        Pedido pedido = pedidoPendente();
+        pedido.setComprador(Comprador.builder().nome("Ana Souza").build());
+        mockBuscaPedido(pedido);
+        when(produtoRepository.findById(produtoId)).thenReturn(Optional.of(produto));
+        mockEstoqueDisponivel();
+
+        assertThrows(
+                EstoqueInsuficienteException.class,
+                () -> pedidoService.atualizar(pedidoId, new PedidoUpdateDTO(
+                        TipoPedido.VENDA, null, List.of(new ItemPedidoRequestDTO(produtoId, ESTOQUE_INICIAL + 1, 15.0)),
+                        new CompradorDTO("Outro Nome", null)))
+        );
+
+        assertEquals("Ana Souza", pedido.getComprador().getNome());
+    }
+
     // CONSULTA
 
     @Test

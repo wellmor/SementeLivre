@@ -23,9 +23,11 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import com.sementelivre.backend.BackendApplication;
 import com.sementelivre.backend.dto.CompradorDTO;
+import com.sementelivre.backend.dto.ItemPedidoRequestDTO;
 import com.sementelivre.backend.dto.MovimentacaoResponseDTO;
 import com.sementelivre.backend.dto.PedidoRequestDTO;
 import com.sementelivre.backend.dto.PedidoResponseDTO;
+import com.sementelivre.backend.dto.PedidoUpdateDTO;
 import com.sementelivre.backend.entity.Comprador;
 import com.sementelivre.backend.entity.Estoque;
 import com.sementelivre.backend.entity.Notificacao;
@@ -33,6 +35,7 @@ import com.sementelivre.backend.entity.Pedido;
 import com.sementelivre.backend.entity.enums.OrigemMovimentacao;
 import com.sementelivre.backend.entity.enums.StatusPedido;
 import com.sementelivre.backend.entity.enums.TipoMovimentacao;
+import com.sementelivre.backend.entity.enums.TipoPedido;
 import com.sementelivre.backend.repository.EstoqueRepository;
 import com.sementelivre.backend.repository.PedidoRepository;
 import com.sementelivre.backend.repository.ProdutoRepository;
@@ -364,6 +367,44 @@ class PedidoEstoqueIntegrationTest extends AbstractPostgresIntegrationTest {
         assertNull(entityManager.find(Pedido.class, criado.id()));
         assertNull(entityManager.find(Comprador.class, compradorId),
                 "nome e telefone do comprador não podem sobrar sem o pedido");
+    }
+
+    // CDU-13: alterar troca itens e recebedor; o estoque so baixa na confirmacao
+    @Test
+    @Transactional
+    void alterarPedidoPendente_trocaItensECompradorSemMexerNoEstoque() {
+        CrossDomainFixture.Scenario scenario = fixture(ESTOQUE_INICIAL);
+        PedidoRequestDTO base = CrossDomainFixture.pedido(scenario, QUANTIDADE_PEDIDA);
+        PedidoResponseDTO criado = pedidoService.criar(new PedidoRequestDTO(
+                base.tipoPedido(), base.mensagemOpcional(), base.usuarioSolicitanteId(),
+                base.proprietarioRecebedorId(), base.itens(),
+                new CompradorDTO("Nome Antigo", "32911112222")));
+        entityManager.flush();
+        UUID compradorId = pedidoRepository.findById(criado.id()).orElseThrow().getComprador().getId();
+        entityManager.clear();
+
+        pedidoService.atualizar(criado.id(), new PedidoUpdateDTO(
+                TipoPedido.TROCA, "Troca combinada",
+                List.of(new ItemPedidoRequestDTO(scenario.produto().getId(), 35.0, null)),
+                new CompradorDTO("Nome Novo", "32933334444")));
+        entityManager.flush();
+        entityManager.clear();
+
+        PedidoResponseDTO buscado = pedidoService.buscarPorId(criado.id());
+        assertEquals(TipoPedido.TROCA, buscado.tipoPedido());
+        assertEquals(1, buscado.itens().size(), "o item antigo sai pelo orphanRemoval");
+        assertEquals(35.0, buscado.itens().get(0).quantidade());
+        assertNull(buscado.itens().get(0).precoUnitario());
+        assertEquals("Nome Novo", buscado.comprador().nome());
+        assertEquals("32933334444", buscado.comprador().telefone());
+        assertEquals(compradorId, pedidoRepository.findById(criado.id()).orElseThrow().getComprador().getId());
+        assertEquals(ESTOQUE_INICIAL, estoque(scenario).getQuantidade());
+
+        // A confirmacao baixa a quantidade alterada
+        pedidoService.confirmar(criado.id());
+        entityManager.flush();
+        entityManager.clear();
+        assertEquals(ESTOQUE_INICIAL - 35.0, estoque(scenario).getQuantidade());
     }
 
     private static final class TestRollbackException extends RuntimeException {

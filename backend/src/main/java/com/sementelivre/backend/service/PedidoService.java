@@ -220,15 +220,43 @@ public class PedidoService {
         }
 
         pedido.setTipoPedido(dto.tipoPedido());
-        pedido.setMensagemOpcional(dto.mensagemOpcional());
+        pedido.setMensagemOpcional(textoOuNulo(dto.mensagemOpcional()));
 
         // Substitui a lista inteira: o orphanRemoval apaga os itens que sairam
         pedido.getItens().clear();
         preencherItens(pedido, dto.itens());
 
+        // PENDENTE nao baixou nada (#183): "recalcular o estoque" e conferir se o
+        // saldo de agora cobre o pedido alterado. A baixa continua na confirmacao.
         conferirSaldo(pedido);
 
+        atualizarComprador(pedido, dto.comprador());
+
         return mapToResponse(pedidoRepository.save(pedido));
+    }
+
+    /**
+     * Nome e contato de quem recebe tambem fazem parte do pedido (RF-05). Sem
+     * comprador no corpo, mantem o atual. Cada pedido tem o proprio comprador
+     * (nasce junto com ele), entao alterar aqui nao mexe em outro pedido.
+     */
+    private void atualizarComprador(Pedido pedido, CompradorDTO dto) {
+
+        if (dto == null) {
+            return;
+        }
+
+        Comprador comprador = pedido.getComprador();
+
+        // Pedidos anteriores a V6 nao tem comprador
+        if (comprador == null) {
+            pedido.setComprador(compradorRepository.save(novoComprador(dto)));
+            return;
+        }
+
+        comprador.setNome(dto.nome().trim());
+        comprador.setTelefone(textoOuNulo(dto.telefone()));
+        comprador.setEmail(textoOuNulo(dto.email()));
     }
 
     // DELETE (CDU-14)
