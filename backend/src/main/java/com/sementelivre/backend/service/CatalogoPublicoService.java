@@ -1,11 +1,13 @@
 package com.sementelivre.backend.service;
 
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -20,6 +22,7 @@ import com.sementelivre.backend.entity.Estoque;
 import com.sementelivre.backend.entity.Logradouro;
 import com.sementelivre.backend.entity.Produto;
 import com.sementelivre.backend.entity.Propriedade;
+import com.sementelivre.backend.entity.Proprietario;
 import com.sementelivre.backend.entity.enums.Disponibilidade;
 import com.sementelivre.backend.entity.enums.EspecieGeral;
 import com.sementelivre.backend.entity.enums.StatusComunidade;
@@ -214,8 +217,40 @@ public class CatalogoPublicoService {
                 nomeComunidade,
                 municipio,
                 uf,
-                estoque.isAceitaNegociacao()
+                estoque.isAceitaNegociacao(),
+                nomePublicoDoProdutor(estoque.getProprietario()),
+                produto.getDataInclusao(),
+                ultimaAlteracao(produto, estoque)
         );
+    }
+
+    /**
+     * LGPD (RNF-06): o nome do produtor so vai para o site quando ele autorizou
+     * aparecer ({@code exibirNoSitePublico}), a mesma regra do perfil publico
+     * (ProdutorPublicoService). Sem autorizacao, o site nao recebe nome nenhum.
+     */
+    static String nomePublicoDoProdutor(Proprietario produtor) {
+        if (produtor == null || !produtor.isExibirNoSitePublico()) {
+            return null;
+        }
+        String nome = produtor.getNome();
+        return nome == null || nome.isBlank() ? null : nome.trim();
+    }
+
+    /**
+     * Data mais recente entre a alteracao do produto e as da oferta. A oferta
+     * muda sem mexer no produto (preco, saldo, disponibilidade), e o site
+     * filtra por "alterados nos ultimos dias" olhando a oferta inteira.
+     */
+    static LocalDateTime ultimaAlteracao(Produto produto, Estoque estoque) {
+        return Stream.of(
+                        produto.getDataUltimaAlteracao(),
+                        estoque.getDataUltimaAtualizacao(),
+                        estoque.getDataMovimentacao(),
+                        produto.getDataInclusao())
+                .filter(Objects::nonNull)
+                .max(LocalDateTime::compareTo)
+                .orElse(null);
     }
 
     private String normalizar(String valor) {
