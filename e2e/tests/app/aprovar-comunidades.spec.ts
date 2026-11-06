@@ -156,5 +156,27 @@ test.describe('Aprovar comunidades (front-app, admin)', () => {
       await expect(page.getByRole('listitem').filter({ hasText: comunidade.nome })).toBeVisible();
       await semViolacoesGraves(page, 'Aprovar comunidades');
     });
+
+    test('admin fica na área de administração: telas de proprietário redirecionam', async ({ page }) => {
+      for (const rota of ['/', '/dashboard', '/produtos', '/pedidos', '/notificacoes']) {
+        await page.goto(rota);
+        await expect(page, `admin em ${rota}`).toHaveURL(/\/admin\/comunidades$/);
+      }
+      await expect(page.getByRole('heading', { level: 1, name: 'Aprovar Comunidades' })).toBeVisible();
+      await expect(page.getByRole('navigation', { name: 'Navegação principal' })).toHaveCount(0);
+      await expect(page.getByRole('link', { name: /^Notificações/ })).toHaveCount(0);
+
+      // Sem a barra de baixo, o perfil fica no topo; lá só o que vale para o admin
+      await page.getByRole('link', { name: 'Meu perfil' }).click();
+      await expect(page).toHaveURL(/\/perfil$/);
+      await expect(page.getByRole('link', { name: 'Aprovar comunidades' })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Sair do Aplicativo' })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Editar' })).toHaveCount(0);
+      await expect(page.getByRole('button', { name: 'Excluir minha conta' })).toHaveCount(0);
+
+      // Telas informativas continuam abertas
+      await page.goto('/termos');
+      await expect(page).toHaveURL(/\/termos$/);
+    });
   });
 });

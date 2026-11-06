@@ -54,7 +54,8 @@ const POLL_INTERVAL_MS = 30_000;
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
   // O login so aceita conta de proprietario; o id da sessao e o do proprietario
   const { user } = useAuth();
-  const proprietarioId = user?.uid;
+  // Admin não recebe notificação de pedido: nada de consultar /notificacoes a cada intervalo
+  const proprietarioId = user?.admin ? undefined : user?.uid;
   const [notifications, setNotifications] = useState<Notificacao[]>([]);
   const [loading, setLoading] = useState(false);
 

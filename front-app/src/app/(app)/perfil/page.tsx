@@ -206,9 +206,12 @@ export default function PerfilPage() {
             <div className={styles.cardHeader}>
               <User size={14} strokeWidth={2.5} className={styles.cardHeaderIcon} />
               <p className={styles.cardTitle}>Dados Pessoais</p>
-              <Button variant="text" size="sm" onClick={iniciarEdicao} style={{ marginLeft: 'auto' }}>
-                <Pencil size={13} strokeWidth={2} /> Editar
-              </Button>
+              {/* Editar usa PUT /proprietarios/{id}: o admin não tem cadastro de proprietário */}
+              {!user?.admin && (
+                <Button variant="text" size="sm" onClick={iniciarEdicao} style={{ marginLeft: 'auto' }}>
+                  <Pencil size={13} strokeWidth={2} /> Editar
+                </Button>
+              )}
             </div>
             <div className={styles.dataList}>
               <div className={styles.dataRow}>
@@ -387,19 +390,21 @@ export default function PerfilPage() {
         Sair do Aplicativo
       </button>
 
-      {/* Exclusão de conta (LGPD) */}
-      <div className={styles.dangerZone}>
-        <p className={styles.dangerTitle}>Excluir conta</p>
-        <p className={styles.dangerText}>
-          Remove seu cadastro, seus pedidos e seu estoque. Os produtos que você cadastrou
-          continuam visíveis no catálogo, sem os seus dados pessoais. Esta ação não pode ser
-          desfeita.
-        </p>
-        <button className={styles.dangerBtn} onClick={() => setShowExcluir(true)}>
-          <Trash2 size={16} strokeWidth={2} />
-          Excluir minha conta
-        </button>
-      </div>
+      {/* Exclusão de conta (LGPD): o texto e a exclusão são do proprietário (pedidos, estoque) */}
+      {!user?.admin && (
+        <div className={styles.dangerZone}>
+          <p className={styles.dangerTitle}>Excluir conta</p>
+          <p className={styles.dangerText}>
+            Remove seu cadastro, seus pedidos e seu estoque. Os produtos que você cadastrou
+            continuam visíveis no catálogo, sem os seus dados pessoais. Esta ação não pode ser
+            desfeita.
+          </p>
+          <button className={styles.dangerBtn} onClick={() => setShowExcluir(true)}>
+            <Trash2 size={16} strokeWidth={2} />
+            Excluir minha conta
+          </button>
+        </div>
+      )}
 
       {/* Logout confirm */}
       <ConfirmDialog
