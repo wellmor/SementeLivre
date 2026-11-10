@@ -1,0 +1,49 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5433/devdb
+    username: devuser
+    password: devpassword
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        highlight_sql: true
+  flyway: 
+    enabled: true
+logging:
+  level:
+    root: INFO
+    com.sementelivre.backend: DEBUG
+    org.springframework.security: DEBUG
+    org.springframework.web: INFO
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  endpoint:
+    health:
+      show-details: always
+
+app:
+  cors:
+    allowed-origins:
+      - http://localhost:3000
+      - http://localhost:3001
+      - http://127.0.0.1:3000
+      - http://127.0.0.1:3001
+
+# Sem isso o Spring trava em 1MB e a foto falha com 500 sem mensagem útil.
+spring.servlet.multipart:
+  max-file-size: 5MB
+  max-request-size: 5MB
+
+jwt:
+  # Sem JWT_SECRET o backend sorteia uma chave a cada subida (ver JwtService).
+  # Nunca coloque uma chave fixa aqui: este arquivo está no git.
+  secret: ${JWT_SECRET:}
+  chave-aleatoria-sem-secret: true
+  expiration: 1800000

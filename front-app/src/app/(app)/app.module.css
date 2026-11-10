@@ -13,3 +13,8 @@
   width: 100%;
   margin: 0 auto;
 }
+
+/* Admin: sem a barra de navegação de baixo, sem a folga para ela */
+.contentSemNav {
+  padding-bottom: var(--space-6);
+}

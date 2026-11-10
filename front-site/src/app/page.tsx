@@ -1,11 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
 import PublicHeader from "@/components/public-header";
+import FotoProduto from "@/components/foto-produto";
+import CarrosselComunidades from "@/components/carrossel-comunidades";
+import BotaoVerNoMapa from "@/components/botao-ver-no-mapa";
+import SecaoMapa from "@/components/secao-mapa";
+import FiltrosCatalogoPainel from "@/components/filtros-catalogo";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -14,110 +18,135 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
+  Lock,
   Loader2,
-  Search,
   Leaf,
   FlaskConical,
   BookOpen,
   Sprout,
   ArrowRight,
   MessageCircle,
+  User,
+  CalendarDays,
 } from "lucide-react";
-import type { Species, SpeciesStatus, Comunidade, TipoSemente } from "@/lib/types";
+import type { OfertaCatalogo } from "@/lib/types";
+import { DISPONIBILIDADE_CONFIG, unidade } from "@/lib/catalogo";
+import { formatarMoeda } from "@/lib/utils";
+import { FOTOS_COMUNIDADES } from "@/lib/divulgacao";
+import {
+  FILTROS_VAZIOS,
+  filtrarOfertas,
+  filtrosCoerentes,
+  filtrosDaUrl,
+  formatarData,
+  opcoesDosFiltros,
+  queryDosFiltros,
+  temFiltroAtivo,
+  type FiltrosCatalogo,
+} from "@/lib/filtros-catalogo";
 
-// ── Status config ─────────────────────────────────────────────────────────────
-const STATUS_CONFIG: Record<
-  SpeciesStatus,
-  { label: string; className: string; show: boolean }
-> = {
-  exchange: {
-    label: "Para Troca",
-    className: "bg-blue-100 text-blue-700 border-blue-200",
-    show: true,
-  },
-  sale: {
-    label: "Para Venda",
-    className: "bg-green-100 text-green-700 border-green-200",
-    show: true,
-  },
-  donation: {
-    label: "Para Doação",
-    className: "bg-purple-100 text-purple-700 border-purple-200",
-    show: true,
-  },
-  unavailable: {
-    label: "Indisponível",
-    className: "bg-gray-100 text-gray-400 border-gray-200",
-    show: true,
-  },
-};
-
-const TIPO_CONFIG: Record<TipoSemente, string> = {
-  HORTALICA: "Hortaliça",
-  FRUTIFERA: "Frutífera",
-  FORRAGEIRA: "Forrageira",
-  CEREAL: "Cereal",
-  LEGUMINOSA: "Leguminosa",
-  OUTRAS: "Outras",
-};
-
-type FilterStatus = SpeciesStatus | "all";
-type FilterTipo = TipoSemente | "all";
+// Cards por vez na listagem; o resto aparece no "Mostrar mais"
+const POR_PAGINA = 24;
 
 export default function MarketplacePage() {
   const router = useRouter();
-  const [species, setSpecies] = useState<Species[]>([]);
-  const [comunidades, setComunidades] = useState<Comunidade[]>([]);
+  const [ofertas, setOfertas] = useState<OfertaCatalogo[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<FilterStatus>("all");
-  const [filterTipo, setFilterTipo] = useState<FilterTipo>("all");
-  const [filterComunidade, setFilterComunidade] = useState("all");
+  const [filtros, setFiltros] = useState<FiltrosCatalogo>(FILTROS_VAZIOS);
+  // Só escreve os filtros na URL depois de ler os que vieram nela
+  const [urlLida, setUrlLida] = useState(false);
+  const buscaRef = useRef<HTMLInputElement>(null);
+  // Cards mostrados aos poucos ("Mostrar mais"); a contagem volta ao início quando o filtro muda
+  const chaveDoFiltro = JSON.stringify(filtros);
+  const [exibicao, setExibicao] = useState({ chave: chaveDoFiltro, quantidade: POR_PAGINA });
+  const quantidadeVisivel = exibicao.chave === chaveDoFiltro ? exibicao.quantidade : POR_PAGINA;
 
   useEffect(() => {
-    Promise.all([
-      fetch("/api/catalog").then((r) => r.json()),
-      fetch("/api/comunidades").then((r) => r.json()),
-    ])
-      .then(([sp, cm]: [Species[], Comunidade[]]) => {
-        setSpecies(sp);
-        setComunidades(cm);
+    fetch("/api/catalog")
+      .then((r) => {
+        if (!r.ok) throw new Error();
+        return r.json();
       })
-      .catch(() => toast.error("Erro ao carregar sementes."))
+      .then((lista: OfertaCatalogo[]) => {
+        setOfertas([...lista].sort((a, b) => a.nomePopular.localeCompare(b.nomePopular, "pt-BR")));
+        // Filtros da URL: link compartilhado ou o "Ver produtos" do /mapa (?comunidade=<id>)
+        const daUrl = filtrosDaUrl(new URLSearchParams(window.location.search), lista);
+        // O que a pessoa já mexeu enquanto o catálogo carregava (ex.: digitou na busca)
+        // vale mais que a URL; sem isso o texto digitado sumia quando a lista chegava
+        setFiltros((atual) => {
+          const mesclados = { ...daUrl };
+          for (const k of Object.keys(FILTROS_VAZIOS) as (keyof FiltrosCatalogo)[]) {
+            if (atual[k] !== FILTROS_VAZIOS[k]) (mesclados as Record<keyof FiltrosCatalogo, string>)[k] = atual[k];
+          }
+          return filtrosCoerentes(mesclados, lista);
+        });
+        setUrlLida(true);
+      })
+      .catch(() => toast.error("Erro ao carregar produtos."))
       .finally(() => setLoading(false));
   }, []);
 
-  function getNomeComunidade(id?: string) {
-    return comunidades.find((c) => c.id_comunidade === id)?.nome ?? null;
+  // Filtros na URL para a busca poder ser compartilhada. replaceState (sem nova
+  // entrada no histórico) e com atraso curto: digitar não vira uma chamada por tecla.
+  const esperaUrlRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function gravarFiltrosNaUrl() {
+    const url = `${window.location.pathname}${queryDosFiltros(filtros)}${window.location.hash}`;
+    if (url !== `${window.location.pathname}${window.location.search}${window.location.hash}`) {
+      window.history.replaceState(null, "", url);
+    }
   }
 
-  const filtered = species.filter((s) => {
-    const matchSearch = s.nome_popular
-      .toLowerCase()
-      .includes(search.toLowerCase());
-    const matchFilter = filter === "all" || s.status === filter;
-    const matchTipo = filterTipo === "all" || s.tipoSemente === filterTipo;
-    const matchComunidade =
-      filterComunidade === "all" || s.id_comunidade === filterComunidade;
-    return matchSearch && matchFilter && matchTipo && matchComunidade;
-  });
+  useEffect(() => {
+    if (!urlLida) return;
+    esperaUrlRef.current = setTimeout(gravarFiltrosNaUrl, 300);
+    return () => {
+      if (esperaUrlRef.current) clearTimeout(esperaUrlRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtros, urlLida]);
+
+  // Abrir um produto logo depois de digitar: o replaceState atrasado caía no meio
+  // da navegação e o router voltava para /?q=..., e a pessoa ficava no catálogo.
+  // Grava a busca agora (o "voltar" ainda a encontra) e cancela o que estava agendado.
+  function abrirProduto(href: string) {
+    if (esperaUrlRef.current) clearTimeout(esperaUrlRef.current);
+    if (urlLida) gravarFiltrosNaUrl();
+    router.push(href);
+  }
+
+  function atualizarFiltros(parcial: Partial<FiltrosCatalogo>) {
+    // Coerentes: limpar o estado limpa também o município dele, e assim por diante
+    setFiltros((atual) => filtrosCoerentes({ ...atual, ...parcial }, ofertas));
+  }
+
+  function limparFiltros() {
+    setFiltros(FILTROS_VAZIOS);
+    // O botão some junto com os filtros: o foco vai para a busca, e não se perde
+    buscaRef.current?.focus();
+  }
+
+  // Opções só com o que existe no catálogo
+  const opcoes = opcoesDosFiltros(ofertas, filtros);
+  const filtroAtivo = temFiltroAtivo(filtros);
+  const filtered = filtrarOfertas(ofertas, filtros);
 
   const stats = {
-    total: species.length,
-    sale: species.filter((s) => s.status === "sale").length,
-    exchange: species.filter((s) => s.status === "exchange").length,
-    donation: species.filter((s) => s.status === "donation").length,
+    total: ofertas.length,
+    sale: ofertas.filter((o) => o.disponibilidade === "PARA_VENDA").length,
+    exchange: ofertas.filter((o) => o.disponibilidade === "PARA_TROCA").length,
+    donation: ofertas.filter((o) => o.disponibilidade === "PARA_DOACAO").length,
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-background flex flex-col">
       <PublicHeader />
 
       {/* ── Hero ── */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-green-600 via-green-500 to-green-400 text-white">
+      <section className="relative overflow-hidden bg-gradient-to-br from-primary to-primary-dark text-white">
         {/* Blobs */}
         <div className="absolute -top-20 -right-20 w-96 h-96 rounded-full bg-white/10" />
-        <div className="absolute -bottom-24 -left-16 w-80 h-80 rounded-full bg-green-700/30" />
+        <div className="absolute -bottom-24 -left-16 w-80 h-80 rounded-full bg-primary-dark/30" />
 
         <div className="relative max-w-7xl mx-auto px-6 py-20 flex flex-col items-center text-center gap-6">
           <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
@@ -126,7 +155,7 @@ export default function MarketplacePage() {
           <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight max-w-2xl leading-tight">
             Banco Comunitário de Sementes
           </h1>
-          <p className="text-green-100 text-lg max-w-xl leading-relaxed">
+          <p className="text-primary-light text-lg max-w-xl leading-relaxed">
             Variedades crioulas e orgânicas cultivadas por{" "}
             <strong className="text-white">comunidades quilombolas</strong>.
             Preservando a biodiversidade, cultivando o futuro.
@@ -134,135 +163,69 @@ export default function MarketplacePage() {
 
           {/* Stats row */}
           <div className="flex gap-4 flex-wrap justify-center mt-2">
-            <StatPill value={stats.total} label="Espécies" />
+            <StatPill value={stats.total} label="Produtos" />
             <StatPill value={stats.sale} label="À Venda" />
             <StatPill value={stats.exchange} label="Para Troca" />
             <StatPill value={stats.donation} label="Para Doação" />
           </div>
 
-          <Button
-            size="lg"
-            className="bg-white text-green-700 hover:bg-green-50 font-semibold gap-2 mt-2 shadow-lg"
-            onClick={() =>
-              document
-                .getElementById("sementes")
-                ?.scrollIntoView({ behavior: "smooth" })
-            }
-          >
-            Ver sementes disponíveis
-            <ArrowRight className="w-4 h-4" />
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-3 mt-2">
+            <Button
+              size="lg"
+              className="bg-white text-primary-dark hover:bg-primary-light font-semibold gap-2 shadow-lg"
+              onClick={() =>
+                document
+                  .getElementById("produtos")
+                  ?.scrollIntoView({ behavior: "smooth" })
+              }
+            >
+              Ver produtos disponíveis
+              <ArrowRight className="w-4 h-4" />
+            </Button>
+          </div>
         </div>
       </section>
 
       {/* ── Seed catalog ── */}
       <section
-        id="sementes"
+        id="produtos"
         className="flex-1 max-w-7xl mx-auto w-full px-6 py-14"
       >
         <div className="mb-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-1">
-            Sementes Disponíveis
+          <h2 className="text-2xl font-bold text-foreground mb-1">
+            Produtos Disponíveis
           </h2>
-          <p className="text-gray-500 text-sm">
+          <p className="text-muted-foreground text-sm" role="status" aria-live="polite" aria-atomic="true">
             {filtered.length} resultado{filtered.length !== 1 ? "s" : ""}
           </p>
         </div>
 
-        {/* Search + filters */}
-        <div className="flex flex-col gap-3 mb-8">
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="relative flex-1 max-w-sm">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <Input
-                placeholder="Buscar por nome popular..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-9 border-green-200 focus-visible:ring-green-400"
-              />
-            </div>
-
-            <select
-              value={filterComunidade}
-              onChange={(e) => setFilterComunidade(e.target.value)}
-              className="rounded-md border border-green-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-            >
-              <option value="all">Todas as comunidades</option>
-              {comunidades.map((c) => (
-                <option key={c.id_comunidade} value={c.id_comunidade}>
-                  {c.nome}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Status pills */}
-          <div className="flex gap-2 flex-wrap">
-            {(
-              [
-                "all",
-                "sale",
-                "exchange",
-                "donation",
-                "unavailable",
-              ] as FilterStatus[]
-            ).map((f) => {
-              const label =
-                f === "all"
-                  ? "Todos"
-                  : STATUS_CONFIG[f as SpeciesStatus].label;
-              return (
-                <button
-                  key={f}
-                  onClick={() => setFilter(f)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
-                    filter === f
-                      ? "bg-green-600 text-white border-green-600 shadow-sm"
-                      : "bg-white text-gray-600 border-gray-200 hover:border-green-300 hover:text-green-700"
-                  }`}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Tipo pills */}
-          <div className="flex gap-2 flex-wrap">
-            {(["all", ...Object.keys(TIPO_CONFIG)] as FilterTipo[]).map((t) => {
-              const label = t === "all" ? "Todos os tipos" : TIPO_CONFIG[t as TipoSemente];
-              return (
-                <button
-                  key={t}
-                  onClick={() => setFilterTipo(t)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
-                    filterTipo === t
-                      ? "bg-green-700 text-white border-green-700 shadow-sm"
-                      : "bg-white text-gray-600 border-gray-200 hover:border-green-300 hover:text-green-700"
-                  }`}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
+        <FiltrosCatalogoPainel
+          filtros={filtros}
+          opcoes={opcoes}
+          ativo={filtroAtivo}
+          onChange={atualizarFiltros}
+          onLimpar={limparFiltros}
+          buscaRef={buscaRef}
+        />
 
         {/* Loading */}
         {loading && (
           <div className="flex justify-center py-20">
-            <Loader2 className="w-8 h-8 text-green-600 animate-spin" />
+            <Loader2 className="w-8 h-8 text-primary animate-spin" role="img" aria-label="Carregando produtos" />
           </div>
         )}
 
         {/* Empty state */}
         {!loading && filtered.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-52 bg-white rounded-2xl border border-dashed border-green-200 gap-3">
-            <Leaf className="w-10 h-10 text-green-200" />
-            <p className="text-gray-500 text-sm">
-              {search
-                ? `Nenhuma semente encontrada para "${search}".`
-                : "Nenhuma semente no catálogo ainda."}
+          <div className="flex flex-col items-center justify-center h-52 bg-white rounded-2xl border border-dashed border-border gap-3">
+            <Leaf className="w-10 h-10 text-primary/30" />
+            <p className="text-muted-foreground text-sm">
+              {filtros.busca.trim()
+                ? `Nenhum produto encontrado para "${filtros.busca.trim()}".`
+                : filtroAtivo
+                  ? "Nenhum produto encontrado com esses filtros."
+                  : "Nenhum produto no catálogo ainda."}
             </p>
           </div>
         )}
@@ -270,35 +233,28 @@ export default function MarketplacePage() {
         {/* Grid */}
         {!loading && filtered.length > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-            {filtered.map((sp) => {
-              const cfg = STATUS_CONFIG[sp.status];
-              const unavailable = sp.status === "unavailable";
+            {filtered.slice(0, quantidadeVisivel).map((oferta) => {
+              const cfg = DISPONIBILIDADE_CONFIG[oferta.disponibilidade];
+              const descricao = oferta.descricao || oferta.historico;
 
               return (
                 <Card
-                  key={sp.id_especie}
-                  className={`group flex flex-col border-green-100 bg-white hover:shadow-lg transition-all ${
-                    unavailable ? "opacity-60" : ""
-                  }`}
+                  key={oferta.estoqueId}
+                  className="group flex flex-col border-border bg-white hover:shadow-lg transition-all"
                 >
                   {/* Photo */}
-                  <div className="h-40 rounded-t-xl bg-gradient-to-br from-green-50 to-green-100 flex items-center justify-center overflow-hidden">
-                    {sp.foto ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={sp.foto}
-                        alt={sp.nome_popular}
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <Leaf className="w-14 h-14 text-green-300" />
-                    )}
+                  <div className="h-40 rounded-t-xl bg-gradient-to-br from-primary-light/40 to-primary-light flex items-center justify-center overflow-hidden">
+                    <FotoProduto
+                      src={oferta.urlFoto}
+                      alt={oferta.nomePopular}
+                      iconClassName="w-14 h-14 text-primary/40"
+                    />
                   </div>
 
                   <CardHeader className="pb-1 pt-4">
                     <div className="flex items-start justify-between gap-2">
                       <CardTitle className="text-sm leading-tight">
-                        {sp.nome_popular}
+                        {oferta.nomePopular}
                       </CardTitle>
                       <Badge
                         variant="outline"
@@ -307,77 +263,138 @@ export default function MarketplacePage() {
                         {cfg.label}
                       </Badge>
                     </div>
-                    {getNomeComunidade(sp.id_comunidade) && (
-                      <p className="text-[11px] text-green-600 font-medium mt-1">
-                        🌿 {getNomeComunidade(sp.id_comunidade)}
-                      </p>
+                    {oferta.comunidade && (
+                      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5 mt-1">
+                        <p className="text-[11px] text-primary font-medium">
+                          🌿 {oferta.comunidade}
+                        </p>
+                        {/* Região aproximada da comunidade (RF-08) */}
+                        {oferta.comunidadeId && oferta.uf && (
+                          <BotaoVerNoMapa
+                            comunidadeId={oferta.comunidadeId}
+                            comunidade={oferta.comunidade}
+                          />
+                        )}
+                      </div>
                     )}
                   </CardHeader>
 
                   <CardContent className="pb-4 space-y-1.5 flex-1 flex flex-col justify-between">
                     <div className="space-y-1.5">
-                      <div className="flex items-center gap-1.5 text-xs text-gray-400">
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                         <FlaskConical className="w-3 h-3" />
                         <span className="italic">
-                          {sp.nome_cientifico || "—"}
+                          {oferta.nomeCientifico || "—"}
                         </span>
                       </div>
-                      <div className="flex items-center gap-1.5 text-xs text-gray-400">
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                         <BookOpen className="w-3 h-3" />
-                        <span>{sp.familia_botanica || "—"}</span>
+                        <span>{oferta.familiaBotanica || "—"}</span>
                       </div>
-                      {sp.quantidadeEstoque != null && (
-                        <p className="text-xs text-gray-600 font-medium">
-                          📦 {sp.quantidadeEstoque}{" "}
-                          {sp.unidadePesagem ?? "unid."} em estoque
+                      {/* Só vem preenchido quando o produtor autorizou aparecer no site (LGPD) */}
+                      {oferta.nomeProdutor && (
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <User className="w-3 h-3" aria-hidden="true" />
+                          <span>
+                            <span className="sr-only">Produtor: </span>
+                            {oferta.nomeProdutor}
+                          </span>
+                        </div>
+                      )}
+                      {formatarData(oferta.dataUltimaAlteracao) && (
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <CalendarDays className="w-3 h-3" aria-hidden="true" />
+                          <span>Atualizado em {formatarData(oferta.dataUltimaAlteracao)}</span>
+                        </div>
+                      )}
+                      {oferta.quantidade != null && (
+                        <p className="text-xs text-slate-600 font-medium">
+                          📦 {oferta.quantidade} {unidade(oferta.tipoPesagem)} em estoque
                         </p>
                       )}
-                      {sp.preco != null && (
-                        <p className="text-xs text-green-700 font-semibold">
-                          R$ {sp.preco.toFixed(2)}/{sp.unidadePesagem ?? "unid."}
+                      {oferta.preco != null && (
+                        <p className="text-xs text-primary-dark font-semibold">
+                          {formatarMoeda(oferta.preco)}/{unidade(oferta.tipoPesagem)}
                         </p>
                       )}
-                      {sp.descricao && (
-                        <p className="text-xs text-gray-500 leading-relaxed line-clamp-3 pt-1">
-                          {sp.descricao}
+                      {descricao && (
+                        <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3 pt-1">
+                          {descricao}
+                        </p>
+                      )}
+                      {/* "A Negociar" sempre aceita proposta: o aviso de tipo fixo não vale */}
+                      {!oferta.aceitaNegociacao && oferta.disponibilidade !== "A_NEGOCIAR" && (
+                        <p className="flex items-center gap-1 text-[11px] text-muted-foreground pt-1">
+                          <Lock className="w-3 h-3" />
+                          Só {cfg.label.replace("Para ", "").toLowerCase()}, sem negociação
                         </p>
                       )}
                     </div>
 
-                    {!unavailable && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="mt-3 w-full border-green-200 text-green-700 hover:bg-green-50 gap-1.5 text-xs h-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={() => router.push(`/produto/${sp.id_especie}`)}
-                      >
-                        <MessageCircle className="w-3.5 h-3.5" />
-                        Quero negociar
-                      </Button>
-                    )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="mt-3 w-full border-border text-primary-dark hover:bg-primary-light gap-1.5 text-xs h-8 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 group-focus-within:opacity-100 transition-opacity"
+                      onClick={() =>
+                        abrirProduto(`/produto/${oferta.id}?oferta=${oferta.estoqueId}`)
+                      }
+                    >
+                      <MessageCircle className="w-3.5 h-3.5" />
+                      {oferta.aceitaNegociacao || oferta.disponibilidade === "A_NEGOCIAR" ? "Quero negociar" : "Fazer pedido"}
+                    </Button>
                   </CardContent>
                 </Card>
               );
             })}
           </div>
         )}
+
+        {!loading && filtered.length > quantidadeVisivel && (
+          <div className="mt-8 flex justify-center">
+            <Button
+              variant="outline"
+              className="border-border text-primary-dark hover:bg-primary-light"
+              onClick={() => setExibicao({ chave: chaveDoFiltro, quantidade: quantidadeVisivel + POR_PAGINA })}
+            >
+              Mostrar mais ({filtered.length - quantidadeVisivel} restantes)
+            </Button>
+          </div>
+        )}
       </section>
+
+      {/* ── Comunidades (#181) ── */}
+      <section id="comunidades" aria-labelledby="titulo-comunidades" className="bg-white border-y border-border py-14 px-6">
+        <div className="max-w-7xl mx-auto space-y-6">
+          <div>
+            <h2 id="titulo-comunidades" className="text-2xl font-bold text-foreground mb-1">
+              Conheça as comunidades
+            </h2>
+            <p className="text-muted-foreground text-sm">
+              Famílias que guardam, plantam e multiplicam as variedades da rede.
+            </p>
+          </div>
+          <CarrosselComunidades fotos={FOTOS_COMUNIDADES} />
+        </div>
+      </section>
+
+      {/* ── Mapa das comunidades (RF-08) ── */}
+      <SecaoMapa />
 
       {/* ── About section ── */}
       <section
         id="sobre"
-        className="bg-green-700 text-white py-16 px-6"
+        className="bg-primary-dark text-white py-16 px-6"
       >
         <div className="max-w-3xl mx-auto text-center space-y-5">
           <div className="text-5xl">🌿</div>
           <h2 className="text-3xl font-bold">Rede de Quilombos</h2>
-          <p className="text-green-100 text-base leading-relaxed">
+          <p className="text-primary-light text-base leading-relaxed">
             Comunidades quilombolas unidas pela preservação das sementes crioulas
             e pelo fortalecimento da agricultura familiar. Nosso banco comunitário
             de sementes reúne variedades cultivadas há gerações, adaptadas ao
             nosso clima e nossa cultura.
           </p>
-          <p className="text-green-200 text-sm">
+          <p className="text-white/80 text-sm">
             Para negociações e parcerias, entre em contato diretamente com
             nossos produtores.
           </p>
@@ -385,7 +402,7 @@ export default function MarketplacePage() {
       </section>
 
       {/* ── Footer ── */}
-      <footer className="bg-green-900 text-green-300 text-xs py-5 text-center">
+      <footer className="bg-foreground text-white/70 text-xs py-5 text-center">
         © {new Date().getFullYear()} Semente Livre. Todos os direitos reservados.
       </footer>
     </div>
@@ -396,7 +413,7 @@ function StatPill({ value, label }: { value: number; label: string }) {
   return (
     <div className="flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-full px-4 py-1.5 text-sm">
       <span className="font-bold text-white">{value}</span>
-      <span className="text-green-100">{label}</span>
+      <span className="text-primary-light">{label}</span>
     </div>
   );
 }

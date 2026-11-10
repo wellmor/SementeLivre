@@ -1,0 +1,13 @@
+# Configuração usada SOMENTE pelos testes automatizados.
+#
+# Este arquivo tem o mesmo nome do application.yml de src/main/resources e,
+# como o classpath de teste vem primeiro, ele SUBSTITUI o de produção durante
+# os testes. Com isso o perfil "dev" (que aponta para o PostgreSQL do Docker)
+# não é ativado e a suíte roda sem depender de nenhum banco externo.
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+  flyway:
+    enabled: false

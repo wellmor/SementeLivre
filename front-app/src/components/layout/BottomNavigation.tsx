@@ -8,7 +8,7 @@ import styles from './BottomNavigation.module.css';
 
 const navItems = [
   { href: '/dashboard', label: 'Início', Icon: LayoutDashboard },
-  { href: '/sementes', label: 'Produtos', Icon: Package },
+  { href: '/produtos', label: 'Produtos', Icon: Package },
   { href: '/pedidos', label: 'Pedidos', Icon: ShoppingCart },
   { href: '/propriedades', label: 'Propriedades', Icon: MapPin },
   { href: '/perfil', label: 'Perfil', Icon: User },
@@ -19,7 +19,7 @@ export function BottomNavigation() {
 
   return (
     <nav className={styles.nav} aria-label="Navegação principal">
-      <div className={styles.inner} role="tablist">
+      <div className={styles.inner}>
         {navItems.map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
           return (
@@ -27,8 +27,6 @@ export function BottomNavigation() {
               key={item.href}
               href={item.href}
               className={`${styles.item} ${isActive ? styles.active : ''}`}
-              role="tab"
-              aria-selected={isActive}
               aria-current={isActive ? 'page' : undefined}
             >
               <span className={styles.iconWrap} aria-hidden="true">

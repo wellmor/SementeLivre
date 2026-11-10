@@ -1,0 +1,39 @@
+spring:
+  mail:
+    host: localhost
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: false
+    # Igual à produção (application-prod.yml): sem a sessão aberta até a view,
+    # acesso lazy fora do service quebra aqui também, e não só em produção.
+    open-in-view: false
+  flyway:
+    enabled: true
+
+# O JwtService não tem mais valor padrão para a chave (#131). Esta é só dos
+# testes; em produção ela vem de JWT_SECRET (application-prod.yml).
+jwt:
+  secret: chaveSomenteParaOsTestesDeIntegracaoComMaisDe256Bits0123456789
+
+app:
+  cors:
+    allowed-origins:
+      - http://localhost:3000
+      - http://localhost:3001
+  # Os testes de integração fazem centenas de logins e cadastros do mesmo IP
+  # (127.0.0.1). LimiteAutenticacaoIntegrationTest liga os limites de verdade.
+  auth:
+    limite:
+      login-por-ip:
+        limite: 100000
+      senha-errada-por-email:
+        limite: 100000
+      refresh-por-ip:
+        limite: 100000
+      recuperacao-por-ip:
+        limite: 100000
+      recuperacao-por-email:
+        limite: 100000
+      cadastro-por-ip:
+        limite: 100000

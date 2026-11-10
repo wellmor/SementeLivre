@@ -1,23 +1,46 @@
 'use client';
 
-import React, { useState } from 'react';
+/**
+ * entrar/page.tsx — Tela de login integrada ao backend REST.
+ *
+ *   - `loginApi(email, senha)` → POST /auth/login + GET /auth/me (proprietário ou admin;
+ *     o admin vai direto para a aprovação de comunidades).
+ *   - Credencial inválida (401) vai em toast. Sem conexão já vira toast em lib/api.ts.
+ *   - "Conta criada" e "sessão expirada" também chegam como toast (o ToastProvider fica no layout raiz).
+ */
+
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Leaf, Eye, EyeOff, AlertCircle } from 'lucide-react';
-import { signInAndNotify } from '@/lib/auth';
+import { Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { loginApi } from '@/lib/authApi';
+import { isApiError, verificarSessao } from '@/lib/api';
+import { useToast } from '@/components/feedback/Toast';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { AnimatedSeedsSVG } from '@/components/icons/AnimatedSeedsSVG';
+import { InstitutionalLogo } from '@/components/shared/InstitutionalLogo';
 import styles from './entrar.module.css';
 import authStyles from '../auth.module.css';
 
 export default function EntrarPage() {
   const router = useRouter();
+  const { showToast } = useToast();
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   const [showSenha, setShowSenha] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    let cancelado = false;
+    void verificarSessao().then((sessao) => {
+      if (!cancelado && sessao === 'ok') router.replace('/dashboard');
+    });
+    return () => {
+      cancelado = true;
+    };
+  }, [router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,16 +48,21 @@ export default function EntrarPage() {
     if (!email || !senha) { setError('Preencha todos os campos.'); return; }
     setLoading(true);
     try {
-      signInAndNotify(email, senha);
-      router.push('/dashboard');
+      const sessao = await loginApi(email.trim(), senha);
+      router.push(sessao.admin ? '/admin/comunidades' : '/dashboard');
     } catch (err: unknown) {
-      const code = (err as { code?: string }).code;
-      if (code === 'auth/user-not-found' || code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
-        setError('E-mail ou senha incorretos.');
-      } else if (code === 'auth/network-request-failed') {
-        setError('Verifique sua conexão com a internet.');
-      } else {
-        setError('Ocorreu um erro. Tente novamente.');
+      if (!isApiError(err)) {
+        showToast('Ocorreu um erro. Tente novamente.', 'error');
+      } else if (err.status === 401) {
+        showToast('E-mail ou senha incorretos.', 'error');
+      } else if (err.status === 429) {
+        // Senha errada demais: o backend diz em quanto tempo dá para tentar de novo
+        showToast(err.message, 'warning');
+      } else if (err.code === 'auth/not-proprietario') {
+        showToast(err.message, 'error');
+      } else if (err.status !== 0) {
+        // status 0 (sem conexão) já foi avisado por toast em lib/api.ts
+        showToast('Ocorreu um erro. Tente novamente.', 'error');
       }
     } finally {
       setLoading(false);
@@ -89,6 +117,7 @@ export default function EntrarPage() {
             placeholder="Sua senha"
             rightIcon={showSenha ? <EyeOff size={17} strokeWidth={2} /> : <Eye size={17} strokeWidth={2} />}
             onRightIconClick={() => setShowSenha(!showSenha)}
+            rightIconLabel={showSenha ? 'Ocultar senha' : 'Mostrar senha'}
           />
 
           <Link href="/recuperar-senha" className={styles.forgotLink}>
@@ -104,6 +133,8 @@ export default function EntrarPage() {
           Ainda não tem conta?{' '}
           <Link href="/cadastrar">Cadastre-se</Link>
         </p>
+
+        <InstitutionalLogo />
       </div>
     </div>
   );

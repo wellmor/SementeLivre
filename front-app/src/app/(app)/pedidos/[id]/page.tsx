@@ -1,52 +1,100 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useOrders } from '@/hooks/useOrders';
+import { useOffline } from '@/hooks/useOffline';
 import { useToast } from '@/components/feedback/Toast';
-import { Pedido, StatusPedido, TipoPedidoLabels } from '@/types/order';
+import { useNotifications } from '@/context/NotificationContext';
+import { errorMessage } from '@/lib/api';
+import { Pedido, StatusPedido } from '@/types/order';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { EmptyState } from '@/components/feedback/EmptyState';
 import styles from './pedido.module.css';
+import { formatarMoeda } from '@/lib/formato';
+import { AlterarPedido } from './AlterarPedido';
+
+const BOTAO_ALTERAR_ID = 'botao-alterar-pedido';
+const AVISO_ALTERAR_OFFLINE_ID = 'aviso-alterar-pedido-offline';
 
 export default function PedidoDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { getOrder, cancelOrder, confirmOrder } = useOrders();
   const { showToast } = useToast();
+  const { refresh: refreshNotifications } = useNotifications();
+  const { isOffline } = useOffline();
 
   const [order, setOrder] = useState<Pedido | null>(null);
   const [loading, setLoading] = useState(true);
   const [showCancel, setShowCancel] = useState(false);
   const [acting, setActing] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [editando, setEditando] = useState(false);
+  // Ao sair do formulário de alteração, o foco volta para o botão que o abriu
+  const devolverFoco = useRef(false);
 
-  useEffect(() => {
-    getOrder(id).then((o) => { setOrder(o); setLoading(false); });
+  const carregar = useCallback(() => {
+    return getOrder(id)
+      .then((o) => { setOrder(o); setLoadError(null); })
+      .catch((err) => setLoadError(errorMessage(err, 'Erro ao carregar pedido.')))
+      .finally(() => setLoading(false));
   }, [id, getOrder]);
 
+  useEffect(() => {
+    void carregar();
+  }, [carregar]);
+
+  useEffect(() => {
+    if (editando || !devolverFoco.current) return;
+    devolverFoco.current = false;
+    document.getElementById(BOTAO_ALTERAR_ID)?.focus();
+  }, [editando]);
+
   if (loading) return <div className="skeleton" style={{ height: 300, borderRadius: 16 }} />;
+  if (loadError) return <EmptyState icon="⚠️" title={loadError} actionLabel="Voltar" onAction={() => router.push('/pedidos')} />;
   if (!order) return <EmptyState icon="📦" title="Pedido não encontrado" actionLabel="Voltar" onAction={() => router.push('/pedidos')} />;
 
+  const fecharEdicao = () => {
+    devolverFoco.current = true;
+    setEditando(false);
+  };
+
+  if (editando) {
+    return (
+      <AlterarPedido
+        pedido={order}
+        // A resposta do PUT já é o pedido salvo: o detalhe mostra os dados novos
+        onSalvo={(atualizado) => { setOrder(atualizado); fecharEdicao(); }}
+        onCancelar={fecharEdicao}
+        onDesatualizado={() => { setEditando(false); void carregar(); }}
+      />
+    );
+  }
+
+  // O status exibido vem sempre da resposta do backend, nunca de um palpite local
   const handleCancel = async () => {
     setActing(true);
     try {
-      await cancelOrder(id);
-      setOrder((p) => p ? { ...p, status: StatusPedido.CANCELADO } : p);
-      showToast('Pedido cancelado.', 'success');
+      setOrder(await cancelOrder(id));
+      showToast('Pedido cancelado e retirado da fila.', 'success');
       setShowCancel(false);
-    } catch { showToast('Erro ao cancelar.', 'error'); }
+      // O cancelamento tambem gera notificacao no backend (CDU-26)
+      refreshNotifications();
+    } catch (err) { showToast(errorMessage(err, 'Erro ao cancelar.'), 'error'); }
     finally { setActing(false); }
   };
 
   const handleConfirm = async () => {
     setActing(true);
     try {
-      await confirmOrder(id);
-      setOrder((p) => p ? { ...p, status: StatusPedido.CONFIRMADO } : p);
-      showToast('Pedido confirmado!', 'success');
-    } catch { showToast('Erro ao confirmar.', 'error'); }
+      setOrder(await confirmOrder(id));
+      showToast('Pedido confirmado! O estoque foi atualizado.', 'success');
+      // A confirmacao gera uma notificacao no backend (CDU-26)
+      refreshNotifications();
+    } catch (err) { showToast(errorMessage(err, 'Erro ao confirmar.'), 'error'); }
     finally { setActing(false); }
   };
 
@@ -69,13 +117,13 @@ export default function PedidoDetailPage() {
           {order.itens.map((item) => (
             <li key={item.idItem} className={styles.item}>
               <span className={styles.itemName}>{item.nomePopular}</span>
-              <span className={styles.itemQty}>{item.quantidade} {item.tipoPesagem}</span>
-              {item.precoUnitario && <span className={styles.itemPrice}>R$ {(item.precoUnitario * item.quantidade).toFixed(2)}</span>}
+              <span className={styles.itemQty}>{item.quantidade}{item.tipoPesagem ? ` ${item.tipoPesagem}` : ''}</span>
+              {item.precoUnitario && <span className={styles.itemPrice}>{formatarMoeda(item.precoUnitario * item.quantidade)}</span>}
             </li>
           ))}
         </ul>
-        {order.totalValor && (
-          <p className={styles.total}>Total: <strong>R$ {order.totalValor.toFixed(2)}</strong></p>
+        {!!order.totalValor && (
+          <p className={styles.total}>Total: <strong>{formatarMoeda(order.totalValor)}</strong></p>
         )}
       </div>
 
@@ -87,16 +135,38 @@ export default function PedidoDetailPage() {
       )}
 
       {order.status === StatusPedido.PENDENTE && (
-        <div className={styles.actions}>
-          <Button variant="ghost" fullWidth onClick={() => setShowCancel(true)}>Cancelar Pedido</Button>
-          <Button variant="primary" fullWidth onClick={handleConfirm} loading={acting}>Confirmar Pedido</Button>
-        </div>
+        <>
+          <p className={styles.obs} role="note">
+            Pedido na fila: o estoque só é baixado quando você confirmar. Pedidos que não couberem
+            no que sobrar são recusados e quem pediu é avisado.
+          </p>
+          {/* CDU-13: só o pedido na fila pode ser alterado; o confirmado já baixou o estoque */}
+          <Button
+            id={BOTAO_ALTERAR_ID}
+            variant="secondary"
+            fullWidth
+            onClick={() => setEditando(true)}
+            disabled={isOffline || acting}
+            aria-describedby={isOffline ? AVISO_ALTERAR_OFFLINE_ID : undefined}
+          >
+            Alterar Pedido
+          </Button>
+          {isOffline && (
+            <p id={AVISO_ALTERAR_OFFLINE_ID} className={styles.obs}>
+              Sem internet: para alterar o pedido, conecte-se primeiro.
+            </p>
+          )}
+          <div className={styles.actions}>
+            <Button variant="ghost" fullWidth onClick={() => setShowCancel(true)}>Cancelar Pedido</Button>
+            <Button variant="primary" fullWidth onClick={handleConfirm} loading={acting}>Confirmar Pedido</Button>
+          </div>
+        </>
       )}
 
       <ConfirmDialog
         isOpen={showCancel}
         title="Cancelar Pedido"
-        description="O estoque das sementes será restaurado. Confirmar cancelamento?"
+        description="O pedido sai da fila e o estoque não muda. Confirmar cancelamento?"
         confirmLabel="Cancelar Pedido"
         confirmVariant="danger"
         onConfirm={handleCancel}

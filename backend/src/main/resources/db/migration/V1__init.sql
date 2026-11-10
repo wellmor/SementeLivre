@@ -1,0 +1,4 @@
+CREATE TABLE IF NOT EXISTS teste_inicial (
+    id SERIAL PRIMARY KEY,
+    nome VARCHAR(100) NOT NULL
+);
