@@ -88,16 +88,32 @@ export default function MarketplacePage() {
 
   // Filtros na URL para a busca poder ser compartilhada. replaceState (sem nova
   // entrada no histórico) e com atraso curto: digitar não vira uma chamada por tecla.
+  const esperaUrlRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function gravarFiltrosNaUrl() {
+    const url = `${window.location.pathname}${queryDosFiltros(filtros)}${window.location.hash}`;
+    if (url !== `${window.location.pathname}${window.location.search}${window.location.hash}`) {
+      window.history.replaceState(null, "", url);
+    }
+  }
+
   useEffect(() => {
     if (!urlLida) return;
-    const espera = setTimeout(() => {
-      const url = `${window.location.pathname}${queryDosFiltros(filtros)}${window.location.hash}`;
-      if (url !== `${window.location.pathname}${window.location.search}${window.location.hash}`) {
-        window.history.replaceState(null, "", url);
-      }
-    }, 300);
-    return () => clearTimeout(espera);
+    esperaUrlRef.current = setTimeout(gravarFiltrosNaUrl, 300);
+    return () => {
+      if (esperaUrlRef.current) clearTimeout(esperaUrlRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtros, urlLida]);
+
+  // Abrir um produto logo depois de digitar: o replaceState atrasado caía no meio
+  // da navegação e o router voltava para /?q=..., e a pessoa ficava no catálogo.
+  // Grava a busca agora (o "voltar" ainda a encontra) e cancela o que estava agendado.
+  function abrirProduto(href: string) {
+    if (esperaUrlRef.current) clearTimeout(esperaUrlRef.current);
+    if (urlLida) gravarFiltrosNaUrl();
+    router.push(href);
+  }
 
   function atualizarFiltros(parcial: Partial<FiltrosCatalogo>) {
     // Coerentes: limpar o estado limpa também o município dele, e assim por diante
@@ -320,7 +336,7 @@ export default function MarketplacePage() {
                       variant="outline"
                       className="mt-3 w-full border-border text-primary-dark hover:bg-primary-light gap-1.5 text-xs h-8 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 group-focus-within:opacity-100 transition-opacity"
                       onClick={() =>
-                        router.push(`/produto/${oferta.id}?oferta=${oferta.estoqueId}`)
+                        abrirProduto(`/produto/${oferta.id}?oferta=${oferta.estoqueId}`)
                       }
                     >
                       <MessageCircle className="w-3.5 h-3.5" />
