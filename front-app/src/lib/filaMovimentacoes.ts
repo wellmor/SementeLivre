@@ -101,6 +101,19 @@ export function descartarPendente(idLocal: string): void {
 }
 
 /**
+ * A pessoa saiu da conta de propósito: o que ela guardou sem internet (com o motivo
+ * digitado) não fica no aparelho (LGPD). Na sessão que só expira a fila fica, para
+ * ser enviada quando ela entrar de novo. As pendências de outras contas ficam.
+ */
+export function descartarPendentesDaConta(donoId: string): void {
+  try {
+    gravar(ler().filter((item) => item.donoId !== donoId));
+  } catch {
+    // sem localStorage: não há fila guardada
+  }
+}
+
+/**
  * O servidor responde? Sondagem silenciosa (fetch direto, sem o toast de "sem
  * conexão" do api.ts): a sincronização roda sozinha de tempos em tempos e não pode
  * encher a tela de avisos quando o Wi-Fi está ligado mas sem internet.

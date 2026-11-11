@@ -20,6 +20,7 @@ import { useRouter } from 'next/navigation';
 import { Lock, LogOut, Phone, MapPin, Hash, ChevronRight, User, Shield, ShieldCheck, Mail, Pencil, Accessibility, Trash2 } from 'lucide-react';
 import { alterarSenhaApi, atualizarProprietarioApi, excluirContaApi } from '@/lib/authApi';
 import { isApiError, renovarToken } from '@/lib/api';
+import { descartarPendentesDaConta, listarPendentes } from '@/lib/filaMovimentacoes';
 import { aplicarErrosDaApi, comMascara } from '@/lib/forms';
 import {
   AlterarSenhaForm, alterarSenhaSchema, fetchCEP, formatCEP, formatCPF, formatTelefone,
@@ -61,6 +62,7 @@ export default function PerfilPage() {
   const { showToast } = useToast();
   const router = useRouter();
   const [showLogout, setShowLogout] = useState(false);
+  const [pendentesAoSair, setPendentesAoSair] = useState(0);
   const [showChangePwd, setShowChangePwd] = useState(false);
   const [pwdError, setPwdError] = useState('');
   const [editando, setEditando] = useState(false);
@@ -74,7 +76,15 @@ export default function PerfilPage() {
   const errosEdicao = edicao.formState.errors;
   const errosSenha = senha.formState.errors;
 
+  // Conta na hora de abrir a confirmação: o aviso diz o que vai ser descartado
+  const abrirSaida = () => {
+    setPendentesAoSair(perfil ? listarPendentes(perfil.id).length : 0);
+    setShowLogout(true);
+  };
+
   const handleLogout = async () => {
+    // Saiu de propósito: o que esta conta guardou sem internet sai do aparelho (LGPD)
+    if (perfil) descartarPendentesDaConta(perfil.id);
     await logout();
     router.push('/entrar');
   };
@@ -94,6 +104,8 @@ export default function PerfilPage() {
     try {
       await excluirContaApi(perfil.id);
       // A conta não existe mais: limpa a sessão local antes de redirecionar.
+      // A fila dela não tem mais para onde ir e sai do aparelho junto (LGPD)
+      descartarPendentesDaConta(perfil.id);
       await logout();
       showToast('Sua conta foi excluída.', 'success');
       router.push('/entrar');
@@ -389,7 +401,7 @@ export default function PerfilPage() {
       </div>
 
       {/* Logout */}
-      <button className={styles.logoutBtn} onClick={() => setShowLogout(true)}>
+      <button className={styles.logoutBtn} onClick={abrirSaida}>
         <LogOut size={17} strokeWidth={2} />
         Sair do Aplicativo
       </button>
@@ -414,7 +426,13 @@ export default function PerfilPage() {
       <ConfirmDialog
         isOpen={showLogout}
         title="Sair do aplicativo"
-        description="Tem certeza que deseja sair?"
+        description={
+          pendentesAoSair === 0
+            ? 'Tem certeza que deseja sair?'
+            : pendentesAoSair === 1
+              ? '1 movimentação guardada sem internet ainda não foi enviada e será descartada deste aparelho. Tem certeza que deseja sair?'
+              : `${pendentesAoSair} movimentações guardadas sem internet ainda não foram enviadas e serão descartadas deste aparelho. Tem certeza que deseja sair?`
+        }
         confirmLabel="Sair"
         confirmVariant="danger"
         onConfirm={handleLogout}
