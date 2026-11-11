@@ -3,6 +3,8 @@
  *
  * - Telas (navegação): rede primeiro; sem rede, a última versão salva da tela.
  *   Tela nunca aberta neste aparelho cai em /offline.
+ * - Telas abertas por dentro do app (links, router): o Next só busca os dados RSC,
+ *   que não guardamos; a página avisa a troca de rota e o SW guarda o HTML dela.
  * - Arquivos do build (/_next/static, com hash no nome): cache primeiro.
  * - Ícones, manifest e outros arquivos públicos: cache, atualizado em segundo plano.
  * - NUNCA guarda respostas da API do backend (outra origem) nem das rotas /api do
@@ -16,6 +18,10 @@ const VERSAO = 'v1';
 const CACHE_PAGINAS = `sl-paginas-${VERSAO}`;
 const CACHE_ESTATICOS = `sl-estaticos-${VERSAO}`;
 const MAX_ESTATICOS = 400;
+/** Telas visitadas (produto, pedido...) além das fixas em PAGINAS, que nunca saem. */
+const MAX_PAGINAS = 100;
+/** Tela guardada há menos que isto não é baixada de novo a cada troca de rota. */
+const INTERVALO_TELA_MS = 5 * 60 * 1000;
 
 const PAGINA_OFFLINE = '/offline';
 
@@ -46,9 +52,16 @@ function arquivosDoHtml(html) {
   return [...new Set(html.match(/\/_next\/static\/[^"'\s)\\]+/g) || [])];
 }
 
+/** Quando cada tela foi guardada (enquanto o SW está vivo), para não baixar repetido. */
+const guardadaEm = new Map();
+
 async function guardarTela(caminho) {
   const resposta = await fetch(caminho, { cache: 'reload', credentials: 'same-origin' });
-  if (!resposta.ok) return;
+  // Só tela que abriu de verdade naquele endereço: nada de erro nem redirecionamento
+  // (o roteador do Next estranha o HTML de outra rota num endereço que não é o dela)
+  const ehHtml = (resposta.headers.get('content-type') || '').includes('text/html');
+  if (!resposta.ok || resposta.redirected || !ehHtml) return;
+  guardadaEm.set(caminho, Date.now());
   const html = await resposta.clone().text();
   await (await caches.open(CACHE_PAGINAS)).put(caminho, resposta);
 
@@ -84,13 +97,42 @@ self.addEventListener('activate', (evento) => {
   );
 });
 
-/** Os arquivos com hash se acumulam a cada deploy: mantém só os mais recentes. */
-async function aparar(cache) {
-  const chaves = await cache.keys();
-  for (const chave of chaves.slice(0, Math.max(0, chaves.length - MAX_ESTATICOS))) {
+/**
+ * Mantém só os `maximo` itens mais recentes (arquivos com hash se acumulam a cada
+ * deploy; telas de cada produto/pedido aberto também). As de `manter` nunca saem.
+ */
+async function aparar(cache, maximo, manter = []) {
+  const chaves = (await cache.keys()).filter((chave) => !manter.includes(new URL(chave.url).pathname));
+  for (const chave of chaves.slice(0, Math.max(0, chaves.length - maximo))) {
     await cache.delete(chave);
   }
 }
+
+/**
+ * Tela aberta por dentro do app (mensagem de RegistrarServiceWorker): guarda o HTML
+ * dela em segundo plano, como numa navegação completa. Só telas do app: nada de
+ * /api, arquivos do build ou a própria /offline.
+ */
+async function guardarTelaVisitada(endereco) {
+  if (typeof endereco !== 'string') return;
+  const url = new URL(endereco, self.location.origin);
+  const caminho = url.pathname;
+  if (url.origin !== self.location.origin || caminho === PAGINA_OFFLINE || caminho === '/sw.js') return;
+  if (caminho.startsWith('/api/') || caminho.startsWith('/_next/')) return;
+  if (Date.now() - (guardadaEm.get(caminho) || 0) < INTERVALO_TELA_MS) return;
+
+  guardadaEm.set(caminho, Date.now()); // já marca: outra mensagem igual no meio não baixa de novo
+  try {
+    await guardarTela(caminho);
+    await aparar(await caches.open(CACHE_PAGINAS), MAX_PAGINAS, PAGINAS);
+  } catch {
+    guardadaEm.delete(caminho); // sem rede agora: tenta na próxima vez que a tela abrir
+  }
+}
+
+self.addEventListener('message', (evento) => {
+  if (evento.data?.tipo === 'tela-aberta') evento.waitUntil(guardarTelaVisitada(evento.data.caminho));
+});
 
 async function telaRedePrimeiro(requisicao) {
   const caminho = new URL(requisicao.url).pathname;
@@ -98,7 +140,11 @@ async function telaRedePrimeiro(requisicao) {
   try {
     const resposta = await fetch(requisicao);
     // Só guarda tela que abriu de verdade (nada de 404, 500 ou redirecionamento)
-    if (resposta.ok && resposta.type === 'basic') await paginas.put(caminho, resposta.clone());
+    if (resposta.ok && resposta.type === 'basic') {
+      await paginas.put(caminho, resposta.clone());
+      guardadaEm.set(caminho, Date.now());
+      void aparar(paginas, MAX_PAGINAS, PAGINAS);
+    }
     return resposta;
   } catch {
     const salva = await paginas.match(caminho);
@@ -121,7 +167,7 @@ async function cachePrimeiro(requisicao) {
   const resposta = await fetch(requisicao);
   if (resposta.ok) {
     await estaticos.put(requisicao, resposta.clone());
-    void aparar(estaticos);
+    void aparar(estaticos, MAX_ESTATICOS);
   }
   return resposta;
 }

@@ -1,4 +1,5 @@
 import { test, expect } from '../../support/fixtures';
+import { criarOferta } from '../../support/api';
 import { esperarServiceWorker, ficarOffline, voltarOnline } from '../../support/offline';
 
 const AVISO = 'Sem internet. O que já foi aberto continua disponível.';
@@ -34,6 +35,43 @@ test.describe('PWA offline (front-app)', () => {
     await expect(page.getByRole('status', { name: /carregando aplicação/ })).toBeHidden();
     await page.getByRole('button', { name: 'Tentar novamente' }).click();
     await expect(page).toHaveURL(/\/produtos\/um-produto-que-nunca-abriu$/);
+  });
+
+  test('tela aberta só tocando nos links do app também abre sem internet', async ({ appLogado: page, produtor, context }) => {
+    const oferta = await criarOferta(produtor);
+    await esperarServiceWorker(page);
+
+    // Como no celular, sem digitar endereço: Produtos → o produto → Ver Movimentações.
+    // Por dentro do app o Next só busca os dados RSC, que o Service Worker não guarda
+    const nav = page.getByRole('navigation', { name: 'Navegação principal' });
+    await nav.getByRole('link', { name: 'Produtos' }).click();
+    await page.getByText(oferta.nomePopular).click();
+    await page.getByText('Ver Movimentações').click();
+    const historico = `/produtos/${oferta.estoqueId}/estoque`;
+    await expect(page).toHaveURL(new RegExp(`${historico}$`));
+    await expect(page.getByRole('heading', { name: 'Histórico de Estoque' })).toBeVisible();
+
+    // O Service Worker guarda o HTML das telas em segundo plano
+    for (const tela of [`/produtos/${oferta.estoqueId}`, historico]) {
+      await expect
+        .poll(() => page.evaluate(async (t) => Boolean(await (await caches.open('sl-paginas-v1')).match(t)), tela), {
+          timeout: 15_000,
+        })
+        .toBe(true);
+    }
+
+    // Sem internet, recarregar (ou reabrir) o Histórico abre a tela, não "Sem internet"
+    await ficarOffline(context);
+    const recarga = await page.reload();
+    expect(recarga?.fromServiceWorker()).toBe(true);
+    await expect(page).toHaveURL(new RegExp(`${historico}$`));
+    await expect(page.getByRole('heading', { name: 'Histórico de Estoque' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'Sem internet' })).toHaveCount(0);
+
+    // A tela do produto, aberta no caminho, também ficou guardada
+    await page.goto(`/produtos/${oferta.estoqueId}`);
+    await expect(page).toHaveURL(new RegExp(`/produtos/${oferta.estoqueId}$`));
+    await expect(page.getByRole('heading', { name: oferta.nomePopular })).toBeVisible();
   });
 
   test('o Service Worker não guarda respostas da API nem da sessão', async ({ appLogado: page }) => {
