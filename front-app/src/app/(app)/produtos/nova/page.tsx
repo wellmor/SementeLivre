@@ -20,6 +20,11 @@ const tipoOptions = Object.entries(TipoProdutoLabels).map(([v, l]) => ({ value: 
 const especieOptions = Object.entries(EspecieGeralLabels).map(([v, l]) => ({ value: v, label: l }));
 const pesagemOptions = Object.entries(PesagemLabels).map(([v, l]) => ({ value: v, label: l }));
 const dispOptions = Object.entries(DisponibilidadeLabels).map(([v, l]) => ({ value: v, label: l }));
+// Mesmo limite do backend (max-file-size). Acima disso o servidor derruba a conexão
+// antes do 413 chegar e a pessoa veria "sem conexão"; por isso validamos aqui.
+const FOTO_MAX_BYTES = 5 * 1024 * 1024;
+const FOTO_TIPOS = ['image/jpeg', 'image/png', 'image/webp'];
+
 const formatoOptions = [{ value: FormatoProduto.SEMENTE, label: 'Semente' }, { value: FormatoProduto.MUDA, label: 'Muda' }];
 
 export default function NovaSementePage() {
@@ -47,6 +52,20 @@ export default function NovaSementePage() {
   const handleFoto = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    // Limpa o input para a pessoa poder escolher outra foto (ou a mesma, já reduzida).
+    e.target.value = '';
+    const erroFoto = !FOTO_TIPOS.includes(file.type)
+      ? 'A foto deve ser JPEG, PNG ou WebP.'
+      : file.size > FOTO_MAX_BYTES
+        ? 'A foto excede o tamanho máximo de 5 MB.'
+        : '';
+    if (erroFoto) {
+      setFotoFile(null);
+      setFotoPreview('');
+      setErrors((prev) => ({ ...prev, foto: erroFoto }));
+      return;
+    }
+    setErrors((prev) => ({ ...prev, foto: '' }));
     setFotoFile(file);
     setFotoPreview(URL.createObjectURL(file));
   };
@@ -54,7 +73,7 @@ export default function NovaSementePage() {
   const validate = () => {
     const e: Record<string, string> = {};
     if (!form.nomePopular) e.nomePopular = 'Nome popular é obrigatório';
-    if (!fotoFile) e.foto = 'Foto é obrigatória';
+    if (!fotoFile) e.foto = errors.foto || 'Foto é obrigatória';
     if (!form.quantidade || Number(form.quantidade) < 0) e.quantidade = 'Quantidade inválida';
     setErrors(e);
     return Object.keys(e).length === 0;
