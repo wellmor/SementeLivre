@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -108,6 +109,38 @@ class CopiaDoPedidoEmailTest {
         pedido.setUsuarioSolicitante(usuario("Dona Rosa", "Rosa@Exemplo.com"));
 
         assertTrue(CopiaDoPedidoEmail.avisoDeConfirmacao(pedido).isEmpty());
+    }
+
+    // O PRÓPRIO PRODUTOR ANOTA O PEDIDO NO APP
+
+    @Test
+    void pedidoDoProprioProdutorSemEmailDeCompradorNaoGeraCopiaNemRecusa() {
+        pedido.getProprietarioRecebedor().setEmail("rosa@exemplo.com");
+        pedido.setComprador(Comprador.builder().nome("Associação").build());
+        pedido.setUsuarioSolicitante(usuario("Dona Rosa", "Rosa@Exemplo.com"));
+
+        assertTrue(CopiaDoPedidoEmail.de(pedido).isEmpty());
+        assertTrue(CopiaDoPedidoEmail.avisoDeRecusa(pedido, new HashMap<>()).isEmpty());
+    }
+
+    @Test
+    void pedidoDoProdutorComEmailDoCompradorMandaCopiaERecusaParaOComprador() {
+        pedido.getProprietarioRecebedor().setEmail("rosa@exemplo.com");
+        pedido.setComprador(Comprador.builder().nome("Ana Souza").email("ana@exemplo.com").build());
+        pedido.setUsuarioSolicitante(usuario("Dona Rosa", "rosa@exemplo.com"));
+
+        assertEquals("ana@exemplo.com", CopiaDoPedidoEmail.de(pedido).orElseThrow().para());
+        assertEquals("ana@exemplo.com", CopiaDoPedidoEmail.avisoDeRecusa(pedido, new HashMap<>()).orElseThrow().para());
+    }
+
+    @Test
+    void pedidoDoSiteContinuaGerandoCopiaERecusa() {
+        pedido.getProprietarioRecebedor().setEmail("rosa@exemplo.com");
+        pedido.setComprador(Comprador.builder().nome("Ana Souza").email("ana@exemplo.com").build());
+
+        assertEquals("ana@exemplo.com", CopiaDoPedidoEmail.de(pedido).orElseThrow().para());
+        assertEquals("Semente Livre - Seu pedido foi recusado",
+                CopiaDoPedidoEmail.avisoDeRecusa(pedido, new HashMap<>()).orElseThrow().assunto());
     }
 
     @Test

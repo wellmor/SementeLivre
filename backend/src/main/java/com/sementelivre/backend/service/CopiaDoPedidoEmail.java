@@ -38,7 +38,7 @@ public record CopiaDoPedidoEmail(String para, String assunto, String texto) {
      * há para quem mandar.
      */
     public static Optional<CopiaDoPedidoEmail> de(Pedido pedido) {
-        return destinatario(pedido).map(quem -> new CopiaDoPedidoEmail(
+        return destinatarioQueNaoEOProdutor(pedido).map(quem -> new CopiaDoPedidoEmail(
                 quem.email(),
                 "Semente Livre - Cópia do seu pedido",
                 montarTexto(pedido, quem.nome())));
@@ -50,7 +50,7 @@ public record CopiaDoPedidoEmail(String para, String assunto, String texto) {
      * é o estoque que ficou, para quem pediu saber quanto ainda há.
      */
     public static Optional<CopiaDoPedidoEmail> avisoDeRecusa(Pedido pedido, Map<UUID, Double> saldoPorProduto) {
-        return destinatario(pedido).map(quem -> new CopiaDoPedidoEmail(
+        return destinatarioQueNaoEOProdutor(pedido).map(quem -> new CopiaDoPedidoEmail(
                 quem.email(),
                 "Semente Livre - Seu pedido foi recusado",
                 montarTextoDeRecusa(pedido, quem.nome(), saldoPorProduto)));
@@ -65,8 +65,7 @@ public record CopiaDoPedidoEmail(String para, String assunto, String texto) {
 
         Proprietario produtor = pedido.getProprietarioRecebedor();
 
-        return destinatario(pedido)
-                .filter(quem -> produtor == null || !quem.email().equalsIgnoreCase(textoOuVazio(produtor.getEmail())))
+        return destinatarioQueNaoEOProdutor(pedido)
                 .map(quem -> new CopiaDoPedidoEmail(
                         quem.email(),
                         "Semente Livre - Seu pedido foi confirmado",
@@ -138,6 +137,20 @@ public record CopiaDoPedidoEmail(String para, String assunto, String texto) {
     }
 
     private record Destinatario(String email, String nome) {
+    }
+
+    /**
+     * Pedido que o próprio produtor anota no app (ele é o solicitante e o
+     * recebedor) não gera e-mail: os textos falam com quem pediu, não com quem
+     * vai atender. Se ele informou o e-mail do comprador, o destinatário é o
+     * comprador e o e-mail segue normalmente.
+     */
+    private static Optional<Destinatario> destinatarioQueNaoEOProdutor(Pedido pedido) {
+
+        Proprietario produtor = pedido.getProprietarioRecebedor();
+
+        return destinatario(pedido)
+                .filter(quem -> produtor == null || !quem.email().equalsIgnoreCase(textoOuVazio(produtor.getEmail())));
     }
 
     private static Optional<Destinatario> destinatario(Pedido pedido) {
