@@ -84,6 +84,37 @@ test.describe('Movimentação de estoque offline (front-app)', () => {
     expect((await buscarEstoque(produtor, oferta.estoqueId)).quantidade).toBe(20);
   });
 
+  test('sair do aplicativo avisa e apaga do aparelho as movimentações guardadas desta conta', async ({ appLogado: page, produtor, context }) => {
+    const oferta = await criarOferta(produtor, { quantidade: 12 });
+    await page.goto(`/produtos/${oferta.estoqueId}/estoque`);
+    await expect(page.getByRole('heading', { name: 'Histórico de Estoque' })).toBeVisible();
+
+    // O envio da movimentação não chega ao servidor: ela fica guardada, com o motivo digitado
+    await context.route(`${API_URL}/estoques/${oferta.estoqueId}/movimentacoes`, (rota) =>
+      rota.request().method() === 'POST' ? rota.abort('internetdisconnected') : rota.continue()
+    );
+    await registrar(page, 'ENTRADA', '6', 'Motivo pessoal guardado');
+    await expect(toast(page, /Sem internet: a movimentação foi guardada/)).toBeVisible();
+    // Pendência de outra conta no mesmo aparelho: não é desta pessoa apagar
+    await page.evaluate(() => {
+      const fila = JSON.parse(localStorage.getItem('sl_fila_movimentacoes') ?? '[]') as unknown[];
+      fila.push({ idLocal: 'de-outra-conta', donoId: 'outra-conta', estoqueId: 'outro', dados: { tipo: 'ENTRADA', quantidade: 1 }, criadaEm: new Date().toISOString() });
+      localStorage.setItem('sl_fila_movimentacoes', JSON.stringify(fila));
+    });
+
+    await page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name: 'Perfil' }).click();
+    await page.getByRole('button', { name: 'Sair do Aplicativo' }).click();
+    const dialogo = page.getByRole('dialog');
+    await expect(dialogo).toContainText('1 movimentação guardada sem internet ainda não foi enviada e será descartada deste aparelho.');
+    await dialogo.getByRole('button', { name: 'Sair', exact: true }).click();
+    await expect(page).toHaveURL(/\/entrar$/);
+
+    const fila = (await filaDoAparelho(page)) as { donoId: string }[];
+    expect(fila.filter((item) => item.donoId === produtor.id)).toEqual([]);
+    expect(JSON.stringify(fila)).not.toContain('Motivo pessoal guardado');
+    expect(fila.map((item) => item.donoId)).toEqual(['outra-conta']);
+  });
+
   test('envio que chegou ao servidor sem a resposta voltar não é repetido', async ({ appLogado: page, produtor, context }) => {
     const oferta = await criarOferta(produtor, { quantidade: 30 });
     await page.goto(`/produtos/${oferta.estoqueId}/estoque`);
