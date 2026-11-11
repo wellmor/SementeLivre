@@ -60,11 +60,11 @@ export interface NovoPedido {
   tipoPedido: TipoPedido;
   nomeRecebedor: string;
   contatoRecebedor?: string;
+  /** E-mail de quem pediu: quando o contato digitado é um e-mail, vai aqui e não em telefone. */
+  emailRecebedor?: string;
   mensagemOpcional?: string;
   itens: { idProduto: string; quantidade: number; precoUnitario?: number }[];
 }
 
 /** Dados do formulário de alteração (CDU-13). O e-mail é o de quem pediu pelo site. */
-export interface AlteracaoPedido extends NovoPedido {
-  emailRecebedor?: string;
-}
+export type AlteracaoPedido = NovoPedido;
