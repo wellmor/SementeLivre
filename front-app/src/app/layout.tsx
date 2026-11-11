@@ -34,9 +34,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body>
+        {/* No fluxo, antes das telas: empurra o cabeçalho em vez de ficar por cima dele */}
+        <AvisoOffline />
         <ToastProvider>{children}</ToastProvider>
         <SplashScreen />
-        <AvisoOffline />
         <RegistrarServiceWorker />
       </body>
     </html>
