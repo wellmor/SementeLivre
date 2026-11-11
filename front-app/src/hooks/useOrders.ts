@@ -112,6 +112,7 @@ export function useOrders(filtro?: FiltroPedidos) {
           comprador: {
             nome: data.nomeRecebedor.trim(),
             telefone: data.contatoRecebedor?.trim() || null,
+            email: data.emailRecebedor?.trim() || null,
           },
           itens: data.itens.map((i) => ({
             produtoId: i.idProduto,
