@@ -15,7 +15,19 @@
  *  DELETE /api/pessoas/{id}/conta → exclui a conta do titular (LGPD); 204
  */
 
-import { apiGet, apiPost, apiPut, apiDelete, chamarSessao, saveAccessToken, clearTokens, ApiError } from './api';
+import {
+  apiGet,
+  apiPost,
+  apiPut,
+  apiDelete,
+  chamarSessao,
+  saveAccessToken,
+  clearTokens,
+  concluirSaidaPendente,
+  encerrarSessao,
+  esquecerSaidaPendente,
+  ApiError,
+} from './api';
 import { definirDonoOffline, lerOffline, salvarOffline } from './cacheOffline';
 import { PerfilUsuario, PessoaUpdateRequest, Proprietario, ProprietarioCadastroRequest } from '@/types/user';
 
@@ -69,7 +81,10 @@ export function perfilOffline(): PerfilUsuario | null {
 // ── login ─────────────────────────────────────────────────────────────────────
 
 export async function loginApi(email: string, senha: string): Promise<AuthSession> {
+  // Saída feita sem internet: revoga no backend o refresh de quem saiu antes de entrar
+  await concluirSaidaPendente();
   const data = await chamarSessao<SessaoResponse>('', 'POST', { email, senha });
+  esquecerSaidaPendente();
   saveAccessToken(data.accessToken);
 
   // Obtém dados do usuário autenticado para montar a sessão
@@ -130,5 +145,5 @@ export async function excluirContaApi(id: string): Promise<void> {
 /** Limpa o token da memória e, no servidor do app, revoga o refresh e apaga o cookie. */
 export function logoutApi(): void {
   clearTokens();
-  void fetch('/api/sessao', { method: 'DELETE' }).catch(() => undefined);
+  void encerrarSessao();
 }
