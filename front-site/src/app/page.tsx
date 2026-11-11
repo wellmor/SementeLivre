@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
 import PublicHeader from "@/components/public-header";
@@ -240,7 +241,7 @@ export default function MarketplacePage() {
               return (
                 <Card
                   key={oferta.estoqueId}
-                  className="group flex flex-col border-border bg-white hover:shadow-lg transition-all"
+                  className="group relative flex flex-col border-border bg-white hover:shadow-lg transition-all"
                 >
                   {/* Photo */}
                   <div className="h-40 rounded-t-xl bg-gradient-to-br from-primary-light/40 to-primary-light flex items-center justify-center overflow-hidden">
@@ -254,7 +255,19 @@ export default function MarketplacePage() {
                   <CardHeader className="pb-1 pt-4">
                     <div className="flex items-start justify-between gap-2">
                       <CardTitle className="text-sm leading-tight">
-                        {oferta.nomePopular}
+                        {/* Link "esticado" (::after) cobre o cartão todo: no celular, tocar em
+                            qualquer ponto abre a semente. Os botões ficam acima (relative z-10). */}
+                        <Link
+                          href={`/produto/${oferta.id}?oferta=${oferta.estoqueId}`}
+                          className="after:absolute after:inset-0 after:content-[''] focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-ring focus-visible:after:rounded-xl"
+                          onClick={(e) => {
+                            // Mesmo caminho do botão, que protege a busca digitada na URL
+                            e.preventDefault();
+                            abrirProduto(`/produto/${oferta.id}?oferta=${oferta.estoqueId}`);
+                          }}
+                        >
+                          {oferta.nomePopular}
+                        </Link>
                       </CardTitle>
                       <Badge
                         variant="outline"
@@ -270,10 +283,12 @@ export default function MarketplacePage() {
                         </p>
                         {/* Região aproximada da comunidade (RF-08) */}
                         {oferta.comunidadeId && oferta.uf && (
-                          <BotaoVerNoMapa
-                            comunidadeId={oferta.comunidadeId}
-                            comunidade={oferta.comunidade}
-                          />
+                          <div className="relative z-10">
+                            <BotaoVerNoMapa
+                              comunidadeId={oferta.comunidadeId}
+                              comunidade={oferta.comunidade}
+                            />
+                          </div>
                         )}
                       </div>
                     )}
@@ -334,7 +349,7 @@ export default function MarketplacePage() {
                     <Button
                       size="sm"
                       variant="outline"
-                      className="mt-3 w-full border-border text-primary-dark hover:bg-primary-light gap-1.5 text-xs h-8 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 group-focus-within:opacity-100 transition-opacity"
+                      className="mt-3 w-full border-border text-primary-dark hover:bg-primary-light gap-1.5 text-xs h-8 relative z-10 [@media(hover:hover)]:opacity-0 group-hover:opacity-100 focus-visible:opacity-100 group-focus-within:opacity-100 transition-opacity"
                       onClick={() =>
                         abrirProduto(`/produto/${oferta.id}?oferta=${oferta.estoqueId}`)
                       }
