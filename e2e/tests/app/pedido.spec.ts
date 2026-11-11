@@ -19,6 +19,22 @@ test.describe('Pedidos (front-app)', () => {
     expect((await listarPedidos(produtor)).map((p) => p.id)).toContain(id);
   });
 
+  test('busca da lista aceita o número do pedido com "#", como aparece na tela', async ({ appLogado: page, produtor }) => {
+    const oferta = await criarOferta(produtor, { quantidade: 20 });
+    const id = await registrarPedido(page, oferta, 1, 'Pedido Com Cerquilha');
+    await registrarPedido(page, oferta, 1, 'Pedido Outro');
+    const numero = id.slice(-6).toUpperCase();
+
+    await page.goto('/pedidos');
+    await expect(page.getByText(`#${numero}`)).toBeVisible();
+    const busca = page.getByLabel('Buscar pedido');
+    for (const termo of [`#${numero}`, `# ${numero.toLowerCase()}`, ` #${numero} `, numero]) {
+      await busca.fill(termo);
+      await expect(page.getByText('Pedido Com Cerquilha')).toBeVisible();
+      await expect(page.getByText('Pedido Outro')).toHaveCount(0);
+    }
+  });
+
   test('confirmar pedido muda o status para confirmado', async ({ appLogado: page, produtor }) => {
     const oferta = await criarOferta(produtor, { quantidade: 10 });
     const id = await registrarPedido(page, oferta, 2, 'João Confirmado');
