@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test';
 import { test, expect, toast, gravarSessao, cookieDeSessao } from '../../support/fixtures';
 import { API_URL } from '../../support/api';
+import { esperarServiceWorker, ficarOffline, voltarOnline } from '../../support/offline';
 
 /** Aparelho sem nada salvo para uso offline (#234). */
 async function apagarDadosOffline(page: Page) {
@@ -117,6 +118,31 @@ test.describe('Sessão e offline (front-app)', () => {
     await page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name: 'Pedidos' }).click();
 
     await expect(toast(page, /Sem conexão com o servidor/)).toBeVisible();
+  });
+
+  test('sair sem internet encerra a sessão: quando a internet volta, o app não reabre a conta', async ({ appLogado: page, context, request }) => {
+    const refreshDaSessao = (await cookieDeSessao(page))!.value;
+    await esperarServiceWorker(page);
+    await page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name: 'Perfil' }).click();
+    await expect(page.getByRole('button', { name: 'Sair do Aplicativo' })).toBeVisible();
+
+    // Sem internet, o DELETE /api/sessao não chega: o cookie do refresh fica no navegador
+    await ficarOffline(context);
+    await page.getByRole('button', { name: 'Sair do Aplicativo' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Sair', exact: true }).click();
+    await expect(page).toHaveURL(/\/entrar$/);
+
+    // A internet volta e o app é aberto de novo (aba nova, sem access token)
+    await voltarOnline(context);
+    await page.close();
+    const aba = await context.newPage();
+    await aba.goto('/dashboard');
+
+    await expect(aba).toHaveURL(/\/entrar$/);
+    await expect.poll(() => cookieDeSessao(aba)).toBeUndefined();
+    // O refresh de quem saiu foi revogado no backend, não só apagado do navegador
+    const refresh = await request.post(`${API_URL}/auth/refresh`, { data: { refreshToken: refreshDaSessao } });
+    expect(refresh.status()).toBe(400);
   });
 
   test('login sem backend avisa que não há conexão', async ({ page }) => {

@@ -157,12 +157,74 @@ export async function chamarSessao<T>(caminho: string, metodo: 'POST' | 'DELETE'
   return res.json() as Promise<T>;
 }
 
+// ── Sair sem conexão ───────────────────────────────────────────────────────────
+
+// Só o servidor do app apaga o cookie do refresh (HttpOnly), em DELETE /api/sessao. Se
+// a pessoa sai sem internet, o pedido não chega e o cookie reabriria a conta dela na
+// próxima abertura. Por isso a saída fica marcada no aparelho até o DELETE chegar, e
+// termina antes de qualquer renovação. A marca não guarda dado nenhum da pessoa.
+const CHAVE_SAIDA_PENDENTE = 'sl_saida_pendente';
+
+function marcarSaidaPendente(pendente: boolean): void {
+  try {
+    if (pendente) localStorage.setItem(CHAVE_SAIDA_PENDENTE, '1');
+    else localStorage.removeItem(CHAVE_SAIDA_PENDENTE);
+  } catch {
+    // sem localStorage (modo privado restrito)
+  }
+}
+
+function haSaidaPendente(): boolean {
+  try {
+    return localStorage.getItem(CHAVE_SAIDA_PENDENTE) !== null;
+  } catch {
+    return false;
+  }
+}
+
+/** DELETE /api/sessao. Basta a rota do app responder: com o backend fora, ela apaga o cookie mesmo assim. */
+async function apagarSessaoNoServidor(): Promise<boolean> {
+  try {
+    const res = await fetch('/api/sessao', { method: 'DELETE' });
+    if (res.ok) marcarSaidaPendente(false);
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/** Sair: revoga o refresh e apaga o cookie; sem conexão, termina quando ela voltar ou na próxima abertura. */
+export async function encerrarSessao(): Promise<void> {
+  marcarSaidaPendente(true);
+  if (!(await apagarSessaoNoServidor()) && typeof window !== 'undefined') {
+    window.addEventListener('online', () => void concluirSaidaPendente(), { once: true });
+  }
+}
+
+/** Termina uma saída feita sem conexão. Devolve true se havia uma pendente (a pessoa continua fora). */
+export async function concluirSaidaPendente(): Promise<boolean> {
+  if (!haSaidaPendente()) return false;
+  await apagarSessaoNoServidor();
+  return true;
+}
+
+/** Entrou de novo: uma saída antiga não pode derrubar a sessão nova. */
+export function esquecerSaidaPendente(): void {
+  marcarSaidaPendente(false);
+}
+
 /** 'ok': sessão renovada; 'sem-sessao': não há (ou acabou); 'indisponivel': servidor fora do ar ou ocupado. */
 export type Renovacao = 'ok' | 'sem-sessao' | 'indisponivel';
 
 let _renovacao: Promise<Renovacao> | null = null;
 
 async function pedirRenovacao(): Promise<Renovacao> {
+  // A pessoa saiu sem internet: o cookie dela não pode renovar a sessão, nem enquanto
+  // o DELETE ainda não conseguir chegar
+  if (await concluirSaidaPendente()) {
+    clearTokens();
+    return 'sem-sessao';
+  }
   try {
     // fetch direto (e não request()) para um 401 da própria renovação nunca disparar outra
     const res = await fetch('/api/sessao/renovar', { method: 'POST' });
