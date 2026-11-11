@@ -60,6 +60,7 @@ export default function PedidosPage() {
     setFiltroSemente('');
     setDataInicio('');
     setDataFim('');
+    setBusca(''); // "volta tudo ao normal" inclui o texto da busca
   };
 
   return (
@@ -94,7 +95,7 @@ export default function PedidosPage() {
           <Input label="De" type="date" value={dataInicio} max={dataFim || undefined} onChange={(e) => setDataInicio(e.target.value)} />
           <Input label="Até" type="date" value={dataFim} min={dataInicio || undefined} onChange={(e) => setDataFim(e.target.value)} error={periodoInvalido ? 'Data final antes da inicial' : undefined} />
         </div>
-        {temFiltro && (
+        {(temFiltro || busca !== '') && (
           <button type="button" className={styles.clearFilters} onClick={limparFiltros}>Limpar filtros</button>
         )}
       </div>
