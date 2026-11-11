@@ -91,4 +91,26 @@ test.describe('PWA offline (front-app)', () => {
     expect(guardados.filter((url) => !url.startsWith(origemDoApp))).toEqual([]);
     expect(guardados.filter((url) => new URL(url).pathname.startsWith('/api/'))).toEqual([]);
   });
+
+  test('a faixa "Sem internet" não cobre o cabeçalho nem a navegação de baixo', async ({ appLogado: page, context }) => {
+    await page.setViewportSize({ width: 412, height: 800 });
+    await page.goto('/dashboard');
+    const cabecalho = page.getByRole('banner');
+    await expect(cabecalho).toBeVisible();
+
+    await ficarOffline(context);
+    const faixa = page.getByRole('status').filter({ hasText: AVISO });
+    await expect(faixa).toBeVisible();
+
+    const f = (await faixa.boundingBox())!;
+    const c = (await cabecalho.boundingBox())!;
+    // Sem sobreposição vertical: a faixa termina onde o cabeçalho começa
+    expect(f.y + f.height).toBeLessThanOrEqual(c.y + 0.5);
+
+    const nav = page.getByRole('navigation').last();
+    if (await nav.isVisible()) {
+      const n = (await nav.boundingBox())!;
+      expect(f.y + f.height <= n.y + 0.5 || n.y + n.height <= f.y + 0.5).toBe(true);
+    }
+  });
 });
