@@ -46,7 +46,8 @@ export default function PedidosPage() {
   const periodoInvalido = !!dataInicio && !!dataFim && dataInicio > dataFim;
 
   const filtered = useMemo(() => {
-    const termo = busca.toLowerCase();
+    // A lista mostra o número como "#722D68": quem digita assim também deve achar
+    const termo = busca.trim().replace(/^#\s*/, '').toLowerCase();
     return orders.filter((o) =>
       termo === '' ||
       o.idPedido.toLowerCase().includes(termo) ||
