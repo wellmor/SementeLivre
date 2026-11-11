@@ -1,4 +1,5 @@
 import { test, expect } from '../../support/fixtures';
+import { criarOferta } from '../../support/api';
 import { esperarServiceWorker, ficarOffline, voltarOnline } from '../../support/offline';
 
 const AVISO = 'Sem internet. O que já foi aberto continua disponível.';
@@ -36,6 +37,43 @@ test.describe('PWA offline (front-app)', () => {
     await expect(page).toHaveURL(/\/produtos\/um-produto-que-nunca-abriu$/);
   });
 
+  test('tela aberta só tocando nos links do app também abre sem internet', async ({ appLogado: page, produtor, context }) => {
+    const oferta = await criarOferta(produtor);
+    await esperarServiceWorker(page);
+
+    // Como no celular, sem digitar endereço: Produtos → o produto → Ver Movimentações.
+    // Por dentro do app o Next só busca os dados RSC, que o Service Worker não guarda
+    const nav = page.getByRole('navigation', { name: 'Navegação principal' });
+    await nav.getByRole('link', { name: 'Produtos' }).click();
+    await page.getByText(oferta.nomePopular).click();
+    await page.getByText('Ver Movimentações').click();
+    const historico = `/produtos/${oferta.estoqueId}/estoque`;
+    await expect(page).toHaveURL(new RegExp(`${historico}$`));
+    await expect(page.getByRole('heading', { name: 'Histórico de Estoque' })).toBeVisible();
+
+    // O Service Worker guarda o HTML das telas em segundo plano
+    for (const tela of [`/produtos/${oferta.estoqueId}`, historico]) {
+      await expect
+        .poll(() => page.evaluate(async (t) => Boolean(await (await caches.open('sl-paginas-v1')).match(t)), tela), {
+          timeout: 15_000,
+        })
+        .toBe(true);
+    }
+
+    // Sem internet, recarregar (ou reabrir) o Histórico abre a tela, não "Sem internet"
+    await ficarOffline(context);
+    const recarga = await page.reload();
+    expect(recarga?.fromServiceWorker()).toBe(true);
+    await expect(page).toHaveURL(new RegExp(`${historico}$`));
+    await expect(page.getByRole('heading', { name: 'Histórico de Estoque' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'Sem internet' })).toHaveCount(0);
+
+    // A tela do produto, aberta no caminho, também ficou guardada
+    await page.goto(`/produtos/${oferta.estoqueId}`);
+    await expect(page).toHaveURL(new RegExp(`/produtos/${oferta.estoqueId}$`));
+    await expect(page.getByRole('heading', { name: oferta.nomePopular })).toBeVisible();
+  });
+
   test('o Service Worker não guarda respostas da API nem da sessão', async ({ appLogado: page }) => {
     await esperarServiceWorker(page);
     await page.goto('/produtos');
@@ -52,5 +90,27 @@ test.describe('PWA offline (front-app)', () => {
     const origemDoApp = new URL(page.url()).origin;
     expect(guardados.filter((url) => !url.startsWith(origemDoApp))).toEqual([]);
     expect(guardados.filter((url) => new URL(url).pathname.startsWith('/api/'))).toEqual([]);
+  });
+
+  test('a faixa "Sem internet" não cobre o cabeçalho nem a navegação de baixo', async ({ appLogado: page, context }) => {
+    await page.setViewportSize({ width: 412, height: 800 });
+    await page.goto('/dashboard');
+    const cabecalho = page.getByRole('banner');
+    await expect(cabecalho).toBeVisible();
+
+    await ficarOffline(context);
+    const faixa = page.getByRole('status').filter({ hasText: AVISO });
+    await expect(faixa).toBeVisible();
+
+    const f = (await faixa.boundingBox())!;
+    const c = (await cabecalho.boundingBox())!;
+    // Sem sobreposição vertical: a faixa termina onde o cabeçalho começa
+    expect(f.y + f.height).toBeLessThanOrEqual(c.y + 0.5);
+
+    const nav = page.getByRole('navigation').last();
+    if (await nav.isVisible()) {
+      const n = (await nav.boundingBox())!;
+      expect(f.y + f.height <= n.y + 0.5 || n.y + n.height <= f.y + 0.5).toBe(true);
+    }
   });
 });

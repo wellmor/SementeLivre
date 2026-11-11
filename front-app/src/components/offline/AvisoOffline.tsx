@@ -4,7 +4,7 @@ import { WifiOff } from 'lucide-react';
 import { useOffline } from '@/hooks/useOffline';
 import styles from './AvisoOffline.module.css';
 
-/** Faixa no topo de todas as telas enquanto o aparelho está sem internet (#234). */
+/** Faixa no topo (acima do cabeçalho, sem cobri-lo) de todas as telas enquanto o aparelho está sem internet (#234). */
 export function AvisoOffline() {
   const { isOffline } = useOffline();
 

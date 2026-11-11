@@ -19,6 +19,22 @@ test.describe('Pedidos (front-app)', () => {
     expect((await listarPedidos(produtor)).map((p) => p.id)).toContain(id);
   });
 
+  test('busca da lista aceita o número do pedido com "#", como aparece na tela', async ({ appLogado: page, produtor }) => {
+    const oferta = await criarOferta(produtor, { quantidade: 20 });
+    const id = await registrarPedido(page, oferta, 1, 'Pedido Com Cerquilha');
+    await registrarPedido(page, oferta, 1, 'Pedido Outro');
+    const numero = id.slice(-6).toUpperCase();
+
+    await page.goto('/pedidos');
+    await expect(page.getByText(`#${numero}`)).toBeVisible();
+    const busca = page.getByLabel('Buscar pedido');
+    for (const termo of [`#${numero}`, `# ${numero.toLowerCase()}`, ` #${numero} `, numero]) {
+      await busca.fill(termo);
+      await expect(page.getByText('Pedido Com Cerquilha')).toBeVisible();
+      await expect(page.getByText('Pedido Outro')).toHaveCount(0);
+    }
+  });
+
   test('confirmar pedido muda o status para confirmado', async ({ appLogado: page, produtor }) => {
     const oferta = await criarOferta(produtor, { quantidade: 10 });
     const id = await registrarPedido(page, oferta, 2, 'João Confirmado');
@@ -109,5 +125,38 @@ test.describe('Pedidos (front-app)', () => {
     await expect(voltar).toBeVisible();
     await voltar.click();
     await expect(page).toHaveURL(/\/pedidos$/);
+  });
+
+  test('contato digitado como e-mail é gravado no e-mail do comprador, não no telefone', async ({ appLogado: page, produtor }) => {
+    const oferta = await criarOferta(produtor, { quantidade: 10 });
+    const email = 'nome.sobrenome@gmail.com'; // 24 caracteres: estourava o limite de 20 do telefone
+
+    await page.goto('/pedidos/novo');
+    await page.getByLabel('Nome completo').fill('Carla Por Email');
+    const contato = page.getByLabel('Contato (telefone ou e-mail)');
+
+    // Valida no próprio campo, sem o toast genérico
+    await contato.fill('isso@invalido');
+    await page.getByRole('button', { name: 'Registrar Pedido' }).click();
+    await expect(page.getByText('E-mail inválido')).toBeVisible();
+    await contato.fill('123456789012345678901');
+    await page.getByRole('button', { name: 'Registrar Pedido' }).click();
+    await expect(page.getByText('Telefone deve ter no máximo 20 caracteres')).toBeVisible();
+
+    await contato.fill(email);
+    await page.getByRole('button', { name: '+ Adicionar' }).click();
+    const dialogo = page.getByRole('dialog', { name: 'Selecionar Produto' });
+    await dialogo.getByRole('button', { name: new RegExp(oferta.nomePopular) }).click();
+    await dialogo.getByLabel(/Quantidade \(máx/).fill('2');
+    await dialogo.getByRole('button', { name: 'Adicionar', exact: true }).click();
+    await page.getByRole('button', { name: 'Registrar Pedido' }).click();
+
+    await expect(toast(page, 'Pedido registrado com sucesso!')).toBeVisible();
+    await expect(page.getByText(email)).toBeVisible();
+
+    // Na alteração o e-mail aparece no campo de e-mail e o contato (telefone) fica vazio
+    await page.getByRole('button', { name: 'Alterar Pedido' }).click();
+    await expect(page.getByLabel('E-mail de quem pediu')).toHaveValue(email);
+    await expect(page.getByLabel('Contato (telefone ou e-mail)')).toHaveValue('');
   });
 });

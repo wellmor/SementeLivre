@@ -59,6 +59,27 @@ test.describe('Propriedades e comunidades (front-app)', () => {
     expect((await listarPropriedades(produtor))[0]).toMatchObject({ nome, comunidadeNome: comunidade });
   });
 
+  test('comunidade pendente continua na lista ao voltar à tela', async ({ appLogado: page }) => {
+    const comunidade = `Pendente E2E ${unico()}`;
+    await page.goto('/propriedades/nova');
+    await page.getByLabel('Comunidade').selectOption({ label: '+ Minha comunidade não está na lista' });
+    const dialogo = page.getByRole('dialog', { name: 'Solicitar Nova Comunidade' });
+    await dialogo.getByLabel('Nome da Comunidade').fill(comunidade);
+    await dialogo.getByLabel('Localidade').fill('Córrego Fundo');
+    await dialogo.getByLabel('Município').fill('Mercês');
+    await dialogo.getByLabel('UF').fill('MG');
+    await dialogo.getByRole('button', { name: 'Enviar Solicitação' }).click();
+    await expect(toast(page, 'Solicitação de comunidade enviada!')).toBeVisible();
+
+    // Sai da tela sem cadastrar a propriedade e volta: a pendente tem de continuar no select.
+    await page.goto('/propriedades/nova');
+    const opcoes = page.getByLabel('Comunidade').locator('option');
+    await expect(opcoes.filter({ hasText: `${comunidade} — Mercês/MG (pendente)` })).toHaveCount(1);
+    // Vem depois das ativas (a ativa do seeder aparece antes).
+    const textos = await opcoes.allTextContents();
+    expect(textos.findIndex((t) => t.includes('Quilombo dos Coelhos'))).toBeLessThan(textos.findIndex((t) => t.includes(comunidade)));
+  });
+
   test('não cadastra sem os campos obrigatórios', async ({ appLogado: page }) => {
     await page.goto('/propriedades/nova');
     await page.getByRole('button', { name: 'Cadastrar Propriedade' }).click();

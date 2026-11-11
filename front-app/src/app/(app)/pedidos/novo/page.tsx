@@ -21,6 +21,9 @@ import { formatarMoeda } from '@/lib/formato';
 
 interface ItemForm { seed: EstoqueParaPedido; quantidade: number; }
 
+// Mesmo critério da tela de alterar pedido
+const EMAIL_VALIDO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 const tipoOptions = [
   { value: TipoPedido.VENDA, label: 'Venda' },
   { value: TipoPedido.TROCA, label: 'Troca' },
@@ -66,6 +69,14 @@ export default function NovoPedidoPage() {
     e.preventDefault();
     const e2: Record<string, string> = {};
     if (!nomeRecebedor) e2.nomeRecebedor = 'Nome é obrigatório';
+    // O contato aceita telefone ou e-mail; o e-mail vai em campo próprio (o telefone é limitado a 20)
+    const contatoLimpo = contato.trim();
+    const contatoEhEmail = contatoLimpo.includes('@');
+    if (contatoEhEmail) {
+      if (!EMAIL_VALIDO.test(contatoLimpo) || contatoLimpo.length > 254) e2.contato = 'E-mail inválido';
+    } else if (contatoLimpo.length > 20) {
+      e2.contato = 'Telefone deve ter no máximo 20 caracteres';
+    }
     if (itens.length === 0) e2.itens = 'Adicione ao menos um item';
     setErrors(e2);
     if (Object.keys(e2).length > 0) return;
@@ -75,7 +86,8 @@ export default function NovoPedidoPage() {
       const id = await createOrder({
         tipoPedido: tipo,
         nomeRecebedor,
-        contatoRecebedor: contato,
+        contatoRecebedor: contatoEhEmail ? undefined : contatoLimpo,
+        emailRecebedor: contatoEhEmail ? contatoLimpo : undefined,
         mensagemOpcional: mensagem,
         itens: itens.map(i => ({
           idProduto: i.seed.idProduto,
@@ -106,7 +118,7 @@ export default function NovoPedidoPage() {
       <div className={styles.card}>
         <p className={styles.sectionTitle}>Recebedor</p>
         <Input label="Nome completo" value={nomeRecebedor} onChange={(e) => setNomeRecebedor(e.target.value)} error={errors.nomeRecebedor} required />
-        <Input label="Contato (telefone ou e-mail)" value={contato} onChange={(e) => setContato(e.target.value)} />
+        <Input label="Contato (telefone ou e-mail)" value={contato} onChange={(e) => { setContato(e.target.value); setErrors(p => ({ ...p, contato: '' })); }} error={errors.contato} />
       </div>
 
       <div className={styles.card}>

@@ -156,6 +156,10 @@ public class AuthService {
 
         tokenEntity.setUsado(true);
         tokenRecuperacaoRepository.save(tokenEntity);
+
+        // Quem redefine a senha costuma desconfiar que outra pessoa entrou na conta:
+        // as sessões abertas com a senha antiga deixam de renovar
+        refreshTokenRepository.apagarTodosDoUsuario(usuario);
     }
 
     /** Grava o hash do token novo e devolve o token, que só o cliente fica sabendo. */
