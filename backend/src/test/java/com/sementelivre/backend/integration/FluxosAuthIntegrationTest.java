@@ -201,6 +201,23 @@ class FluxosAuthIntegrationTest extends AbstractAuthIntegrationTest {
     }
 
     @Test
+    void redefinirSenhaDeveExigirAMesmaRegraDeSenhaDoCadastro() throws Exception {
+        Conta conta = cadastrar();
+        solicitarRecuperacao(conta.email()).andExpect(status().isOk());
+        String codigo = ultimoCodigoDeRecuperacao(conta);
+
+        // 6 e 7 caracteres passavam aqui, mas o cadastro e o alterar-senha pedem 8 a 72
+        redefinirSenha(codigo, "abcdef").andExpect(status().isBadRequest());
+        redefinirSenha(codigo, "abcdefg").andExpect(status().isBadRequest());
+        redefinirSenha(codigo, "A1" + "x".repeat(71)).andExpect(status().isBadRequest());
+
+        // A senha recusada não gasta o código nem troca a senha
+        loginTokens(conta.email(), SENHA);
+        redefinirSenha(codigo, "Recuperada7").andExpect(status().isOk());
+        loginTokens(conta.email(), "Recuperada7");
+    }
+
+    @Test
     void redefinirSenhaComCodigoInvalidoOuExpiradoDeveSerRecusado() throws Exception {
         Conta conta = cadastrar();
 
