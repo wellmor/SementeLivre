@@ -121,8 +121,9 @@ export function useProperties() {
 }
 
 /**
- * Comunidades que o proprietário pode escolher: as ativas e as que ele mesmo
- * acabou de solicitar (ficam pendentes até o admin aprovar).
+ * Comunidades que o proprietário pode escolher: as ativas e, depois delas, as
+ * pendentes de aprovação (o sítio já pode usá-las enquanto o admin não decide).
+ * As rejeitadas ficam de fora.
  */
 export function useCommunities() {
   const [communities, setCommunities] = useState<Comunidade[]>([]);
@@ -132,7 +133,10 @@ export function useCommunities() {
     listarComunidades()
       .then((lista) => {
         if (cancelado) return;
-        setCommunities(lista.filter((c) => c.status === StatusComunidade.ATIVA).map(paraComunidade));
+        // Sem as pendentes, quem saía da tela após solicitar perdia a comunidade e não
+        // conseguia pedir de novo (nome similar, 409). A API não diz quem pediu.
+        const usaveis = (s: StatusComunidade) => lista.filter((c) => c.status === s).map(paraComunidade);
+        setCommunities([...usaveis(StatusComunidade.ATIVA), ...usaveis(StatusComunidade.PENDENTE_APROVACAO)]);
       })
       .catch(() => undefined);
     return () => {
