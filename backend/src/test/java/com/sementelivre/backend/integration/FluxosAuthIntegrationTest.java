@@ -220,6 +220,20 @@ class FluxosAuthIntegrationTest extends AbstractAuthIntegrationTest {
         loginTokens(conta.email(), SENHA); // senha original continua valendo
     }
 
+    @Test
+    void redefinirSenhaDeveEncerrarAsSessoesAbertasComASenhaAntiga() throws Exception {
+        Conta conta = cadastrar();
+        Tokens sessaoAntiga = loginTokens(conta.email(), SENHA);
+        solicitarRecuperacao(conta.email()).andExpect(status().isOk());
+
+        redefinirSenha(ultimoCodigoDeRecuperacao(conta), "Recuperada7").andExpect(status().isOk());
+
+        // Sem novo login no meio: o refresh de antes da troca não renova mais
+        refresh(sessaoAntiga.refreshToken()).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(REFRESH_INVALIDO));
+        refresh(loginTokens(conta.email(), "Recuperada7").refreshToken()).andExpect(status().isOk());
+    }
+
     // ── claims do JWT ────────────────────────────────────────────────────────
 
     @Test
