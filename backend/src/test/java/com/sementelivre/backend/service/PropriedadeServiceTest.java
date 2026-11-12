@@ -1,6 +1,7 @@
 package com.sementelivre.backend.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -107,6 +108,48 @@ class PropriedadeServiceTest {
 
         assertThrows(ResourceNotFoundException.class, () -> propriedadeService.criar(dto()));
         verify(propriedadeRepository, never()).save(any());
+    }
+
+    @Test
+    void criarSemComunidadeSalvaProdutorIsolado() {
+        when(proprietarioRepository.findById(proprietarioId)).thenReturn(Optional.of(proprietario));
+        when(logradouroRepository.findById(logradouroId)).thenReturn(Optional.of(logradouro));
+        when(propriedadeRepository.save(any(Propriedade.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        PropriedadeResponseDTO resposta = propriedadeService.criar(
+                new PropriedadeRequestDTO("Sítio Isolado", BigDecimal.TEN, logradouroId, proprietarioId, null));
+
+        assertEquals("Sítio Isolado", resposta.nome());
+        assertNull(resposta.comunidadeId());
+        assertNull(resposta.comunidadeNome());
+        verify(comunidadeRepository, never()).findById(any());
+    }
+
+    @Test
+    void atualizarSemComunidadeDesvinculaDaComunidade() {
+        Propriedade existente = propriedade();
+        when(propriedadeRepository.findById(propriedadeId)).thenReturn(Optional.of(existente));
+        when(propriedadeRepository.save(any(Propriedade.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        PropriedadeResponseDTO resposta = propriedadeService.atualizar(propriedadeId,
+                new PropriedadeRequestDTO("Sítio Boa Vista", BigDecimal.TEN, logradouroId, proprietarioId, null));
+
+        assertNull(existente.getComunidade());
+        assertNull(resposta.comunidadeId());
+    }
+
+    @Test
+    void atualizarPropriedadeSemComunidadeVinculaAUmaComunidade() {
+        Propriedade existente = propriedade();
+        existente.setComunidade(null);
+        when(propriedadeRepository.findById(propriedadeId)).thenReturn(Optional.of(existente));
+        when(comunidadeRepository.findById(comunidadeId)).thenReturn(Optional.of(comunidade));
+        when(propriedadeRepository.save(any(Propriedade.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        PropriedadeResponseDTO resposta = propriedadeService.atualizar(propriedadeId, dto());
+
+        assertSame(comunidade, existente.getComunidade());
+        assertEquals("Vale Verde", resposta.comunidadeNome());
     }
 
     @Test

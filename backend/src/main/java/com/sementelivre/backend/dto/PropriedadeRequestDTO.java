@@ -21,7 +21,7 @@ public record PropriedadeRequestDTO(
         UUID logradouroId,
         @NotNull(message = "O ID do proprietário ligado a esta propriedade é obrigatório.")
         UUID proprietarioId,
-        @NotNull(message = "O ID da comunidade ligado a esta propriedade é obrigatório.")
+        // Opcional: produtor isolado, sem comunidade, manda null
         UUID comunidadeId,
         // Endereço da propriedade; vira um logradouro novo (o atual não é alterado)
         @Valid

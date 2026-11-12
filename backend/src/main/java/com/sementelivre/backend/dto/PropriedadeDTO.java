@@ -44,12 +44,10 @@ public class PropriedadeDTO {
     @Schema(description = "Nome do proprietário", example = "Maria da Silva", requiredMode = Schema.RequiredMode.REQUIRED)
     private String proprietarioNome;
 
-    @NotNull
-    @Schema(description = "Identificador da comunidade", example = "550e8400-e29b-41d4-a716-446655440000", requiredMode = Schema.RequiredMode.REQUIRED)
+    @Schema(description = "Identificador da comunidade (null para produtor sem comunidade)", example = "550e8400-e29b-41d4-a716-446655440000", nullable = true)
     private UUID comunidadeId;
 
-    @NotBlank
-    @Schema(description = "Nome da comunidade", example = "Comunidade Boa Esperança", requiredMode = Schema.RequiredMode.REQUIRED)
+    @Schema(description = "Nome da comunidade (null para produtor sem comunidade)", example = "Comunidade Boa Esperança", nullable = true)
     private String comunidadeNome;
 
     @NotBlank

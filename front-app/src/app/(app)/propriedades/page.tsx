@@ -45,7 +45,7 @@ export default function PropriedadesPage() {
                 <div className={styles.cardContent}>
                   <p className={styles.cardName}>{prop.nome}</p>
                   <p className={styles.cardLocation}>{prop.municipio}/{prop.uf}</p>
-                  <p className={styles.cardCommunity}>{prop.nomeComunidade}</p>
+                  <p className={styles.cardCommunity}>{prop.nomeComunidade ?? 'Sem comunidade'}</p>
                   {prop.tamanhoHectares && <p className={styles.cardSize}>{prop.tamanhoHectares} hectares</p>}
                 </div>
                 <ChevronRight size={16} strokeWidth={2} className={styles.chevron} />

@@ -23,8 +23,9 @@ export interface Comunidade {
 export interface Propriedade {
   idPropriedade: string;
   idProprietario: string;
-  idComunidade: string;
-  nomeComunidade: string;
+  /** Vazio quando o produtor é isolado, sem comunidade. */
+  idComunidade?: string;
+  nomeComunidade?: string;
   nome: string;
   tamanhoHectares?: number;
   logradouro: string;
