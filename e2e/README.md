@@ -24,7 +24,7 @@ docker run -d --name semente_livre_e2e_db -p 5434:5432   -e POSTGRES_USER=devuse
 # Backend apontando para esse banco (o Flyway cria o schema e o seeder)
 cd backend
 ./mvnw -DskipTests package
-SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5434/e2edb PEDIDO_PUBLICO_LIMITE_POR_IP=1000 PEDIDO_PUBLICO_LIMITE_POR_EMAIL=1000   java -jar target/backend-0.0.1-SNAPSHOT.jar
+SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5434/e2edb PEDIDO_PUBLICO_LIMITE_POR_IP=1000 PEDIDO_PUBLICO_LIMITE_POR_EMAIL=1000 ADMIN_INICIAL_SENHA=admin-e2e-123   java -jar target/backend-0.0.1-SNAPSHOT.jar
 ```
 
 **Terminal 2 — frontends e testes**
@@ -45,6 +45,8 @@ npm run report             # relatório HTML da última execução
 
 Se os frontends já estiverem rodando (ex.: `npm run dev`), o Playwright reaproveita.
 Variáveis: `API_URL`, `APP_URL`, `SITE_URL` trocam os endereços padrão.
+`E2E_ADMIN_SENHA` é a senha do admin principal (a mesma do `ADMIN_INICIAL_SENHA` do backend,
+ex.: `E2E_ADMIN_SENHA=admin-e2e-123 npm test`); sem ela, os testes de admin são pulados.
 
 ## No CI
 
