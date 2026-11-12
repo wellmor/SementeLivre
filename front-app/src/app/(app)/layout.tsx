@@ -24,6 +24,7 @@ const headerConfig: Record<string, { title: string; showBack?: boolean; showNoti
   '/privacidade': { title: 'Política de Privacidade', showBack: true },
   '/termos': { title: 'Termos de Uso', showBack: true },
   '/admin/comunidades': { title: 'Aprovar Comunidades' },
+  '/admin/administradores': { title: 'Administradores', showBack: true },
 };
 
 // O admin não tem cadastro de proprietário: as telas de produtos, pedidos, propriedades,
