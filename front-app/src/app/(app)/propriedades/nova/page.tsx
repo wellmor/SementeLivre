@@ -50,7 +50,7 @@ export default function NovaPropriedadePage() {
   };
 
   const communityOptions = [
-    { value: '', label: 'Selecione uma comunidade' },
+    { value: '', label: 'Nenhuma (produtor sem comunidade)' },
     ...communities.map((c) => ({
       value: c.idComunidade,
       label: `${c.nome} — ${c.municipio}/${c.uf}${c.status === StatusComunidade.PENDENTE_APROVACAO ? ' (pendente)' : ''}`,
@@ -84,7 +84,6 @@ export default function NovaPropriedadePage() {
     const e: Record<string, string> = {};
     if (!form.nome) e.nome = 'Nome é obrigatório';
     if (!form.tamanhoHectares || Number(form.tamanhoHectares) <= 0) e.tamanhoHectares = 'Informe o tamanho em hectares';
-    if (!form.idComunidade) e.idComunidade = 'Selecione uma comunidade';
     if (!form.logradouro) e.logradouro = 'Logradouro é obrigatório';
     if (!form.municipio) e.municipio = 'Município é obrigatório';
     if (form.uf.length !== 2) e.uf = 'UF com 2 letras';
@@ -99,8 +98,8 @@ export default function NovaPropriedadePage() {
     try {
       await createProperty({
         idProprietario: user.uid,
-        idComunidade: form.idComunidade,
-        nomeComunidade: form.nomeComunidade,
+        idComunidade: form.idComunidade || undefined,
+        nomeComunidade: form.nomeComunidade || undefined,
         nome: form.nome,
         tamanhoHectares: Number(form.tamanhoHectares),
         logradouro: form.logradouro, numero: form.numero, complemento: form.complemento,
@@ -121,7 +120,7 @@ export default function NovaPropriedadePage() {
           <h2 className={styles.legend}>Identificação da Propriedade</h2>
           <Input label="Nome da propriedade" value={form.nome} onChange={(e) => set('nome', e.target.value)} error={errors.nome} required />
           <Input label="Tamanho (hectares)" value={form.tamanhoHectares} onChange={(e) => set('tamanhoHectares', e.target.value)} error={errors.tamanhoHectares} type="number" inputMode="decimal" min="0" step="0.01" required />
-          <Select label="Comunidade" value={form.idComunidade} onChange={(e) => handleCommunityChange(e.target.value)} options={communityOptions} error={errors.idComunidade} required />
+          <Select label="Comunidade" value={form.idComunidade} onChange={(e) => handleCommunityChange(e.target.value)} options={communityOptions} hint="Opcional: deixe em branco se você não faz parte de uma comunidade." />
         </section>
 
         <section className={styles.fieldset}>

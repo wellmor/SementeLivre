@@ -85,8 +85,30 @@ test.describe('Propriedades e comunidades (front-app)', () => {
     await page.getByRole('button', { name: 'Cadastrar Propriedade' }).click();
 
     await expect(page.getByRole('alert').filter({ hasText: 'Nome é obrigatório' })).toBeVisible();
-    await expect(page.getByRole('alert').filter({ hasText: 'Selecione uma comunidade' })).toBeVisible();
     await expect(page.getByRole('alert').filter({ hasText: 'Município é obrigatório' })).toBeVisible();
     await expect(page).toHaveURL(/\/propriedades\/nova$/);
+  });
+
+  test('cadastra propriedade sem comunidade (produtor isolado)', async ({ appLogado: page, produtor }) => {
+    const nome = `Sítio Isolado ${unico()}`;
+    await page.goto('/propriedades/nova');
+    await page.getByLabel('Nome da propriedade').fill(nome);
+    await page.getByLabel('Tamanho (hectares)').fill('2');
+    await expect(page.getByLabel('Comunidade')).toHaveValue('');
+    await page.getByLabel('Logradouro').fill('Estrada da Serra, km 4');
+    await page.getByLabel('Município').fill('Rio Pomba');
+    await page.getByLabel('UF').fill('MG');
+    await page.getByRole('button', { name: 'Cadastrar Propriedade' }).click();
+
+    await expect(toast(page, 'Propriedade cadastrada!')).toBeVisible();
+    await expect(page).toHaveURL(/\/propriedades$/);
+    await expect(page.getByText('Sem comunidade')).toBeVisible();
+
+    const salvas = await listarPropriedades(produtor);
+    expect(salvas).toHaveLength(1);
+    expect(salvas[0]).toMatchObject({ nome, comunidadeId: null, comunidadeNome: null });
+
+    await page.getByText(nome).click();
+    await expect(page.getByText('Sem comunidade')).toBeVisible();
   });
 });
