@@ -46,6 +46,8 @@ jobs:
     env:
       CI: true
       API_URL: http://localhost:8080
+      # Banco descartável do CI: a senha não protege nada
+      E2E_ADMIN_SENHA: admin-e2e-123
       NEXT_PUBLIC_API_URL: http://localhost:8080
       BACKEND_URL: http://localhost:8080
 
@@ -89,6 +91,8 @@ jobs:
           AUTH_LIMITE_SENHA_ERRADA_POR_EMAIL: '1000'
           AUTH_LIMITE_REFRESH_POR_IP: '1000'
           AUTH_LIMITE_CADASTRO_POR_IP: '1000'
+          # Senha do admin principal (AdminInicial), a mesma que os testes de admin usam
+          ADMIN_INICIAL_SENHA: ${{ env.E2E_ADMIN_SENHA }}
         run: |
           nohup java -jar target/backend-*.jar \
             --logging.level.org.springframework.security=INFO \

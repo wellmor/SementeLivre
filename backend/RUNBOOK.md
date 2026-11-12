@@ -47,6 +47,19 @@ Todas as credenciais e segredos são gerenciados exclusivamente por variáveis d
    - `DOMAIN_NAME`: Domínio registrado fornecido pelo instituto (ex: `semente.riopomba.ifsudestemg.edu.br`) ou IP da máquina.
    - `CORS_ALLOWED_ORIGINS`: URLs oficiais de onde o front-site e front-app acessarão a API, separadas por vírgula.
    - `MAIL_*`: Configurações do servidor SMTP para envio de e-mails do sistema.
+   - `ADMIN_INICIAL_EMAIL` e `ADMIN_INICIAL_SENHA`: primeiro acesso do admin principal (ver abaixo).
+
+### 2.1. Admin principal (primeiro acesso)
+
+O banco já nasce com um admin principal (`SUPER_ADMIN`, e-mail `admin@sementelivre.com.br`), mas **sem senha**: o hash que vinha no seed está no repositório público e foi invalidado (migration V14).
+
+1. Antes do primeiro deploy (ou do deploy desta versão), preencha no `.env`:
+   - `ADMIN_INICIAL_SENHA`: senha forte, de 8 a 72 caracteres.
+   - `ADMIN_INICIAL_EMAIL` (opcional): um e-mail que a equipe lê. Ele passa a ser o login do admin e recebe o link do "esqueci a senha". Vazio mantém `admin@sementelivre.com.br`.
+2. Suba a aplicação. No log aparece `Senha do admin principal definida a partir de ADMIN_INICIAL_SENHA. Login: <e-mail>`.
+3. Entre no front-app com esse e-mail e senha. Depois disso as duas variáveis são ignoradas; pode apagá-las do `.env`. Trocar a senha pelo app não é desfeito em deploys seguintes.
+
+Se o backend subir sem `ADMIN_INICIAL_SENHA` enquanto o admin estiver sem senha, ele avisa no log e ninguém consegue entrar como admin até a variável ser definida e o backend reiniciado.
 
 > **Atenção:** O arquivo `.env` jamais deve ser commitado no Git. Ele está explicitamente ignorado no `.gitignore`.
 
