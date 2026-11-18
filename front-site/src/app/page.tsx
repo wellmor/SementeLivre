@@ -29,10 +29,12 @@ import {
   MessageCircle,
   User,
   CalendarDays,
+  LogIn,
 } from "lucide-react";
 import type { OfertaCatalogo } from "@/lib/types";
 import { DISPONIBILIDADE_CONFIG, unidade } from "@/lib/catalogo";
 import { formatarMoeda } from "@/lib/utils";
+import { APP_URL } from "@/lib/app-url";
 import { FOTOS_COMUNIDADES } from "@/lib/divulgacao";
 import {
   FILTROS_VAZIOS,
@@ -413,6 +415,18 @@ export default function MarketplacePage() {
             Para negociações e parcerias, entre em contato diretamente com
             nossos produtores.
           </p>
+          <div className="pt-2 space-y-2">
+            <p className="text-white/80 text-sm">
+              É produtor da rede? Cadastre suas sementes e acompanhe seus pedidos pelo app.
+            </p>
+            <a
+              href={APP_URL}
+              className="inline-flex items-center gap-2 rounded-lg bg-white px-5 h-11 text-sm font-semibold text-primary-dark hover:bg-primary-light transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-white/60"
+            >
+              <LogIn className="w-4 h-4" aria-hidden="true" />
+              Acessar o app
+            </a>
+          </div>
         </div>
       </section>
 
