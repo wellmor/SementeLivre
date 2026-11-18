@@ -124,6 +124,23 @@ class CatalogoComunidadeDaPropriedadeIntegrationTest extends AbstractAuthIntegra
     }
 
     @Test
+    void produtorSemComunidadeApareceNoCatalogo() throws Exception {
+        Conta dono = cadastrar();
+        String token = login(dono.email(), SENHA);
+        criar("/api/propriedades", token, """
+                {"nome":"Sítio Isolado %s","tamanhoHectares":3,"proprietarioId":"%s",
+                 "endereco":{"logradouro":"Estrada","municipio":"Rio Pomba","uf":"MG"}}
+                """.formatted(sufixoUnico(), dono.id()));
+        String nome = "Fava Isolada " + sufixoUnico();
+        String produtoId = oferta(dono, token, nome);
+
+        List<Map<String, Object>> itens = catalogo(nome, null, null);
+        assertThat(itens).hasSize(1);
+        assertThat(itens.get(0).get("comunidade")).isNull();
+        mockMvc.perform(get("/catalogo/produtos/" + produtoId)).andExpect(status().isOk());
+    }
+
+    @Test
     void valeAPropriedadeMaisRecenteEAComunidadeDeOrigemTemPrioridade() throws Exception {
         Conta dono = cadastrar();
         String token = login(dono.email(), SENHA);

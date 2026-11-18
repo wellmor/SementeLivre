@@ -18,6 +18,8 @@ Open [http://localhost:3001](http://localhost:3001) with your browser to see the
 
 `npm run dev` só escuta em `127.0.0.1`: o modo de desenvolvimento mostra erros detalhados e não deve ficar aberto para a rede (#205). Para testar no celular pela rede local, use `npm run dev:rede` e desligue quando terminar.
 
+O botão "Acessar o app" (cabeçalho e seção "Sobre a Rede") leva ao front-app em `NEXT_PUBLIC_APP_URL` (padrão `http://localhost:3000`). Por ser `NEXT_PUBLIC_`, o valor entra no build: em produção, defina-o antes do `npm run build`. Veja o `.env.example`.
+
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.

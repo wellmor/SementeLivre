@@ -36,6 +36,8 @@ services:
       MAIL_USERNAME: ${MAIL_USERNAME:-}
       MAIL_PASSWORD: ${MAIL_PASSWORD:-}
       MAIL_FROM: ${MAIL_FROM:-}
+      ADMIN_INICIAL_EMAIL: ${ADMIN_INICIAL_EMAIL:-}
+      ADMIN_INICIAL_SENHA: ${ADMIN_INICIAL_SENHA:-}
     volumes:
       #Persistência de fotos cadastradas pelos produtores
       - app_uploads_prod:/app/uploads

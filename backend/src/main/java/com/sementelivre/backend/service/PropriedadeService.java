@@ -46,7 +46,7 @@ public class PropriedadeService implements CrudService<PropriedadeRequestDTO, Pr
     @Override
     @Transactional // o logradouro novo não fica órfão se a validação falhar
     public PropriedadeResponseDTO criar(PropriedadeRequestDTO dto) {
-        Comunidade comunidade = buscaComunidadePorId(dto.comunidadeId());
+        Comunidade comunidade = resolverComunidade(dto.comunidadeId(), null);
         Proprietario proprietario = buscaProprietarioPorId(dto.proprietarioId());
         Logradouro logradouro = resolverLogradouro(dto, null);
 
@@ -97,15 +97,11 @@ public class PropriedadeService implements CrudService<PropriedadeRequestDTO, Pr
     @Transactional // o logradouro novo não fica órfão se a validação falhar
     public PropriedadeResponseDTO atualizar(UUID id, PropriedadeRequestDTO dto) {
         Propriedade propriedade = buscaPropriedadePorId(id);
-        Comunidade comunidade = propriedade.getComunidade();
         Proprietario proprietario = propriedade.getProprietario();
         Logradouro logradouro = propriedade.getLogradouro();
 
         //Metodo de verificação se houve mudança nos Objetos ao atualizar
-        if(!comunidade.getId().equals(dto.comunidadeId())){
-            comunidade = comunidadeRepository.findById((dto.comunidadeId()))
-                    .orElseThrow(() -> new ResourceNotFoundException("Comunidade não encontrada: " + dto.comunidadeId()));
-        }
+        Comunidade comunidade = resolverComunidade(dto.comunidadeId(), propriedade.getComunidade());
 
         if(!proprietario.getId().equals(dto.proprietarioId())){
             proprietario = proprietarioRepository.findById(dto.proprietarioId())
@@ -149,6 +145,7 @@ public class PropriedadeService implements CrudService<PropriedadeRequestDTO, Pr
     //Transformando da Entidade propriedade para PropriedadeResponseDTO
     private  PropriedadeResponseDTO toResponseDTO(Propriedade propriedade){
         Logradouro logradouro = propriedade.getLogradouro();
+        Comunidade comunidade = propriedade.getComunidade();
 
         return new PropriedadeResponseDTO(
                 propriedade.getId(),
@@ -158,8 +155,8 @@ public class PropriedadeService implements CrudService<PropriedadeRequestDTO, Pr
                 propriedade.getDataUltimaAlteracao(),
                 propriedade.getProprietario().getId(),
                 propriedade.getProprietario().getNome(),
-                propriedade.getComunidade().getId(),
-                propriedade.getComunidade().getNome(),
+                comunidade != null ? comunidade.getId() : null,
+                comunidade != null ? comunidade.getNome() : null,
                 logradouro != null ? logradouro.getUf() : null,
                 logradouro != null ? logradouro.getMunicipio() : null,
                 LogradouroDTO.de(logradouro)
@@ -178,11 +175,15 @@ public class PropriedadeService implements CrudService<PropriedadeRequestDTO, Pr
         return propriedade;
     }
 
-    private Comunidade buscaComunidadePorId(UUID id){
-        Comunidade comunidade = comunidadeRepository.findById(id)
+    /**
+     * Comunidade é opcional: sem id, a propriedade fica sem comunidade (produtor
+     * isolado). Com id, reaproveita a atual quando é a mesma, senão busca.
+     */
+    private Comunidade resolverComunidade(UUID id, Comunidade atual){
+        if (id == null) return null;
+        if (atual != null && atual.getId().equals(id)) return atual;
+        return comunidadeRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Comunidade não encontrada com id: " + id));
-
-                return comunidade;
     }
 
     private Proprietario buscaProprietarioPorId(UUID id){

@@ -63,6 +63,47 @@ class PropriedadeComunidadeIntegrationTest extends AbstractAuthIntegrationTest {
                 .andExpect(jsonPath("$[0].nome").value("Sítio Integração"));
     }
 
+    /** Produtor de semente crioula isolado: a propriedade não precisa de comunidade. */
+    @Test
+    void proprietarioCadastraPropriedadeSemComunidade() throws Exception {
+        Conta eu = cadastrar();
+        String token = login(eu.email(), SENHA);
+
+        String resposta = mockMvc.perform(post("/api/propriedades")
+                        .header(HttpHeaders.AUTHORIZATION, token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"nome": "Sítio Isolado", "tamanhoHectares": 1, "proprietarioId": "%s", "endereco": %s}"""
+                                .formatted(eu.id(), ENDERECO)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.comunidadeId").doesNotExist())
+                .andExpect(jsonPath("$.comunidadeNome").doesNotExist())
+                .andReturn().getResponse().getContentAsString();
+        String id = JsonPath.read(resposta, "$.id");
+
+        mockMvc.perform(get("/api/propriedades/" + id).header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.nome").value("Sítio Isolado"))
+                .andExpect(jsonPath("$.comunidadeId").doesNotExist());
+
+        // Depois pode entrar numa comunidade e sair dela de novo
+        String comunidadeId = solicitarComunidade(token);
+        mockMvc.perform(put("/api/propriedades/" + id)
+                        .header(HttpHeaders.AUTHORIZATION, token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(propriedadeJson("Sítio Isolado", eu.id(), comunidadeId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.comunidadeId").value(comunidadeId));
+        mockMvc.perform(put("/api/propriedades/" + id)
+                        .header(HttpHeaders.AUTHORIZATION, token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"nome": "Sítio Isolado", "tamanhoHectares": 1, "proprietarioId": "%s", "comunidadeId": null}"""
+                                .formatted(eu.id())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.comunidadeId").doesNotExist());
+    }
+
     @Test
     void proprietarioSoVeEsoCriaAsPropriasPropriedades() throws Exception {
         Conta eu = cadastrar();

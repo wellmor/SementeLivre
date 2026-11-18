@@ -822,7 +822,8 @@ CREATE TRIGGER trg_estoque_atualizar_data
 -- DADOS INICIAIS (SEED)
 -- =====================================================
 
--- Admin inicial (senha: admin123 — deve ser alterada em produção)
+-- Admin inicial. A senha do seed foi invalidada (V14); a real vem de
+-- ADMIN_INICIAL_SENHA no primeiro deploy (ver backend/RUNBOOK.md, seção 2.1)
 INSERT INTO logradouro_t (logradouro, numero, bairro, municipio, uf, cep)
 VALUES ('Rua Principal', '100', 'Centro', 'Rio Pomba', 'MG', '36180-000');
 

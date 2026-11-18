@@ -17,7 +17,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/feedback/Toast';
 import { useRouter } from 'next/navigation';
-import { Lock, LogOut, Phone, MapPin, Hash, ChevronRight, User, Shield, ShieldCheck, Mail, Pencil, Accessibility, Trash2 } from 'lucide-react';
+import { Lock, LogOut, Phone, MapPin, Hash, ChevronRight, User, Shield, ShieldCheck, Mail, Pencil, Accessibility, Trash2, Users } from 'lucide-react';
 import { alterarSenhaApi, atualizarProprietarioApi, excluirContaApi } from '@/lib/authApi';
 import { isApiError, renovarToken } from '@/lib/api';
 import { descartarPendentesDaConta, listarPendentes } from '@/lib/filaMovimentacoes';
@@ -360,6 +360,13 @@ export default function PerfilPage() {
               <ShieldCheck size={15} strokeWidth={2} />
             </div>
             <span className={styles.actionLabel}>Aprovar comunidades</span>
+            <ChevronRight size={15} className={styles.actionChevron} />
+          </Link>
+          <Link href="/admin/administradores" className={styles.actionRow} style={{ textDecoration: 'none' }}>
+            <div className={styles.actionIcon}>
+              <Users size={15} strokeWidth={2} />
+            </div>
+            <span className={styles.actionLabel}>Administradores</span>
             <ChevronRight size={15} className={styles.actionChevron} />
           </Link>
         </div>

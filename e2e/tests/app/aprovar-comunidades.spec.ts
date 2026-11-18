@@ -6,12 +6,13 @@ import { semViolacoesGraves } from '../../support/acessibilidade';
 /**
  * Aprovação de comunidades pelo admin no front-app (/admin/comunidades).
  *
- * A conta de admin é a do seeder (V1_3). A senha vem de E2E_ADMIN_SENHA; sem ela,
- * vale a da documentação do modelo de dados. Se o login não passar, os testes de
+ * A conta de admin é a do seeder (V1_3), que nasce sem senha (V14): o backend a
+ * define a partir de ADMIN_INICIAL_SENHA, e os testes usam a mesma em
+ * E2E_ADMIN_SENHA (o CI passa as duas). Se o login não passar, os testes de
  * admin são pulados (o de proprietário roda sempre).
  */
 const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL ?? 'admin@sementelivre.com.br';
-const ADMIN_SENHA = process.env.E2E_ADMIN_SENHA ?? 'admin123';
+const ADMIN_SENHA = process.env.E2E_ADMIN_SENHA ?? '';
 
 async function loginAdmin(): Promise<{ accessToken: string; refreshToken: string } | null> {
   const api = await request.newContext({ baseURL: API_URL });

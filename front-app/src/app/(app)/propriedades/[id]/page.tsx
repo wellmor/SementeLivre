@@ -140,8 +140,8 @@ export default function PropriedadeDetailPage() {
               <Users size={16} strokeWidth={2} className={styles.detailIcon} />
               <span className={styles.detailLabel}>Comunidade</span>
               <span className={styles.detailValue}>
-              {prop.nomeComunidade}
-                {statusComunidade && ` — ${StatusComunidadeLabels[statusComunidade]}`}
+              {prop.nomeComunidade ?? 'Sem comunidade'}
+                {prop.idComunidade && statusComunidade && ` — ${StatusComunidadeLabels[statusComunidade]}`}
             </span>
             </li>
             <li className={styles.detailRow}>

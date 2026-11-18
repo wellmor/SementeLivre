@@ -13,8 +13,8 @@ function paraPropriedade(dto: PropriedadeDTO): Propriedade {
   return {
     idPropriedade: dto.id,
     idProprietario: dto.proprietarioId,
-    idComunidade: dto.comunidadeId,
-    nomeComunidade: dto.comunidadeNome,
+    idComunidade: dto.comunidadeId ?? undefined,
+    nomeComunidade: dto.comunidadeNome ?? undefined,
     nome: dto.nome,
     tamanhoHectares: dto.tamanhoHectares,
     logradouro: end?.logradouro ?? '',
@@ -35,7 +35,7 @@ function paraRequest(p: Omit<Propriedade, 'idPropriedade'>): PropriedadeRequestD
     nome: p.nome.trim(),
     tamanhoHectares: p.tamanhoHectares ?? 0,
     proprietarioId: p.idProprietario,
-    comunidadeId: p.idComunidade,
+    comunidadeId: p.idComunidade || null,
     endereco: {
       logradouro: p.logradouro.trim(),
       numero: opcional(p.numero),

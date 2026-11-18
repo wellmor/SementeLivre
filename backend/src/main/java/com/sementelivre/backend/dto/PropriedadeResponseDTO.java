@@ -14,7 +14,7 @@ public record PropriedadeResponseDTO(
         //Dados do Proprietario relacionado
         UUID proprietarioId,
         String proprietarioNome,
-        //Dados da Comunidade relacionada
+        //Dados da Comunidade relacionada (null quando o produtor é isolado)
         UUID comunidadeId,
         String comunidadeNome,
         //Dados do LOgradouro relacionado

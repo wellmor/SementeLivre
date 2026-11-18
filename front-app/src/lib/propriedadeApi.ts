@@ -36,8 +36,8 @@ export interface PropriedadeDTO {
   dataUltimaAlteracao: string;
   proprietarioId: string;
   proprietarioNome: string;
-  comunidadeId: string;
-  comunidadeNome: string;
+  comunidadeId: string | null;
+  comunidadeNome: string | null;
   logradouroUf: string | null;
   logradouroMunicipio: string | null;
   endereco: EnderecoDTO | null;
@@ -47,7 +47,8 @@ export interface PropriedadeRequestDTO {
   nome: string;
   tamanhoHectares: number;
   proprietarioId: string;
-  comunidadeId: string;
+  /** null = produtor isolado, sem comunidade */
+  comunidadeId: string | null;
   endereco: EnderecoDTO;
 }
 

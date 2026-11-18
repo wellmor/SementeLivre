@@ -15,6 +15,9 @@ public interface UsuarioRepository extends BaseRepository<Usuario, UUID> {
     // Login e recuperacao de senha: o usuario pode digitar o e-mail com outra caixa.
     Optional<Usuario> findByPessoaEmailIgnoreCase(String email);
 
+    // Contas ainda sem senha definida (marcador da V14), para o AdminInicial.
+    List<Usuario> findBySenhaHash(String senhaHash);
+
     // UsuarioResponseDTO le o endereco da pessoa (LAZY) no controller, fora da
     // transacao: sem isto, em producao (open-in-view: false) a resposta dava 500.
     // "roles" entra junto porque o grafo deixa LAZY o que nao estiver nele.

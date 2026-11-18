@@ -47,8 +47,9 @@ public class Propriedade {
     @JoinColumn(name = "proprietario_id", nullable = false)
     private Proprietario proprietario;
 
+    // Opcional: o produtor pode ser isolado, sem comunidade (V13)
     @ManyToOne
-    @JoinColumn(name = "comunidade_id", nullable = false)
+    @JoinColumn(name = "comunidade_id")
     private Comunidade comunidade;
 
     //Utilizei CreationTimestamp e UpdateTimestamp para que o Hibernate gerencie automaticamente as datas de criação e atualização da entidade, garantindo que esses campos sejam preenchidos corretamente sem a necessidade de intervenção manual.

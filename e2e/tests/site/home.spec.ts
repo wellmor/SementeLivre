@@ -1,13 +1,28 @@
 import { test, expect } from '@playwright/test';
 
-/** Página inicial do site: carrossel das comunidades (#181). */
+// O mesmo valor que o build do front-site recebeu (o CI define NEXT_PUBLIC_APP_URL)
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+
+/** Página inicial do site: link do app e carrossel das comunidades (#181). */
 test.describe('Página inicial (front-site)', () => {
-  // O app ainda não está publicado (nem na Play Store): o site não leva a ele
-  test('página inicial não tem link nem seção do app', async ({ page }) => {
+  test('"Acessar o app" do cabeçalho e do "Sobre a Rede" usa NEXT_PUBLIC_APP_URL', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: 'Produtos Disponíveis' })).toBeVisible();
-    await expect(page.getByRole('link', { name: /app/i })).toHaveCount(0);
-    await expect(page.getByRole('heading', { name: /Use o app/ })).toHaveCount(0);
+
+    const cabecalho = page.getByRole('banner').getByRole('link', { name: 'Acessar o app' });
+    const sobre = page.locator('#sobre').getByRole('link', { name: 'Acessar o app' });
+    await expect(cabecalho).toHaveAttribute('href', APP_URL);
+    await expect(sobre).toHaveAttribute('href', APP_URL);
+  });
+
+  test('o botão do cabeçalho aparece no celular e leva à tela de login do app', async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 800 });
+    await page.goto('/');
+
+    const botao = page.getByRole('banner').getByRole('link', { name: 'Acessar o app' });
+    await expect(botao).toBeVisible();
+    await botao.click();
+    // Sem sessão no app, a raiz manda para /entrar
+    await expect(page).toHaveURL(`${APP_URL.replace(/\/$/, '')}/entrar`);
   });
 
   test('carrossel troca de foto pelos botões e pelos indicadores', async ({ page }) => {
