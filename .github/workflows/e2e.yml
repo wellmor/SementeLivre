@@ -50,6 +50,8 @@ jobs:
       E2E_ADMIN_SENHA: admin-e2e-123
       NEXT_PUBLIC_API_URL: http://localhost:8080
       BACKEND_URL: http://localhost:8080
+      # Para onde o "Acessar o app" do front-site leva (entra no build do site)
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
 
     steps:
       - name: Checkout do código
