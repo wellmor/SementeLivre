@@ -1,16 +1,17 @@
 import Link from "next/link";
-import { Sprout } from "lucide-react";
+import { LogIn, Sprout } from "lucide-react";
+import { APP_URL } from "@/lib/app-url";
 
 export default function PublicHeader() {
   return (
     <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-border shadow-sm">
-      <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between gap-4">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
         {/* Brand */}
         <Link href="/" className="flex items-center gap-2.5 group">
           <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center group-hover:bg-primary-dark transition-colors">
             <Sprout className="w-4 h-4 text-white" />
           </div>
-          <span className="font-bold text-primary-dark text-lg tracking-tight">
+          <span className="font-bold text-primary-dark text-lg tracking-tight whitespace-nowrap">
             Semente Livre
           </span>
         </Link>
@@ -33,6 +34,15 @@ export default function PublicHeader() {
             Sobre a Rede
           </Link>
         </nav>
+
+        {/* Fora do <nav>: aparece também no celular, onde os outros links somem */}
+        <a
+          href={APP_URL}
+          className="inline-flex items-center gap-1.5 shrink-0 rounded-lg bg-primary px-3 h-9 text-sm font-medium text-white hover:bg-primary-dark transition-colors focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/50"
+        >
+          <LogIn className="w-4 h-4" aria-hidden="true" />
+          Acessar o app
+        </a>
       </div>
     </header>
   );
