@@ -1,3 +1,8 @@
+# Padrão do servidor do TI:
+# - os dados ficam em pastas do host em /docker/volumes/sementelivre/
+#   (banco, fotos, Caddy e backups), não em volumes nomeados do Docker;
+# - o serviço de entrada (caddy) entra também na rede docker-net, que já existe
+#   no servidor (external: true). O resto fica só na app-network.
 services:
   db:
     image: postgres:15-alpine
@@ -8,7 +13,7 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD:?Defina a variavel DB_PASSWORD no .env}
       POSTGRES_DB: ${DB_NAME:-semente_prod}
     volumes:
-      - postgres_data_prod:/var/lib/postgresql/data
+      - /docker/volumes/sementelivre/postgres:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-semente_user} -d ${DB_NAME:-semente_prod}"]
       interval: 10s
@@ -16,6 +21,21 @@ services:
       retries: 5
     networks:
       - app-network
+
+  # A pasta do host nasce do root, e o backend roda sem root (usuário spring):
+  # sem este passo, o upload de foto falha com "Não foi possível salvar a foto".
+  # Roda e termina antes do app, a cada subida.
+  uploads-permissao:
+    # Mesmo Dockerfile do app (o build sai do cache), para ter o usuário spring
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: semente_livre_uploads_permissao_prod
+    user: root
+    entrypoint: ["sh", "-c", "mkdir -p /app/uploads/produtos && chown -R spring:spring /app/uploads"]
+    volumes:
+      - /docker/volumes/sementelivre/uploads:/app/uploads
+    network_mode: none
 
   app:
     build:
@@ -40,10 +60,12 @@ services:
       ADMIN_INICIAL_SENHA: ${ADMIN_INICIAL_SENHA:-}
     volumes:
       #Persistência de fotos cadastradas pelos produtores
-      - app_uploads_prod:/app/uploads
+      - /docker/volumes/sementelivre/uploads:/app/uploads
     depends_on:
       db:
         condition: service_healthy
+      uploads-permissao:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/actuator/health"]
       interval: 15s
@@ -62,15 +84,18 @@ services:
       - "443:443"
     environment:
       DOMAIN_NAME: ${DOMAIN_NAME:-localhost}
-    command: caddy reverse-proxy --from ${DOMAIN_NAME:-localhost} --to app:8080
+    # Na docker-net, "app" pode ser o serviço de outro projeto do servidor;
+    # o nome do container é único, então o Caddy sempre chega ao nosso backend.
+    command: caddy reverse-proxy --from ${DOMAIN_NAME:-localhost} --to semente_livre_app_prod:8080
     volumes:
-      - caddy_data:/data
-      - caddy_config:/config
+      - /docker/volumes/sementelivre/caddy/data:/data
+      - /docker/volumes/sementelivre/caddy/config:/config
     depends_on:
       app:
         condition: service_healthy
     networks:
       - app-network
+      - docker-net
 
   #Backup automático diário do PostgreSQL (retenção de 7 dias)
   db-backup:
@@ -86,20 +111,15 @@ services:
       BACKUP_KEEP_DAYS: 7
       BACKUP_SUFFIX: .sql.gz
     volumes:
-      - ./backups:/backups
+      - /docker/volumes/sementelivre/backups:/backups
     depends_on:
       db:
         condition: service_healthy
     networks:
       - app-network
 
-volumes:
-  postgres_data_prod:
-  app_uploads_prod:
-  caddy_data:
-  caddy_config:
-
 networks:
   app-network:
     driver: bridge
-    
+  docker-net:
+    external: true

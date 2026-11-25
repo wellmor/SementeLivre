@@ -13,6 +13,25 @@ Para rodar este ambiente em produção (servidor da universidade ou VPS), certif
   - `80` (HTTP)
   - `443` (HTTPS)
 - Domínio ou IP do servidor apontado e acessível
+- A rede Docker compartilhada `docker-net`, padrão do servidor do TI. O compose a usa como `external: true`, então ela precisa existir antes do deploy; sem ela, o `up` para com `network docker-net declared as external, but could not be found`. Se o servidor ainda não tiver a rede:
+  ```bash
+  docker network create docker-net
+  ```
+
+### 1.1. Onde ficam os dados no servidor
+
+Seguindo o padrão do TI, todos os dados persistentes ficam em pastas do host, em `/docker/volumes/sementelivre/` (não há volumes nomeados do Docker). O Docker cria as pastas no primeiro `up`.
+
+| Pasta no host | O que guarda |
+|---|---|
+| `/docker/volumes/sementelivre/postgres` | Dados do PostgreSQL |
+| `/docker/volumes/sementelivre/uploads` | Fotos cadastradas pelos produtores |
+| `/docker/volumes/sementelivre/caddy/data` e `/caddy/config` | Certificados HTTPS e configuração do Caddy |
+| `/docker/volumes/sementelivre/backups` | Backups automáticos do banco (ver seção 5.1) |
+
+O backend roda sem root (usuário `spring`), e a pasta de fotos nasce do root. O serviço `uploads-permissao` resolve isso sozinho: a cada `up`, antes do backend, ele entrega a pasta ao `spring` e termina. Por isso ele aparece como `Exited (0)` em `docker compose ps -a`, o que é normal.
+
+Só o `caddy` entra na `docker-net`; banco, backend e backup ficam só na rede interna do projeto. O Caddy chama o backend pelo nome do container (`semente_livre_app_prod`), porque na `docker-net` o nome `app` pode ser o serviço de outro sistema do servidor.
 
 ---
 
@@ -122,7 +141,7 @@ docker compose -f docker-compose.prod.yml logs -f caddy
 
 ### 5.1. Backup Automático
 O container `semente_livre_backup_prod` executa automaticamente um `pg_dump` todos os dias à meia-noite (`@daily`).
-- Os arquivos compactados são salvos no diretório local `./backups`.
+- Os arquivos compactados são salvos em `/docker/volumes/sementelivre/backups` (subpastas `daily`, `weekly` e `monthly`; o mais recente de cada uma é o `*-latest.sql.gz`).
 - A política de retenção mantém os backups dos últimos **7 dias**, removendo arquivos antigos automaticamente.
 
 ### 5.2. Backup Manual / Sob Demanda
